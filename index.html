@@ -14,16 +14,29 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module">
-      // Executa no GitHub Pages (onde não há servidor Vite ativo) ou no ambiente local de desenvolvimento
-      if (window.location.hostname.endsWith('github.io')) {
-        const s = document.createElement('script');
-        s.type = 'module';
-        s.crossOrigin = 'anonymous';
-        s.src = './assets/app.js';
-        document.body.appendChild(s);
-      } else {
-        import('./src/main.tsx');
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Fallback para GitHub Pages caso o servidor estático sirva diretamente o root sem processar Vite/TSX:
+      if (window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:') {
+        window.addEventListener('DOMContentLoaded', function() {
+          setTimeout(function() {
+            var rootEl = document.getElementById('root');
+            if (rootEl && !rootEl.hasChildNodes()) {
+              var s = document.createElement('script');
+              s.type = 'module';
+              s.crossOrigin = 'anonymous';
+              s.src = './assets/app.js';
+              s.onerror = function() {
+                var s2 = document.createElement('script');
+                s2.type = 'module';
+                s2.crossOrigin = 'anonymous';
+                s2.src = './app.js';
+                document.body.appendChild(s2);
+              };
+              document.body.appendChild(s);
+            }
+          }, 150);
+        });
       }
     </script>
   </body>

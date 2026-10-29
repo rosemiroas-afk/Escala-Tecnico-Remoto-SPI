@@ -23,6 +23,7 @@ import { OffRequestsModal } from './components/OffRequestsModal';
 import { TeamManagementModal } from './components/TeamManagementModal';
 import { WhatsAppModal } from './components/WhatsAppModal';
 import { LoginModal } from './components/LoginModal';
+import { AdminPendingAlert } from './components/AdminPendingAlert';
 
 const STORAGE_KEY_TECHS = 'escalamaster_techs_v2';
 const STORAGE_KEY_PERIOD = 'escalamaster_period_v2';
@@ -30,8 +31,34 @@ const STORAGE_KEY_SCHEDULE = 'escalamaster_schedule_v5';
 const STORAGE_KEY_REQUESTS = 'escalamaster_requests_v2';
 const STORAGE_KEY_USERS = 'escalamaster_users_v2';
 const STORAGE_KEY_AUTH_USER = 'escalamaster_auth_user_v2';
+const STORAGE_KEY_THEME = 'escalamaster_theme_v2';
 
 export default function App() {
+  // Dark Mode State (persisted to localStorage)
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_THEME);
+      if (saved) return saved === 'dark';
+    } catch (e) {
+      console.error('Failed reading dark mode preference', e);
+    }
+    return false;
+  });
+
+  // Keep dark class on html / body in sync
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_THEME, darkMode ? 'dark' : 'light');
+      if (darkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } catch (e) {
+      console.error('Failed saving dark mode preference', e);
+    }
+  }, [darkMode]);
+
   // 1. Period State: Defaults to November + December 2026
   const [period, setPeriod] = useState<SchedulePeriod>(() => {
     try {
@@ -303,6 +330,23 @@ export default function App() {
     alert('Senha resetada com sucesso para o padrão inicial: 1234');
   }, []);
 
+  // Pending Off Requests
+  const pendingRequests = useMemo(() => {
+    return offRequests.filter(r => r.status === 'pendente');
+  }, [offRequests]);
+
+  // Admin Pending Requests Alert Modal
+  const [isAdminAlertOpen, setIsAdminAlertOpen] = useState<boolean>(false);
+  const [hasTriggeredInitialAlert, setHasTriggeredInitialAlert] = useState<boolean>(false);
+
+  // Trigger alert when admin is active and there are pending requests
+  useEffect(() => {
+    if (currentUser?.role === 'admin' && pendingRequests.length > 0 && !hasTriggeredInitialAlert) {
+      setIsAdminAlertOpen(true);
+      setHasTriggeredInitialAlert(true);
+    }
+  }, [currentUser, pendingRequests.length, hasTriggeredInitialAlert]);
+
   // Handler: User Login
   const handleLogin = useCallback((user: AppUser) => {
     setCurrentUser(user);
@@ -310,12 +354,19 @@ export default function App() {
       setActiveTab('individual');
     } else {
       setActiveTab('matrix');
+      const pending = offRequests.filter(r => r.status === 'pendente');
+      if (pending.length > 0) {
+        setIsAdminAlertOpen(true);
+        setHasTriggeredInitialAlert(true);
+      }
     }
-  }, []);
+  }, [offRequests]);
 
   // Handler: User Logout
   const handleLogout = useCallback(() => {
     setCurrentUser(null);
+    setHasTriggeredInitialAlert(false);
+    setIsAdminAlertOpen(false);
   }, []);
 
   // Handler: Update a single shift cell
@@ -367,7 +418,11 @@ export default function App() {
       status: 'pendente'
     };
     setOffRequests(prev => [...prev, newReq]);
-  }, []);
+    // Notify admin if logged in
+    if (currentUser?.role === 'admin') {
+      setIsAdminAlertOpen(true);
+    }
+  }, [currentUser]);
 
   // Handler: Admin Approves Off Request
   const handleApproveRequest = useCallback((id: string) => {
@@ -426,14 +481,19 @@ export default function App() {
   const isAdmin = currentUser?.role === 'admin';
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-800">
+    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
+      darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-800'
+    }`}>
       {/* Top Header & Navigation */}
       <Header
         period={period}
         auditResult={auditResult}
         offRequestsCount={offRequests.length}
+        pendingRequestsCount={pendingRequests.length}
         activeTab={activeTab}
         currentUser={currentUser}
+        darkMode={darkMode}
+        onToggleDarkMode={() => setDarkMode(prev => !prev)}
         onSelectTab={setActiveTab}
         onOpenGenerator={() => setIsGeneratorOpen(true)}
         onOpenRequests={() => handleOpenRequestsModal()}
@@ -445,6 +505,50 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
+        {/* Prominent Pending Requests Alert Banner for Admin */}
+        {isAdmin && pendingRequests.length > 0 && (
+          <div className={`mb-5 p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm transition-all ${
+            darkMode
+              ? 'bg-amber-950/40 border-amber-800/80 text-amber-200'
+              : 'bg-amber-50 border-amber-300 text-amber-900'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold text-lg shrink-0 shadow-sm animate-pulse">
+                🔔
+              </div>
+              <div>
+                <h4 className="font-bold text-sm sm:text-base flex items-center gap-2">
+                  <span>Atenção Administrador: {pendingRequests.length} Solicitação(ões) de Folga Pendente(s)</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-black">
+                    Ação Necessária
+                  </span>
+                </h4>
+                <p className={`text-xs mt-0.5 ${darkMode ? 'text-amber-300/80' : 'text-amber-800'}`}>
+                  Colaboradores enviaram pedidos de folga que aguardam sua aprovação para entrarem na escala oficial.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+              <button
+                onClick={() => setIsAdminAlertOpen(true)}
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-xl text-xs cursor-pointer shadow-sm transition-colors"
+              >
+                Revisar Agora ({pendingRequests.length})
+              </button>
+              <button
+                onClick={() => handleOpenRequestsModal()}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
+                  darkMode
+                    ? 'border-amber-700/80 hover:bg-amber-900/40 text-amber-300'
+                    : 'border-amber-300 hover:bg-amber-100 text-amber-900'
+                }`}
+              >
+                Ver Todas
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* If user is a technician, they strictly see only their individual view! */}
         {!isAdmin && (
           <TechnicianView
@@ -512,6 +616,21 @@ export default function App() {
           </>
         )}
       </main>
+
+      {/* Admin Startup Alert for Pending Requests */}
+      <AdminPendingAlert
+        isOpen={isAdminAlertOpen && isAdmin}
+        onClose={() => setIsAdminAlertOpen(false)}
+        pendingRequests={pendingRequests}
+        technicians={technicians}
+        onApprove={handleApproveRequest}
+        onReject={handleRejectRequest}
+        onOpenAllRequests={() => {
+          setIsAdminAlertOpen(false);
+          setIsRequestsOpen(true);
+        }}
+        darkMode={darkMode}
+      />
 
       {/* Login Modal (Required on first visit or logout) */}
       <LoginModal

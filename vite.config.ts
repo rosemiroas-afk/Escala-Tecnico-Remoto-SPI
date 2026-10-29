@@ -17,7 +17,8 @@ export default defineConfig(() => {
         output: {
           entryFileNames: 'assets/app.js',
           chunkFileNames: 'assets/[name].js',
-          assetFileNames: 'assets/[name].[ext]',
+          assetFileNames: 'assets/main.css',
+          inlineDynamicImports: true,
         },
       },
     },

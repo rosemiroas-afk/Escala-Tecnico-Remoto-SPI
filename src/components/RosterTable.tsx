@@ -112,11 +112,11 @@ export const RosterTable: React.FC<RosterTableProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col transition-colors">
       {/* Top Filter and Search Bar */}
-      <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
+      <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-900">
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mr-1">
             <Filter className="w-3.5 h-3.5" />
             Região DDD:
           </div>
@@ -125,8 +125,8 @@ export const RosterTable: React.FC<RosterTableProps> = ({
             onClick={() => setSelectedDDD('all')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               selectedDDD === 'all'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                ? 'bg-slate-900 dark:bg-indigo-600 text-white shadow-xs'
+                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
             }`}
           >
             Todos ({technicians.filter(t => t.active).length})
@@ -142,11 +142,11 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                   isSelected
                     ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
                 }`}
               >
                 <span>DDD {ddd}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
                   {count}
                 </span>
               </button>
@@ -162,30 +162,30 @@ export const RosterTable: React.FC<RosterTableProps> = ({
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Buscar técnico..."
-            className="w-full text-xs bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-1.5 text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500"
+            className="w-full text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500"
           />
         </div>
       </div>
 
       {/* Main Roster Matrix Table */}
-      <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-270px)] border-t border-slate-100">
+      <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-270px)] border-t border-slate-100 dark:border-slate-800">
         <table className="w-full text-left border-collapse min-w-max select-none">
           <thead>
             {/* Top Month Group Headers */}
-            <tr className="bg-slate-100 text-slate-700 text-xs font-semibold border-b border-slate-200 sticky top-0 z-30">
-              <th className="sticky left-0 z-40 bg-slate-100 px-3 py-2 min-w-[220px] border-r border-slate-200 shadow-xs">
+            <tr className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+              <th className="sticky left-0 z-40 bg-slate-100 dark:bg-slate-800 px-3 py-2 min-w-[220px] border-r border-slate-200 dark:border-slate-700 shadow-xs">
                 Técnico & Região
               </th>
-              <th className="sticky left-[220px] z-40 bg-slate-100 px-2 py-2 min-w-[110px] text-center border-r border-slate-200 text-[11px]">
+              <th className="sticky left-[220px] z-40 bg-slate-100 dark:bg-slate-800 px-2 py-2 min-w-[110px] text-center border-r border-slate-200 dark:border-slate-700 text-[11px]">
                 Escala (Horário)
               </th>
-              <th className="sticky left-[330px] z-40 bg-slate-100 px-2 py-2 w-[65px] text-center border-r border-slate-200 text-[11px]">
+              <th className="sticky left-[330px] z-40 bg-slate-100 dark:bg-slate-800 px-2 py-2 w-[65px] text-center border-r border-slate-200 dark:border-slate-700 text-[11px]">
                 TB (Trab)
               </th>
-              <th className="sticky left-[395px] z-40 bg-slate-100 px-2 py-2 w-[65px] text-center border-r border-slate-200 text-[11px]">
+              <th className="sticky left-[395px] z-40 bg-slate-100 dark:bg-slate-800 px-2 py-2 w-[65px] text-center border-r border-slate-200 dark:border-slate-700 text-[11px]">
                 Folgas
               </th>
-              <th className="sticky left-[460px] z-40 bg-slate-100 px-2 py-2 w-[70px] text-center border-r border-slate-300 text-[11px] shadow-r">
+              <th className="sticky left-[460px] z-40 bg-slate-100 dark:bg-slate-800 px-2 py-2 w-[70px] text-center border-r border-slate-300 dark:border-slate-700 text-[11px] shadow-r">
                 FD (Dupla)
               </th>
 
@@ -193,7 +193,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                 <th
                   key={i}
                   colSpan={mg.dates.length}
-                  className="px-4 py-2 text-center border-r border-slate-300 bg-gradient-to-r from-slate-100 to-indigo-50/50 text-indigo-900 font-bold uppercase tracking-wider text-[11px]"
+                  className="px-4 py-2 text-center border-r border-slate-300 dark:border-slate-700 bg-gradient-to-r from-slate-100 to-indigo-50/50 dark:from-slate-800 dark:to-indigo-950/60 text-indigo-900 dark:text-indigo-300 font-bold uppercase tracking-wider text-[11px]"
                 >
                   {mg.monthName} {mg.year} ({mg.dates.length} dias)
                 </th>
@@ -201,20 +201,20 @@ export const RosterTable: React.FC<RosterTableProps> = ({
             </tr>
 
             {/* Second Header Row: Days of Week */}
-            <tr className="bg-slate-50 text-[10px] font-bold text-slate-600 border-b border-slate-200 sticky top-[33px] z-30">
-              <th className="sticky left-0 z-40 bg-slate-50 px-3 py-1.5 border-r border-slate-200">
+            <tr className="bg-slate-50 dark:bg-slate-850 dark:bg-slate-800/90 text-[10px] font-bold text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 sticky top-[33px] z-30">
+              <th className="sticky left-0 z-40 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 border-r border-slate-200 dark:border-slate-700">
                 {filteredTechs.length} técnicos
               </th>
-              <th className="sticky left-[220px] z-40 bg-slate-50 px-2 py-1.5 text-center border-r border-slate-200 text-slate-400">
+              <th className="sticky left-[220px] z-40 bg-slate-50 dark:bg-slate-800 px-2 py-1.5 text-center border-r border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-400">
                 Turno
               </th>
-              <th className="sticky left-[330px] z-40 bg-slate-50 px-1 py-1.5 text-center border-r border-slate-200 text-slate-400">
+              <th className="sticky left-[330px] z-40 bg-slate-50 dark:bg-slate-800 px-1 py-1.5 text-center border-r border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-400">
                 Total
               </th>
-              <th className="sticky left-[395px] z-40 bg-slate-50 px-1 py-1.5 text-center border-r border-slate-200 text-slate-400">
+              <th className="sticky left-[395px] z-40 bg-slate-50 dark:bg-slate-800 px-1 py-1.5 text-center border-r border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-400">
                 Total
               </th>
-              <th className="sticky left-[460px] z-40 bg-slate-50 px-1 py-1.5 text-center border-r border-slate-300 text-slate-400 shadow-r">
+              <th className="sticky left-[460px] z-40 bg-slate-50 dark:bg-slate-800 px-1 py-1.5 text-center border-r border-slate-300 dark:border-slate-700 text-slate-400 dark:text-slate-400 shadow-r">
                 Sáb+Dom
               </th>
 
@@ -295,13 +295,13 @@ export const RosterTable: React.FC<RosterTableProps> = ({
               return (
                 <tr
                   key={tech.id}
-                  className="hover:bg-indigo-50/20 transition-colors group"
+                  className="hover:bg-indigo-50/20 dark:hover:bg-slate-800/60 transition-colors group"
                 >
                   {/* Sticky Column: Name and DDD */}
-                  <td className="sticky left-0 z-20 bg-white group-hover:bg-indigo-50/30 px-3 py-1.5 border-r border-slate-200 shadow-xs">
+                  <td className="sticky left-0 z-20 bg-white dark:bg-slate-900 group-hover:bg-indigo-50/30 dark:group-hover:bg-slate-800 px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 shadow-xs">
                     <div className="flex items-center justify-between gap-1">
                       <div className="truncate max-w-[165px]">
-                        <span className="font-bold text-slate-800 block text-xs truncate">
+                        <span className="font-bold text-slate-800 dark:text-slate-100 block text-xs truncate">
                           {tech.name}
                         </span>
                         <span className={`inline-block text-[9px] px-1.5 py-0.1 rounded-md font-bold border ${dddConfig?.badge || 'bg-slate-100'}`}>
@@ -326,23 +326,23 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                   </td>
 
                   {/* Sticky Column: Shift Hours (ESCALA) */}
-                  <td className="sticky left-[220px] z-20 bg-white group-hover:bg-indigo-50/30 px-2 py-1.5 text-center border-r border-slate-200 text-[10px] font-bold text-slate-600">
+                  <td className="sticky left-[220px] z-20 bg-white dark:bg-slate-900 group-hover:bg-indigo-50/30 dark:group-hover:bg-slate-800 px-2 py-1.5 text-center border-r border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-400">
                     {tech.shiftHours || '08:00 AS 16:20'}
                   </td>
 
                   {/* Sticky Stats Columns */}
-                  <td className="sticky left-[330px] z-20 bg-white group-hover:bg-indigo-50/30 px-1 py-1.5 text-center border-r border-slate-200 font-bold text-emerald-800 text-xs">
+                  <td className="sticky left-[330px] z-20 bg-white dark:bg-slate-900 group-hover:bg-indigo-50/30 dark:group-hover:bg-slate-800 px-1 py-1.5 text-center border-r border-slate-200 dark:border-slate-800 font-bold text-emerald-800 dark:text-emerald-400 text-xs">
                     {stats.totalWorkDays}
                   </td>
-                  <td className="sticky left-[395px] z-20 bg-white group-hover:bg-indigo-50/30 px-1 py-1.5 text-center border-r border-slate-200 font-bold text-yellow-900 text-xs">
+                  <td className="sticky left-[395px] z-20 bg-white dark:bg-slate-900 group-hover:bg-indigo-50/30 dark:group-hover:bg-slate-800 px-1 py-1.5 text-center border-r border-slate-200 dark:border-slate-800 font-bold text-yellow-900 dark:text-yellow-400 text-xs">
                     {stats.totalOffDays}
                   </td>
-                  <td className="sticky left-[460px] z-20 bg-white group-hover:bg-indigo-50/30 px-1 py-1.5 text-center border-r border-slate-300 text-xs shadow-r">
+                  <td className="sticky left-[460px] z-20 bg-white dark:bg-slate-900 group-hover:bg-indigo-50/30 dark:group-hover:bg-slate-800 px-1 py-1.5 text-center border-r border-slate-300 dark:border-slate-700 text-xs shadow-r">
                     <span
                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-bold text-[10px] ${
                         stats.doubleWeekendsCount > 0
-                          ? 'bg-orange-100 text-orange-800'
-                          : 'bg-rose-100 text-rose-700'
+                          ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-800 dark:text-orange-300 border border-orange-300 dark:border-orange-800'
+                          : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
                       }`}
                     >
                       {stats.doubleWeekendsCount > 0 && <Star className="w-2.5 h-2.5 fill-orange-600" />}
@@ -360,13 +360,17 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                     const offReq = requestsMap.get(`${tech.id}__${dateKey}`);
 
                     const badgeStyle = getShiftBadgeStyle(shift);
-                    const cellBg = isSun ? 'bg-yellow-50/30' : isSat ? 'bg-rose-50/20' : '';
+                    const cellBg = isSun
+                      ? 'bg-yellow-50/30 dark:bg-yellow-950/20'
+                      : isSat
+                      ? 'bg-rose-50/20 dark:bg-rose-950/20'
+                      : '';
 
                     return (
                       <td
                         key={dateKey}
                         onClick={() => handleCellClick(tech.id, dateKey, shift as ShiftType)}
-                        className={`p-0.5 text-center border-r border-slate-100 cursor-pointer transition-colors relative hover:ring-2 hover:ring-indigo-400 hover:z-10 ${cellBg}`}
+                        className={`p-0.5 text-center border-r border-slate-100 dark:border-slate-800 cursor-pointer transition-colors relative hover:ring-2 hover:ring-indigo-400 hover:z-10 ${cellBg}`}
                         title={`${tech.name} - ${formatDisplayDate(dateKey)}: ${shift} - Clique para alternar`}
                       >
                         <div className="w-full h-7 flex items-center justify-center relative">
@@ -381,7 +385,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                                 e.stopPropagation();
                                 onOpenRequests(tech.id);
                               }}
-                              className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-white cursor-pointer ${
+                              className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-white dark:border-slate-900 cursor-pointer ${
                                 offReq.status === 'atendido' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
                               }`}
                               title={
@@ -403,9 +407,9 @@ export const RosterTable: React.FC<RosterTableProps> = ({
       </div>
 
       {/* Official Legenda matching User's Spreadsheet */}
-      <div className="p-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between flex-wrap gap-2 text-xs text-slate-700">
+      <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-between flex-wrap gap-2 text-xs text-slate-700 dark:text-slate-300">
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="font-extrabold text-slate-900 text-xs">LEGENDA SPI:</span>
+          <span className="font-extrabold text-slate-900 dark:text-white text-xs">LEGENDA SPI:</span>
 
           <div className="flex items-center gap-1">
             <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">TB</span>

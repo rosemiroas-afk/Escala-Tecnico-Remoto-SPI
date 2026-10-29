@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build && node -e \"const fs=require('fs'); fs.mkdirSync('assets', {recursive:true}); fs.mkdirSync('docs', {recursive:true}); fs.cpSync('dist/assets', 'assets', {recursive:true}); fs.cpSync('dist', 'docs', {recursive:true}); try { fs.copyFileSync('dist/index.html', 'docs/404.html'); fs.copyFileSync('dist/index.html', '404.html'); } catch(e){}\"",
+    "build": "vite build && node -e \"const fs=require('fs'); fs.mkdirSync('assets', {recursive:true}); fs.mkdirSync('docs/assets', {recursive:true}); fs.cpSync('dist/assets', 'assets', {recursive:true}); fs.cpSync('dist', 'docs', {recursive:true}); try { if(fs.existsSync('assets/main.css')) { fs.copyFileSync('assets/main.css', 'main.css'); fs.copyFileSync('assets/main.css', 'assets/index.css'); fs.copyFileSync('assets/main.css', 'index.css'); fs.copyFileSync('assets/main.css', 'docs/assets/index.css'); fs.copyFileSync('assets/main.css', 'docs/assets/main.css'); } if(fs.existsSync('assets/app.js')) { fs.copyFileSync('assets/app.js', 'app.js'); fs.copyFileSync('assets/app.js', 'assets/main.js'); fs.copyFileSync('assets/app.js', 'main.js'); fs.copyFileSync('assets/app.js', 'docs/assets/main.js'); fs.copyFileSync('assets/app.js', 'docs/assets/app.js'); } fs.copyFileSync('dist/index.html', 'docs/404.html'); fs.copyFileSync('dist/index.html', '404.html'); } catch(e){ console.error(e); }\"",
     "preview": "vite preview",
     "clean": "rm -rf dist docs server.js",
     "lint": "tsc --noEmit"

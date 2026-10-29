@@ -98,7 +98,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="bg-gradient-to-br from-indigo-700 via-indigo-600 to-blue-700 p-6 text-white text-center relative">
           <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-3 backdrop-blur-xs border border-white/20">
@@ -122,8 +122,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             /* Standard Login Step */
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-indigo-600" />
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                   Identificação do Usuário:
                 </label>
                 <select
@@ -132,7 +132,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     setSelectedUserId(e.target.value);
                     setErrorMsg('');
                   }}
-                  className="w-full text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-3 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                  className="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-3 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-800 transition-all"
                 >
                   <option value="admin">Administrador Geral</option>
                   {[...technicians]
@@ -148,11 +148,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                     Código PIN / Senha de Acesso:
                   </label>
-                  <span className="text-[11px] text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded-md">
+                  <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
                     Inicial: 1234
                   </span>
                 </div>
@@ -166,14 +166,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                       setErrorMsg('');
                     }}
                     placeholder="Digite seu PIN (padrão: 1234)"
-                    className="w-full text-sm font-bold bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-3 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white tracking-widest transition-all"
+                    className="w-full text-sm font-bold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-3 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-800 tracking-widest transition-all"
                     autoFocus
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPin(!showPin)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
                   >
                     {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -181,7 +181,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </div>
 
               {errorMsg && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-xl text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
                   <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
                   <span>{errorMsg}</span>
                 </div>
@@ -189,13 +189,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm shadow-md shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
               >
                 <span>Acessar Meu Painel</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-500 space-y-1">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
                 <p>🔒 <strong>Segurança Individual:</strong> Cada técnico visualiza exclusivamente sua própria escala e folgas.</p>
                 <p>🔑 <strong>Primeiro Acesso:</strong> Ao entrar pela primeira vez com o PIN <strong>1234</strong>, o sistema solicitará o cadastro de uma nova senha pessoal.</p>
               </div>

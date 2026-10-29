@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Escala Técnico Remoto São Paulo Interior</title>
+    <meta name="description" content="Sistema de gestão e distribuição de escalas 6x1 para técnicos remotos de São Paulo Interior (DDDs 13, 14, 15 e 19)." />
+    <meta property="og:title" content="Escala Técnico Remoto São Paulo Interior" />
+    <meta property="og:description" content="Sistema de gestão e distribuição de escalas 6x1 para técnicos remotos de São Paulo Interior (DDDs 13, 14, 15 e 19)." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📅</text></svg>">
+    <script type="module" crossorigin src="./assets/app.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/main.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Fallback para GitHub Pages caso o servidor estático sirva diretamente o root sem processar Vite/TSX:
+      if (window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:') {
+        window.addEventListener('DOMContentLoaded', function() {
+          setTimeout(function() {
+            var rootEl = document.getElementById('root');
+            if (rootEl && !rootEl.hasChildNodes()) {
+              var s = document.createElement('script');
+              s.type = 'module';
+              s.crossOrigin = 'anonymous';
+              s.src = './assets/app.js';
+              s.onerror = function() {
+                var s2 = document.createElement('script');
+                s2.type = 'module';
+                s2.crossOrigin = 'anonymous';
+                s2.src = './app.js';
+                document.body.appendChild(s2);
+              };
+              document.body.appendChild(s);
+            }
+          }, 150);
+        });
+      }
+    </script>
+  </body>
+</html>

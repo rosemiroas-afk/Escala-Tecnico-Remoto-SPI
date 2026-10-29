@@ -117,23 +117,23 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Profile / Selector Card */}
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 transition-colors">
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-2xs">
             <User className="w-6 h-6" />
           </div>
 
           <div>
             {isAdmin ? (
               <>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                   Selecione o Técnico para Visualização Individual:
                 </label>
                 <div className="flex items-center gap-2 flex-wrap">
                   <select
                     value={selectedTechId}
                     onChange={e => setSelectedTechId(e.target.value)}
-                    className="text-base font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 min-w-[280px]"
+                    className="text-base font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 min-w-[280px]"
                   >
                     {[...activeTechs]
                       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
@@ -143,8 +143,8 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                         </option>
                       ))}
                   </select>
-                  <span className="text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200 px-3 py-2 rounded-xl flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-xl flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                     Turno: {currentTech.shiftHours || '08:00 AS 16:20'}
                   </span>
                 </div>
@@ -152,21 +152,21 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
             ) : (
               <>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-300 uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/80 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
                     Seu Painel Individual Privativo
                   </span>
-                  <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                     DDD {currentTech.ddd}
                   </span>
-                  <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1">
                     <Clock className="w-3 h-3 text-indigo-500" />
                     {currentTech.shiftHours || '08:00 AS 16:20'}
                   </span>
                 </div>
-                <h2 className="text-lg font-black text-slate-900 mt-1">
+                <h2 className="text-lg font-black text-slate-900 dark:text-white mt-1">
                   {currentTech.name}
                 </h2>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   {DDD_INFO[currentTech.ddd]?.region} • Escala 6x1 Pessoal
                 </p>
               </>
@@ -229,62 +229,62 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         </div>
 
         {/* Total Offs */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span className="text-xs font-semibold uppercase tracking-wider">Total de Folgas</span>
             <Calendar className="w-5 h-5 text-blue-500" />
           </div>
           <div className="my-3">
-            <div className="text-3xl font-extrabold text-slate-800">
+            <div className="text-3xl font-extrabold text-slate-800 dark:text-slate-100">
               {currentStats?.totalOffDays || 0} dias
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Sendo {currentStats?.weekendDaysOff || 0} dias em finais de semana
             </p>
           </div>
-          <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg font-medium w-fit">
+          <div className="text-[11px] text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 px-2.5 py-1 rounded-lg font-medium w-fit">
             Regime 6x1 regular
           </div>
         </div>
 
         {/* Consecutive Days Work Status */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span className="text-xs font-semibold uppercase tracking-wider">Dias Seguidos Máx.</span>
             <ShieldCheck className="w-5 h-5 text-emerald-500" />
           </div>
           <div className="my-3">
             <div className={`text-3xl font-extrabold ${
-              (currentStats?.maxConsecutiveWorkDays || 0) > 6 ? 'text-rose-600' : 'text-emerald-700'
+              (currentStats?.maxConsecutiveWorkDays || 0) > 6 ? 'text-rose-600' : 'text-emerald-700 dark:text-emerald-400'
             }`}>
               {currentStats?.maxConsecutiveWorkDays || 0} dias
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               {(currentStats?.maxConsecutiveWorkDays || 0) <= 6
                 ? '✅ Conforme com o limite legal CLT'
                 : '⚠️ Violação do limite de 6 dias'}
             </p>
           </div>
-          <div className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-medium w-fit">
+          <div className="text-[11px] text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-lg font-medium w-fit">
             Máximo 6 dias de trabalho seguidos
           </div>
         </div>
 
         {/* Inversions Count */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span className="text-xs font-semibold uppercase tracking-wider">Inversões de Escala</span>
             <Sparkles className="w-5 h-5 text-indigo-500" />
           </div>
           <div className="my-3">
-            <div className="text-3xl font-extrabold text-indigo-700">
+            <div className="text-3xl font-extrabold text-indigo-700 dark:text-indigo-400">
               {currentStats?.inversionsCount || 0}
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               Folga compensatória de segunda a quinta
             </p>
           </div>
-          <div className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg font-medium w-fit">
+          <div className="text-[11px] text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-2.5 py-1 rounded-lg font-medium w-fit">
             Meta bimestral: ~2 inversões
           </div>
         </div>
@@ -293,13 +293,13 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
       {/* Main Grid: Calendar View + Requests */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Calendar Grid (8 cols) */}
-        <div className="lg:col-span-8 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+        <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div>
-              <h3 className="text-base font-bold text-slate-800">
+              <h3 className="text-base font-bold text-slate-800 dark:text-white">
                 Calendário da Escala - {currentTech.name}
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {isAdmin
                   ? 'Clique em qualquer dia para alterar o status.'
                   : 'Suas folgas programadas e dias de trabalho para o bimestre.'}
@@ -321,29 +321,29 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
               const dayNum = dObj.getDate();
               const req = techRequests.find(r => r.date === d);
 
-              let cardStyle = 'bg-slate-50 border-slate-200 text-slate-700 hover:border-indigo-300';
-              let badgeColor = 'bg-slate-200 text-slate-800';
+              let cardStyle = 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-500';
+              let badgeColor = 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200';
               let shiftTitle = 'Trabalho';
 
               if (shift === 'FD') {
-                cardStyle = 'bg-orange-50 border-orange-300 text-orange-950 shadow-xs ring-1 ring-orange-300';
-                badgeColor = 'bg-orange-300 text-orange-950 font-black';
+                cardStyle = 'bg-orange-50 dark:bg-orange-950/40 border-orange-300 dark:border-orange-800 text-orange-950 dark:text-orange-200 shadow-xs ring-1 ring-orange-300 dark:ring-orange-800';
+                badgeColor = 'bg-orange-300 dark:bg-orange-900 text-orange-950 dark:text-orange-100 font-black';
                 shiftTitle = 'Folga Dupla';
               } else if (shift === 'FG') {
-                cardStyle = 'bg-yellow-50 border-yellow-300 text-yellow-950 shadow-xs';
-                badgeColor = 'bg-yellow-200 text-yellow-950 font-bold';
+                cardStyle = 'bg-yellow-50 dark:bg-yellow-950/40 border-yellow-300 dark:border-yellow-800 text-yellow-950 dark:text-yellow-200 shadow-xs';
+                badgeColor = 'bg-yellow-200 dark:bg-yellow-900 text-yellow-950 dark:text-yellow-100 font-bold';
                 shiftTitle = 'Folga Regular';
               } else if (shift === 'FC') {
-                cardStyle = 'bg-indigo-50 border-indigo-200 text-indigo-950';
-                badgeColor = 'bg-indigo-100 text-indigo-900 font-bold';
+                cardStyle = 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 text-indigo-950 dark:text-indigo-200';
+                badgeColor = 'bg-indigo-100 dark:bg-indigo-900 text-indigo-900 dark:text-indigo-200 font-bold';
                 shiftTitle = 'Compensada';
               } else if (shift === 'TB') {
-                cardStyle = 'bg-white border-slate-200 text-slate-800 hover:bg-emerald-50/30';
-                badgeColor = 'bg-emerald-100 text-emerald-900 font-semibold';
+                cardStyle = 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20';
+                badgeColor = 'bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-300 font-semibold border dark:border-emerald-800/60';
                 shiftTitle = 'Trabalho';
               } else if (shift === 'FN') {
-                cardStyle = 'bg-sky-50 border-sky-200 text-sky-950';
-                badgeColor = 'bg-sky-200 text-sky-950 font-bold';
+                cardStyle = 'bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800 text-sky-950 dark:text-sky-200';
+                badgeColor = 'bg-sky-200 dark:bg-sky-900 text-sky-950 dark:text-sky-200 font-bold';
                 shiftTitle = 'Feriado';
               }
 
