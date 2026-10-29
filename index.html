@@ -10,22 +10,21 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📅</text></svg>">
-    <script>
-      // Redirecionamento automático no GitHub Pages para a pasta compilada /docs/
-      // Isso elimina definitivamente o erro de MIME type ("application/octet-stream") do navegador.
-      (function() {
-        if (window.location.hostname.endsWith('github.io')) {
-          var p = window.location.pathname;
-          if (!p.includes('/docs')) {
-            if (!p.endsWith('/')) p += '/';
-            window.location.replace(p + 'docs/');
-          }
-        }
-      })();
-    </script>
+    <link rel="stylesheet" href="./assets/main.css">
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="./src/main.tsx"></script>
+    <script type="module">
+      // Executa no GitHub Pages (onde não há servidor Vite ativo) ou no ambiente local de desenvolvimento
+      if (window.location.hostname.endsWith('github.io')) {
+        const s = document.createElement('script');
+        s.type = 'module';
+        s.crossOrigin = 'anonymous';
+        s.src = './assets/app.js';
+        document.body.appendChild(s);
+      } else {
+        import('./src/main.tsx');
+      }
+    </script>
   </body>
 </html>

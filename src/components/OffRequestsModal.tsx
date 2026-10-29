@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Technician, OffRequest, AppUser } from '../types';
 import { formatDisplayDate } from '../utils/dateUtils';
-import { X, Plus, Trash2, Calendar, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { X, Plus, Trash2, Calendar, CheckCircle2, Clock, Check, Ban } from 'lucide-react';
 
 interface OffRequestsModalProps {
   isOpen: boolean;
@@ -12,6 +12,8 @@ interface OffRequestsModalProps {
   currentUser?: AppUser | null;
   onAddRequest: (req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => void;
   onDeleteRequest: (id: string) => void;
+  onApproveRequest?: (id: string) => void;
+  onRejectRequest?: (id: string) => void;
   schedules: Record<string, { days: Record<string, { shift: string }> }>;
 }
 
@@ -24,6 +26,8 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
   currentUser,
   onAddRequest,
   onDeleteRequest,
+  onApproveRequest,
+  onRejectRequest,
   schedules
 }) => {
   const isAdmin = currentUser?.role === 'admin';
@@ -80,6 +84,11 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
     setObservations(['']);
   };
 
+  // Sort technicians alphabetically without DDD prefixes
+  const sortedTechs = [...technicians]
+    .filter(t => t.active)
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+
   const filteredRequests = filterTech === 'all'
     ? requests
     : requests.filter(r => r.technicianId === filterTech);
@@ -95,7 +104,7 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
               Solicitações de Folga dos Técnicos
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Registre compromissos, casamentos ou consultas médicas com observações para priorização na escala.
+              Toda solicitação permanece <strong>Em Análise</strong> até que o administrador aprove individualmente.
             </p>
           </div>
           <button
@@ -124,17 +133,17 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                   <select
                     value={selectedTechId}
                     onChange={e => setSelectedTechId(e.target.value)}
-                    className="w-full text-sm bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="w-full text-xs font-semibold bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-indigo-500"
                   >
-                    {technicians.map(t => (
+                    {sortedTechs.map(t => (
                       <option key={t.id} value={t.id}>
-                        [DDD {t.ddd}] {t.name}
+                        {t.name}
                       </option>
                     ))}
                   </select>
                 ) : (
-                  <div className="w-full text-xs font-bold bg-slate-100 border border-slate-200 rounded-lg px-3 py-2.5 text-slate-900">
-                    {technicians.find(t => t.id === myTechId)?.name} (DDD {currentUser?.ddd})
+                  <div className="w-full text-xs font-bold bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 text-slate-900">
+                    {technicians.find(t => t.id === myTechId)?.name}
                   </div>
                 )}
               </div>
@@ -146,7 +155,7 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                 <select
                   value={selectedDate}
                   onChange={e => setSelectedDate(e.target.value)}
-                  className="w-full text-sm bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-indigo-500"
                 >
                   {dates.map(d => (
                     <option key={d} value={d}>
@@ -156,73 +165,80 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Motivo:
-                  </label>
-                  <select
-                    value={category}
-                    onChange={e => setCategory(e.target.value as any)}
-                    className="w-full text-sm bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="casamento">Casamento</option>
-                    <option value="medico">Médico / Consulta</option>
-                    <option value="aniversario">Aniversário</option>
-                    <option value="pessoal">Pessoal / Familiar</option>
-                    <option value="outro">Outro Compromisso</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Motivo Principal:
+                </label>
+                <select
+                  value={category}
+                  onChange={e => setCategory(e.target.value as any)}
+                  className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="casamento">Casamento</option>
+                  <option value="medico">Consulta / Procedimento Médico</option>
+                  <option value="aniversario">Aniversário / Celebração</option>
+                  <option value="pessoal">Compromisso Pessoal</option>
+                  <option value="outro">Outro Motivo</option>
+                </select>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Prioridade:
-                  </label>
-                  <select
-                    value={priority}
-                    onChange={e => setPriority(e.target.value as any)}
-                    className="w-full text-sm bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="alta">Alta (Essencial)</option>
-                    <option value="media">Média</option>
-                    <option value="baixa">Baixa (Flexível)</option>
-                  </select>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Prioridade:
+                </label>
+                <div className="flex gap-2">
+                  {(['alta', 'media', 'baixa'] as const).map(p => (
+                    <button
+                      type="button"
+                      key={p}
+                      onClick={() => setPriority(p)}
+                      className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border cursor-pointer capitalize transition-all ${
+                        priority === p
+                          ? p === 'alta'
+                            ? 'bg-rose-50 border-rose-300 text-rose-700'
+                            : p === 'media'
+                            ? 'bg-amber-50 border-amber-300 text-amber-700'
+                            : 'bg-slate-100 border-slate-300 text-slate-700'
+                          : 'bg-white border-slate-200 text-slate-500'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* N Observações para o mesmo dia */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-medium text-slate-700">
-                    Observações e Justificativas (N):
+                    Observações do Pedido:
                   </label>
                   <button
                     type="button"
                     onClick={handleAddObsField}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
+                    className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    Adicionar nota
+                    + Adicionar Observação
                   </button>
                 </div>
-
                 <div className="space-y-2">
                   {observations.map((obs, idx) => (
-                    <div key={idx} className="flex gap-2 items-center">
+                    <div key={idx} className="flex gap-1.5">
                       <input
                         type="text"
                         value={obs}
                         onChange={e => handleUpdateObs(idx, e.target.value)}
-                        placeholder={idx === 0 ? "Ex: Casamento de irmão em Campinas" : "Ex: Não posso trabalhar de noite"}
-                        className="flex-1 text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                        placeholder={`Observação ${idx + 1}...`}
+                        className="flex-1 text-xs bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-800"
+                        required={idx === 0}
                       />
                       {observations.length > 1 && (
                         <button
                           type="button"
                           onClick={() => handleRemoveObsField(idx)}
-                          className="text-slate-400 hover:text-rose-500 p-1"
+                          className="px-2 text-rose-500 hover:text-rose-700"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          ×
                         </button>
                       )}
                     </div>
@@ -232,19 +248,19 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
 
               <button
                 type="submit"
-                className="w-full mt-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-sm shadow-xs transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
               >
                 <Plus className="w-4 h-4" />
-                Registrar Solicitação
+                Cadastrar Solicitação (Em Análise)
               </button>
             </form>
           </div>
 
-          {/* List of registered requests (7 cols) */}
+          {/* List of existing requests (7 cols) */}
           <div className="md:col-span-7 flex flex-col">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-slate-800 text-sm">
-                {isAdmin ? `Solicitações Cadastradas (${filteredRequests.length})` : `Minhas Solicitações (${filteredRequests.length})`}
+                Solicitações Registradas ({filteredRequests.length})
               </h3>
 
               {isAdmin && (
@@ -253,8 +269,8 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                   onChange={e => setFilterTech(e.target.value)}
                   className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700"
                 >
-                  <option value="all">Todos os técnicos</option>
-                  {technicians.map(t => (
+                  <option value="all">Todos os técnicos (Ordem Alfabética)</option>
+                  {sortedTechs.map(t => (
                     <option key={t.id} value={t.id}>
                       {t.name}
                     </option>
@@ -268,15 +284,16 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                 <Calendar className="w-12 h-12 mb-2 text-slate-300" />
                 <p className="text-sm font-medium text-slate-600">Nenhuma solicitação cadastrada</p>
                 <p className="text-xs text-slate-400 max-w-xs mt-1">
-                  Os técnicos podem registrar pedidos com antecedência para que o redistribuidor organize a escala.
+                  Os colaboradores podem registrar pedidos que ficam aguardando a aprovação do administrador.
                 </p>
               </div>
             ) : (
               <div className="space-y-3 flex-1 overflow-y-auto pr-1">
                 {filteredRequests.map(req => {
                   const tech = technicians.find(t => t.id === req.technicianId);
-                  const currentShift = schedules[req.technicianId]?.days[req.date]?.shift;
-                  const isFulfilled = currentShift === 'F' || currentShift === 'FD';
+                  const isApproved = req.status === 'atendido';
+                  const isRejected = req.status === 'recusado';
+                  const isPending = !isApproved && !isRejected;
 
                   return (
                     <div
@@ -285,11 +302,8 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-slate-900 text-sm">
+                          <span className="font-bold text-slate-900 text-sm">
                             {tech?.name || 'Técnico'}
-                          </span>
-                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium">
-                            DDD {tech?.ddd}
                           </span>
                           <span className="text-[11px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200">
                             {req.reasonCategory}
@@ -301,9 +315,9 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                           )}
                         </div>
 
-                        <div className="text-xs font-semibold text-indigo-900 mt-1 flex items-center gap-1.5">
+                        <div className="text-xs font-semibold text-slate-700 mt-1 flex items-center gap-1.5">
                           <Clock className="w-3.5 h-3.5 text-indigo-600" />
-                          Data: {formatDisplayDate(req.date)}
+                          Data Desejada: <strong className="text-indigo-950">{formatDisplayDate(req.date)}</strong>
                         </div>
 
                         {/* Notes */}
@@ -316,18 +330,52 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                           ))}
                         </div>
 
-                        {/* Status Indicator */}
-                        <div className="mt-2.5 flex items-center gap-2">
-                          {isFulfilled ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              Folga concedida na escala atual
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                              Escalado como trabalho (Gere a escala para atender)
-                            </span>
+                        {/* Status Indicator & Admin Action Buttons */}
+                        <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+                          <div>
+                            {isApproved && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-md border border-emerald-300">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                                Folga Concedida (Aprovada pelo Administrador)
+                              </span>
+                            )}
+                            {isPending && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-md border border-amber-300">
+                                <Clock className="w-3.5 h-3.5 text-amber-700 animate-pulse" />
+                                Solicitação em Análise (Aguardando Aprovação)
+                              </span>
+                            )}
+                            {isRejected && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 bg-rose-100 px-2.5 py-1 rounded-md border border-rose-300">
+                                <Ban className="w-3.5 h-3.5 text-rose-700" />
+                                Solicitação Recusada
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Admin Approval Actions */}
+                          {isAdmin && isPending && (
+                            <div className="flex items-center gap-1.5">
+                              {onApproveRequest && (
+                                <button
+                                  type="button"
+                                  onClick={() => onApproveRequest(req.id)}
+                                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  Aprovar Folga
+                                </button>
+                              )}
+                              {onRejectRequest && (
+                                <button
+                                  type="button"
+                                  onClick={() => onRejectRequest(req.id)}
+                                  className="px-2.5 py-1 bg-slate-200 hover:bg-rose-100 hover:text-rose-700 text-slate-700 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
+                                >
+                                  Recusar
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -354,7 +402,7 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg text-sm transition-colors"
+            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-medium rounded-lg text-sm transition-colors cursor-pointer"
           >
             Concluir & Fechar
           </button>

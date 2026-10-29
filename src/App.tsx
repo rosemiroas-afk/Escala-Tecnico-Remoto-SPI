@@ -26,7 +26,7 @@ import { LoginModal } from './components/LoginModal';
 
 const STORAGE_KEY_TECHS = 'escalamaster_techs_v2';
 const STORAGE_KEY_PERIOD = 'escalamaster_period_v2';
-const STORAGE_KEY_SCHEDULE = 'escalamaster_schedule_v4';
+const STORAGE_KEY_SCHEDULE = 'escalamaster_schedule_v5';
 const STORAGE_KEY_REQUESTS = 'escalamaster_requests_v2';
 const STORAGE_KEY_USERS = 'escalamaster_users_v2';
 const STORAGE_KEY_AUTH_USER = 'escalamaster_auth_user_v2';
@@ -358,7 +358,7 @@ export default function App() {
     setSchedules(newSchedule);
   }, [period, technicians, offRequests]);
 
-  // Handler: Add Off Request
+  // Handler: Add Off Request (stays PENDENTE in analysis until Admin approval)
   const handleAddRequest = useCallback((req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => {
     const newReq: OffRequest = {
       ...req,
@@ -367,10 +367,45 @@ export default function App() {
       status: 'pendente'
     };
     setOffRequests(prev => [...prev, newReq]);
+  }, []);
 
-    // Automatically assign off on that day
-    handleUpdateShift(req.technicianId, req.date, 'F', req.notes.join(' | '));
-  }, [handleUpdateShift]);
+  // Handler: Admin Approves Off Request
+  const handleApproveRequest = useCallback((id: string) => {
+    const req = offRequests.find(r => r.id === id);
+    if (!req) return;
+
+    setOffRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'atendido' } : r));
+
+    // Determine shift type based on day of week:
+    // If weekend (Saturday), grant FG. If weekday, grant FC (Folga Compensada).
+    const dObj = new Date(req.date + 'T12:00:00');
+    const dow = dObj.getDay();
+    const targetShift: ShiftType = dow === 6 ? 'FG' : 'FC';
+
+    // Grant off on requested date
+    handleUpdateShift(req.technicianId, req.date, targetShift, `Folga Aprovada: ${req.notes.join(' | ')}`);
+
+    // If granted on weekday, switch that week's Sunday off to TB to avoid excess offs
+    if (dow >= 1 && dow <= 5) {
+      const reqIdx = dates.indexOf(req.date);
+      for (let forward = 1; forward <= 6; forward++) {
+        const fIdx = reqIdx + forward;
+        if (fIdx < dates.length) {
+          const fDate = dates[fIdx];
+          const fDow = new Date(fDate + 'T12:00:00').getDay();
+          if (fDow === 0 && schedules[req.technicianId]?.days[fDate]?.shift === 'FG') {
+            handleUpdateShift(req.technicianId, fDate, 'TB', `Plantão (Compensado com folga em ${req.date})`);
+            break;
+          }
+        }
+      }
+    }
+  }, [offRequests, dates, schedules, handleUpdateShift]);
+
+  // Handler: Admin Rejects Off Request
+  const handleRejectRequest = useCallback((id: string) => {
+    setOffRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'recusado' } : r));
+  }, []);
 
   // Handler: Delete Off Request
   const handleDeleteRequest = useCallback((id: string) => {
@@ -504,6 +539,8 @@ export default function App() {
         currentUser={currentUser}
         onAddRequest={handleAddRequest}
         onDeleteRequest={handleDeleteRequest}
+        onApproveRequest={handleApproveRequest}
+        onRejectRequest={handleRejectRequest}
         schedules={schedules}
       />
 

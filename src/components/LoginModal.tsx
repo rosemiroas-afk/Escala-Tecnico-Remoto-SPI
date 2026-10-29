@@ -134,22 +134,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   }}
                   className="w-full text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-3 text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
                 >
-                  <optgroup label="Administração">
-                    <option value="admin">👑 Administrador / Gestor Geral</option>
-                  </optgroup>
-
-                  {[13, 14, 15, 19].map(ddd => {
-                    const dddTechs = technicians.filter(t => t.active && t.ddd === ddd);
-                    return (
-                      <optgroup key={ddd} label={`Região DDD ${ddd} (${DDD_INFO[ddd]?.region || ''})`}>
-                        {dddTechs.map(t => (
-                          <option key={t.id} value={t.id}>
-                            [DDD {t.ddd}] {t.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
+                  <option value="admin">Administrador Geral</option>
+                  {[...technicians]
+                    .filter(t => t.active)
+                    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+                    .map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
                 </select>
               </div>
 

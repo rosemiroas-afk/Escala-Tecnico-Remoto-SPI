@@ -381,8 +381,14 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                                 e.stopPropagation();
                                 onOpenRequests(tech.id);
                               }}
-                              className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 border border-white"
-                              title={`Solicitação de folga: ${offReq.reasonCategory} - ${offReq.notes.join(', ')}`}
+                              className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-white cursor-pointer ${
+                                offReq.status === 'atendido' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
+                              }`}
+                              title={
+                                offReq.status === 'atendido'
+                                  ? `Folga Concedida: ${offReq.reasonCategory} - ${offReq.notes.join(', ')}`
+                                  : `Solicitação em Análise: ${offReq.reasonCategory} - ${offReq.notes.join(', ')}`
+                              }
                             />
                           )}
                         </div>

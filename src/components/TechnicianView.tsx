@@ -135,11 +135,13 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                     onChange={e => setSelectedTechId(e.target.value)}
                     className="text-base font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 min-w-[280px]"
                   >
-                    {activeTechs.map(t => (
-                      <option key={t.id} value={t.id}>
-                        [DDD {t.ddd}] {t.name}
-                      </option>
-                    ))}
+                    {[...activeTechs]
+                      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+                      .map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
                   </select>
                   <span className="text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200 px-3 py-2 rounded-xl flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-indigo-600" />
@@ -380,8 +382,10 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
 
                   {req && (
                     <div
-                      className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-500 border border-white"
-                      title={`Pedido: ${req.notes.join(', ')}`}
+                      className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white ${
+                        req.status === 'atendido' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
+                      }`}
+                      title={req.status === 'atendido' ? `Folga Concedida: ${req.notes.join(', ')}` : `Folga em Análise: ${req.notes.join(', ')}`}
                     />
                   )}
                 </div>
@@ -471,17 +475,21 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
             ) : (
               <div className="space-y-2.5 max-h-64 overflow-y-auto">
                 {techRequests.map(r => {
-                  const shift = currentSched.days[r.date]?.shift;
-                  const isGranted = shift === 'F' || shift === 'FD';
+                  const isApproved = r.status === 'atendido';
+                  const isRejected = r.status === 'recusado';
 
                   return (
                     <div key={r.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
                       <div className="flex items-center justify-between font-semibold text-slate-900 mb-1">
                         <span>{formatDisplayDate(r.date)}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                          isGranted ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          isApproved
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : isRejected
+                            ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                            : 'bg-amber-100 text-amber-800 border border-amber-300'
                         }`}>
-                          {isGranted ? 'Folga Concedida' : 'Em Análise'}
+                          {isApproved ? 'Folga Concedida' : isRejected ? 'Não Aprovado' : 'Folga em Análise'}
                         </span>
                       </div>
                       <div className="text-slate-600">

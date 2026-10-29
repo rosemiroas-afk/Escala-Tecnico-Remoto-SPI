@@ -60,8 +60,6 @@ export function validateSchedule(
     let currentConsecutive = 0;
     let inversionsCount = 0;
 
-    let previousRestDayOfWeek: number | null = null;
-
     if (techSched && techSched.days) {
       for (let i = 0; i < dates.length; i++) {
         const dateKey = dates[i];
@@ -75,13 +73,6 @@ export function validateSchedule(
           if (isSaturday(dateKey) || isSunday(dateKey)) {
             weekendOffsCount++;
           }
-
-          const dObj = parseDateKey(dateKey);
-          const dow = dObj.getDay();
-          if (previousRestDayOfWeek !== null && previousRestDayOfWeek !== dow) {
-            inversionsCount++;
-          }
-          previousRestDayOfWeek = dow;
 
           if (currentConsecutive > maxConsecutive) {
             maxConsecutive = currentConsecutive;
@@ -124,6 +115,25 @@ export function validateSchedule(
         if (isSatOff && isSunOff) {
           doubleWeekendsCount++;
         }
+
+        // Count inversions: strictly Saturday off (FG) and Sunday working (TB)
+        if ((satShift === 'FG' || satShift === 'F') && (sunShift === 'TB' || sunShift === 'T')) {
+          inversionsCount++;
+        }
+      }
+
+      // Enforce user rule: at most 2 inversions in 60 days
+      if (inversionsCount > 2) {
+        issues.push({
+          id: `excess-inversions-${tech.id}`,
+          type: 'excessive_offs',
+          severity: 'warning',
+          technicianId: tech.id,
+          technicianName: tech.name,
+          ddd: tech.ddd,
+          message: `${tech.name} possui ${inversionsCount} inversões no bimestre (máximo permitido: 2).`,
+          suggestion: `Ajustar a escala para no máximo 2 inversões de escala no período de 60 dias.`
+        });
       }
 
       // Check unwanted Friday + Saturday double off
