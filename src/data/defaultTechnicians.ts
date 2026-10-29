@@ -7,6 +7,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'AYRTON CESAR DOS SANTOS PEREIRA',
     ddd: 13,
     active: true,
+    shiftHours: '13:00 AS 21:20',
     phone: '(13) 99123-4567'
   },
   {
@@ -14,6 +15,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'CARLOS SERGIO DE OLIVEIRA',
     ddd: 13,
     active: true,
+    shiftHours: '08:00 AS 16:20',
     phone: '(13) 99234-5678'
   },
   {
@@ -21,13 +23,15 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'EWANDER DA SILVA CARVALHO',
     ddd: 13,
     active: true,
+    shiftHours: '08:00 AS 16:25',
     phone: '(13) 99345-6789'
   },
   {
     id: 'tech-13-4',
-    name: 'EWANDRO DE MOURA FE',
+    name: 'EWANDRO MOURA FE',
     ddd: 13,
     active: true,
+    shiftHours: '13:00 AS 21:20',
     phone: '(13) 99456-7890'
   },
   {
@@ -35,6 +39,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'EVANDRO MOURA FE',
     ddd: 13,
     active: true,
+    shiftHours: '13:00 AS 21:20',
     phone: '(13) 99456-7891'
   },
   {
@@ -42,6 +47,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'HENRIQUE SODRE DE ALMEIDA',
     ddd: 13,
     active: true,
+    shiftHours: '08:00 AS 16:23',
     phone: '(13) 99567-8901'
   },
   {
@@ -49,6 +55,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'MARCIO INACIO DE SOUZA',
     ddd: 13,
     active: true,
+    shiftHours: '08:00 AS 16:00',
     phone: '(13) 99678-9012'
   },
   {
@@ -56,6 +63,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'ROGERIO SOUZA DE SANTOS',
     ddd: 13,
     active: true,
+    shiftHours: '08:00 AS 16:20',
     phone: '(13) 99789-0123'
   },
 
@@ -65,6 +73,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'ADILSON JOSE DA SILVA',
     ddd: 14,
     active: true,
+    shiftHours: '08:00 AS 16:20',
     phone: '(14) 99111-2233'
   },
   {
@@ -72,6 +81,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'GERSAM BERNARDO DE OLIVEIRA',
     ddd: 14,
     active: true,
+    shiftHours: '08:00 AS 16:00',
     phone: '(14) 99222-3344'
   },
   {
@@ -79,6 +89,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'PAULO SERGIO CARRARA',
     ddd: 14,
     active: true,
+    shiftHours: '08:00 AS 16:20',
     phone: '(14) 99333-4455'
   },
 
@@ -88,6 +99,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'GUSTAVO HENRIQUE MENDES DE ALMEIDA',
     ddd: 15,
     active: true,
+    shiftHours: '08:00 AS 16:00',
     phone: '(15) 99444-5566'
   },
   {
@@ -95,6 +107,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'LUCAS PAIS DE CAMARGO',
     ddd: 15,
     active: true,
+    shiftHours: '08:00 AS 16:20',
     phone: '(15) 99555-6677'
   },
   {
@@ -102,6 +115,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'ODIRLEI SILVEIRA DE CAMPOS',
     ddd: 15,
     active: true,
+    shiftHours: '08:00 AS 16:26',
     phone: '(15) 99666-7788'
   },
 
@@ -111,6 +125,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'ANDRE LUIZ DE ARAUJO',
     ddd: 19,
     active: true,
+    shiftHours: '13:00 AS 21:20',
     phone: '(19) 99777-8899'
   },
   {
@@ -118,6 +133,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'EDUARDO CAMPINEIRO NETO',
     ddd: 19,
     active: true,
+    shiftHours: '08:00 AS 16:20',
     phone: '(19) 99888-9900'
   },
   {
@@ -125,6 +141,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'GUSTAVO DONIZETI CARETTE',
     ddd: 19,
     active: true,
+    shiftHours: '08:00 AS 16:00',
     phone: '(19) 99112-2334'
   },
   {
@@ -132,6 +149,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'JOSNEI MACHADO DE SOUZA',
     ddd: 19,
     active: true,
+    shiftHours: '08:00 AS 16:00',
     phone: '(19) 99223-3445'
   },
   {
@@ -139,6 +157,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'LEONARDO TEIXEIRA DO NASCIMENTO',
     ddd: 19,
     active: true,
+    shiftHours: '08:00 AS 16:00',
     phone: '(19) 99334-4556'
   },
   {
@@ -146,6 +165,7 @@ export const INITIAL_TECHNICIANS: Technician[] = [
     name: 'RODRIGO FERREIRA ALBUQUERQUE',
     ddd: 19,
     active: true,
+    shiftHours: '08:00 AS 16:20',
     phone: '(19) 99445-5667'
   }
 ];
@@ -154,28 +174,28 @@ export const DDD_INFO: Record<number, { name: string; region: string; minStaff: 
   13: {
     name: 'DDD 13',
     region: 'Baixada Santista e Litoral Sul',
-    minStaff: 6, // 8 technicians total -> at least 6 working on any given day
+    minStaff: 6,
     color: '#0284c7',
     badge: 'bg-sky-100 text-sky-800 border-sky-300'
   },
   14: {
     name: 'DDD 14',
     region: 'Bauru, Marília, Jaú e Região',
-    minStaff: 2, // 3 technicians total -> at least 2 working
+    minStaff: 2,
     color: '#16a34a',
     badge: 'bg-emerald-100 text-emerald-800 border-emerald-300'
   },
   15: {
     name: 'DDD 15',
-    region: 'Sorocaba, Itapetininga e Vale do Paranapanema',
-    minStaff: 2, // 3 technicians total -> at least 2 working
+    region: 'Sorocaba, Itapetininga e Região',
+    minStaff: 2,
     color: '#9333ea',
     badge: 'bg-purple-100 text-purple-800 border-purple-300'
   },
   19: {
     name: 'DDD 19',
     region: 'Campinas, Piracicaba, Americana e Limeira',
-    minStaff: 4, // 6 technicians total -> at least 4 working
+    minStaff: 4,
     color: '#ea580c',
     badge: 'bg-orange-100 text-orange-800 border-orange-300'
   }

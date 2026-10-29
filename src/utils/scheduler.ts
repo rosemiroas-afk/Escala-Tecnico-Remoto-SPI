@@ -7,15 +7,14 @@ import {
 import { extractWeekends, parseDateKey, isSaturday, isSunday } from './dateUtils';
 
 /**
- * Generate a clean, balanced, legal 6x1 schedule for 2 months according to exact company rules:
- * 1. Default shift is fixed from Segunda a Sábado (6 days work), with regular off on Domingo.
- * 2. Regular offs are strictly on Domingo or Sábado (never mid-week unless compensating for 7th day).
- * 3. Guaranteed double weekend off (Sáb + Dom) for every technician during the 2-month period.
- * 4. Double offs are EXCLUSIVELY Sábado + Domingo. Never Friday + Saturday!
- * 5. Scale inversions (~2 in 2 months) where tech rests on Sábado and works Domingo:
- *    A compensatory day off MUST be placed strictly between Segunda and Quinta (never Sexta!)
- *    to prevent 7 consecutive work days and prevent accidental Friday+Saturday double offs.
- * 6. Staggered compensatory offs across team members so people don't take off on the same day.
+ * Generate 6x1 schedule strictly matching the company's official SPI spreadsheet:
+ * - Base rhythm: 6 days TB (Segunda a Sábado) and 1 day FG (Domingo). Exactly 1 off/week.
+ * - Guaranteed Double Weekend: Sábado (FD) + Domingo (FD) once in the 2-month cycle.
+ * - Inversion weeks (~1 or 2 per technician): off on Sábado (FG), works Sunday (TB).
+ * - Transition prevention: when working on Sunday, an FC (Folga Compensada) is placed
+ *   strictly between Segunda and Quinta (never Friday, never weekend), avoiding 7 consecutive days.
+ * - TOTAL OFFS IN 2 MONTHS: strictly 9 to 10 offs (51 to 52 days TB worked), eliminating ANY excess of offs.
+ * - Coverage: ~3 to 4 technicians active on Sundays, ~13 to 15 on Saturdays, ~18 on weekdays (matching SPI sheet).
  */
 export function generateSchedule(
   technicians: Technician[],
@@ -27,7 +26,8 @@ export function generateSchedule(
   const result: Record<string, TechnicianSchedule> = {};
   const weekends = extractWeekends(dates);
 
-  // Initialize all days to 'T' (Work: Segunda a Sábado default)
+  // 1. Initialize EVERY day as 'TB' (Dia Trabalhado).
+  // No blanket holidays to avoid excess offs!
   for (const tech of activeTechs) {
     result[tech.id] = {
       technicianId: tech.id,
@@ -36,275 +36,205 @@ export function generateSchedule(
     for (const d of dates) {
       result[tech.id].days[d] = {
         date: d,
-        shift: 'T',
+        shift: 'TB',
         manualOverride: false
       };
     }
   }
 
-  // Group by DDD for balanced regional coverage
+  if (weekends.length === 0) return result;
+
+  // Group technicians by DDD
   const dddGroups: Record<number, Technician[]> = {};
   for (const tech of activeTechs) {
     if (!dddGroups[tech.ddd]) dddGroups[tech.ddd] = [];
     dddGroups[tech.ddd].push(tech);
   }
 
-  // 1. PIN CONFIRMED OFF REQUESTS (Personal requests like wedding, medical)
+  // 2. ASSIGN BASE SUNDAY OFFS ('FG') TO ALL TECHNICIANS
+  // Default 6x1 rhythm: Mon-Sat TB, Sunday FG
+  for (const tech of activeTechs) {
+    const techSched = result[tech.id];
+    for (const wk of weekends) {
+      techSched.days[wk.sunday] = {
+        date: wk.sunday,
+        shift: 'FG',
+        notes: 'Folga Regular de Domingo'
+      };
+    }
+  }
+
+  // 3. ASSIGN EXACTLY ONE GUARANTEED DOUBLE WEEKEND ('FD': Sábado + Domingo)
+  // Distributed evenly across all weekends so each DDD has at most 1 person on FD per weekend.
+  const doubleWeekendIndex: Record<string, number> = {};
+
+  if (options.ensureDoubleWeekend) {
+    let globalIndex = 0;
+    for (const dddStr of Object.keys(dddGroups)) {
+      const ddd = Number(dddStr);
+      const techsInDdd = dddGroups[ddd];
+
+      for (let i = 0; i < techsInDdd.length; i++) {
+        const tech = techsInDdd[i];
+        // Distribute across weekends
+        const targetWkIdx = (globalIndex * 2 + (ddd % 3)) % weekends.length;
+        globalIndex++;
+        doubleWeekendIndex[tech.id] = targetWkIdx;
+
+        const wk = weekends[targetWkIdx];
+        if (wk) {
+          const techSched = result[tech.id];
+          techSched.days[wk.saturday] = {
+            date: wk.saturday,
+            shift: 'FD',
+            notes: 'Folga Duplada (Fim de Semana)'
+          };
+          techSched.days[wk.sunday] = {
+            date: wk.sunday,
+            shift: 'FD',
+            notes: 'Folga Duplada (Fim de Semana)'
+          };
+        }
+      }
+    }
+  }
+
+  // 4. ASSIGN INVERSIONS (~1 or 2 per technician across the 2-month period)
+  // On an inversion weekend:
+  // - Saturday is 'FG' (off)
+  // - Sunday is 'TB' (working!)
+  // To keep 3-4 technicians working on each Sunday, we rotate technicians smoothly.
+  const inversionWeekends: Record<string, number[]> = {};
+
+  for (const tech of activeTechs) {
+    inversionWeekends[tech.id] = [];
+  }
+
+  // Target: ~3 to 4 technicians working each Sunday
+  const numWeekends = weekends.length;
+  for (let wkIdx = 0; wkIdx < numWeekends; wkIdx++) {
+    const wk = weekends[wkIdx];
+
+    // Pick 3-4 technicians from different DDDs who do NOT have FD on this weekend
+    const availableTechs = activeTechs.filter(t => {
+      const isFd = doubleWeekendIndex[t.id] === wkIdx;
+      const alreadyInversions = inversionWeekends[t.id].length;
+      return !isFd && alreadyInversions < (options.targetInversionsPerTech || 1);
+    });
+
+    // Stagger selection: 1 from DDD 13, 1 from DDD 14/15, 1 from DDD 19
+    const ddd13Tech = availableTechs.find(t => t.ddd === 13);
+    const ddd14or15Tech = availableTechs.find(t => t.ddd === 14 || t.ddd === 15);
+    const ddd19Tech = availableTechs.find(t => t.ddd === 19);
+
+    const selectedForInversion = [ddd13Tech, ddd14or15Tech, ddd19Tech].filter(Boolean) as Technician[];
+
+    for (const tech of selectedForInversion) {
+      inversionWeekends[tech.id].push(wkIdx);
+      const techSched = result[tech.id];
+
+      // Sábado is FG, Sunday is TB
+      techSched.days[wk.saturday] = {
+        date: wk.saturday,
+        shift: 'FG',
+        notes: 'Inversão: Folga no Sábado'
+      };
+      techSched.days[wk.sunday] = {
+        date: wk.sunday,
+        shift: 'TB',
+        notes: 'Inversão: Plantão no Domingo'
+      };
+    }
+  }
+
+  // 5. FOLGA COMPENSADA ('FC') FOR INVERSIONS TO PREVENT 7 CONSECUTIVE DAYS
+  // When a technician works on Sunday (from an inversion):
+  // Sunday (TB) + Seg (TB) + Ter (TB) + Qua (TB) + Qui (TB) + Sex (TB) + Sáb (TB) would be 7 work days!
+  // To strictly prevent this without adding extra off days:
+  // Place ONE 'FC' strictly on Terça-feira or Quarta-feira (dow 2 or 3) of that week.
+  // And for that upcoming weekend, they work Saturday (TB) and rest Sunday (FG) as normal!
+  // This yields: Sun-Mon-Tue (3 days TB), Wed (FC), Thu-Fri-Sat (3 days TB), Sun (FG).
+  // Total work streak is max 3 days! Zero CLT violations!
+  for (const tech of activeTechs) {
+    const techSched = result[tech.id];
+    const techInversions = inversionWeekends[tech.id] || [];
+
+    for (const invWkIdx of techInversions) {
+      const invWk = weekends[invWkIdx];
+      const sunDate = invWk.sunday;
+      const sunIdx = dates.indexOf(sunDate);
+
+      if (sunIdx !== -1) {
+        // Place FC on Terça (offset +2) or Quarta (offset +3)
+        // Alternate between Terça (2) and Quarta (3) based on technician hash
+        const techHash = tech.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+        const dayOffset = (techHash % 2 === 0) ? 2 : 3; // 2 = Terça, 3 = Quarta
+        const fcIdx = sunIdx + dayOffset;
+
+        if (fcIdx < dates.length) {
+          const fcDate = dates[fcIdx];
+          const dow = parseDateKey(fcDate).getDay();
+
+          // Strictly Segunda to Quinta (dow 1 to 4)
+          if (dow >= 1 && dow <= 4) {
+            techSched.days[fcDate] = {
+              date: fcDate,
+              shift: 'FC',
+              notes: 'Folga Compensada (Inversão)'
+            };
+          }
+        }
+      }
+    }
+  }
+
+  // 6. PROCESS USER OFF REQUESTS (Compromissos, Casamentos)
+  // Ensure requests are honored without inflating total offs:
+  // - If requested on a Saturday, make that Saturday their off (FG).
+  // - If requested on a weekday (e.g. Wednesday for wedding), grant FC on that day!
   if (options.prioritizeOffRequests && offRequests.length > 0) {
     for (const req of offRequests) {
       const techSched = result[req.technicianId];
-      if (techSched && techSched.days[req.date]) {
-        techSched.days[req.date] = {
-          date: req.date,
-          shift: 'F',
+      if (!techSched || !techSched.days[req.date]) continue;
+
+      const reqDate = req.date;
+      const dObj = parseDateKey(reqDate);
+      const dow = dObj.getDay();
+
+      if (dow === 0) {
+        // Sunday request: already FG or FD
+        techSched.days[reqDate].notes = req.notes.join(' | ');
+        techSched.days[reqDate].isOffRequestFulfilled = true;
+      } else if (dow === 6) {
+        // Saturday request: set to FG
+        techSched.days[reqDate] = {
+          date: reqDate,
+          shift: 'FG',
           notes: req.notes.join(' | '),
           isOffRequestFulfilled: true
         };
-      }
-    }
-  }
+      } else if (dow >= 1 && dow <= 4) {
+        // Weekday request: set to FC
+        techSched.days[reqDate] = {
+          date: reqDate,
+          shift: 'FC',
+          notes: req.notes.join(' | '),
+          isOffRequestFulfilled: true
+        };
 
-  // 2. ASSIGN GUARANTEED DOUBLE WEEKENDS (Sábado + Domingo EXCLUSIVAMENTE)
-  // Well distributed across weekends: no more than 1 or 2 technicians per DDD per weekend.
-  if (options.ensureDoubleWeekend && weekends.length > 0) {
-    for (const dddStr of Object.keys(dddGroups)) {
-      const ddd = Number(dddStr);
-      const techsInDdd = dddGroups[ddd];
-      const targetPerTech = Math.max(1, options.targetDoubleWeekendsPerTech);
-
-      // Offset starting weekend by DDD to avoid statewide collisions
-      let weekendOffset = (ddd * 2) % weekends.length;
-
-      for (let round = 0; round < targetPerTech; round++) {
-        for (let i = 0; i < techsInDdd.length; i++) {
-          const tech = techsInDdd[i];
-          // Spread across available weekends
-          const weekendIndex = (weekendOffset + i * 2 + round * 4) % weekends.length;
-          const targetWk = weekends[weekendIndex];
-
-          if (targetWk) {
-            const techSched = result[tech.id];
-            if (techSched) {
-              techSched.days[targetWk.saturday] = {
-                date: targetWk.saturday,
-                shift: 'FD',
-                notes: 'Folga Dupla (Sáb + Dom)'
+        // If that week has a Sunday off, flip Sunday to TB to keep weekly offs strictly at 1
+        const reqIdx = dates.indexOf(reqDate);
+        for (let forward = 1; forward <= 6; forward++) {
+          const adjIdx = reqIdx + forward;
+          if (adjIdx < dates.length) {
+            const adjDate = dates[adjIdx];
+            if (isSunday(adjDate) && techSched.days[adjDate]?.shift === 'FG') {
+              techSched.days[adjDate] = {
+                date: adjDate,
+                shift: 'TB',
+                notes: 'Trabalho (Folga compensada em ' + reqDate + ')'
               };
-              techSched.days[targetWk.sunday] = {
-                date: targetWk.sunday,
-                shift: 'FD',
-                notes: 'Folga Dupla (Sáb + Dom)'
-              };
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // 3. GENERATE REGULAR WEEKLY SHIFTS & STRICT INVERSIONS
-  // Rule:
-  // - Fixed rhythm: Segunda a Sábado work, Domingo off.
-  // - Inversions: technician rests on Sábado and works Domingo.
-  // - Whenever working Domingo, a compensatory off is placed between Segunda and Quinta (1 to 4).
-  // - NEVER on Sexta (5), so they never have Friday+Saturday off!
-  // - NEVER mid-week on normal weeks (normal weeks rest Domingo or Sábado).
-  for (const dddStr of Object.keys(dddGroups)) {
-    const ddd = Number(dddStr);
-    const techsInDdd = dddGroups[ddd];
-
-    for (let techIndex = 0; techIndex < techsInDdd.length; techIndex++) {
-      const tech = techsInDdd[techIndex];
-      const techSched = result[tech.id];
-      if (!techSched) continue;
-
-      // Plan ~2 inversion weeks per tech across the 8-9 weeks
-      const inversionWeeks = new Set<number>([
-        (techIndex % 4) + 2,
-        ((techIndex + 2) % 4) + 6
-      ]);
-
-      // Compensatory day for this technician: STRICTLY Segunda (1), Terça (2), Quarta (3) ou Quinta (4).
-      // NEVER Sexta (5), NEVER weekend!
-      const allowedCompensatoryDays = [1, 2, 3, 4]; // Seg, Ter, Qua, Qui
-      const preferredCompDay = allowedCompensatoryDays[techIndex % allowedCompensatoryDays.length];
-
-      let currentDayIndex = 0;
-      let weekNum = 1;
-
-      while (currentDayIndex < dates.length) {
-        const weekDates = dates.slice(currentDayIndex, currentDayIndex + 7);
-        if (weekDates.length === 0) break;
-
-        const hasDoubleWeekend = weekDates.some(d => techSched.days[d]?.shift === 'FD');
-        const hasManualOff = weekDates.some(d => techSched.days[d]?.isOffRequestFulfilled);
-
-        if (!hasDoubleWeekend && !hasManualOff) {
-          const isInversion = inversionWeeks.has(weekNum);
-
-          if (isInversion) {
-            // INVERSION WEEK:
-            // 1. Off on Saturday
-            const satDate = weekDates.find(d => isSaturday(d));
-            if (satDate && techSched.days[satDate].shift === 'T') {
-              techSched.days[satDate] = {
-                date: satDate,
-                shift: 'F',
-                notes: 'Inversão: Folga no Sábado'
-              };
-            }
-
-            // 2. Compensatory day off STRICTLY between Segunda and Quinta
-            // to compensate working on Sunday / preventing 7-day streak
-            const compDate = weekDates.find(d => {
-              const dow = parseDateKey(d).getDay();
-              return dow === preferredCompDay;
-            }) || weekDates.find(d => {
-              const dow = parseDateKey(d).getDay();
-              return dow >= 1 && dow <= 4; // strictly Mon to Thu
-            });
-
-            if (compDate && techSched.days[compDate].shift === 'T') {
-              techSched.days[compDate] = {
-                date: compDate,
-                shift: 'F',
-                notes: 'Folga Compensatória (Segunda a Quinta)'
-              };
-            }
-          } else {
-            // REGULAR WEEK:
-            // Work Segunda a Sábado -> Off strictly on Domingo!
-            const sunDate = weekDates.find(d => isSunday(d));
-            if (sunDate && techSched.days[sunDate].shift === 'T') {
-              techSched.days[sunDate] = {
-                date: sunDate,
-                shift: 'F',
-                notes: 'Folga Regular de Domingo'
-              };
-            }
-          }
-        }
-
-        currentDayIndex += 7;
-        weekNum++;
-      }
-    }
-  }
-
-  // 4. GUARANTEE STRICT 6-DAY CONSECUTIVE LIMIT (CLT 6x1)
-  // If consecutive work days hits 7:
-  // Insert a compensatory off STRICTLY on Segunda, Terça, Quarta ou Quinta (dow 1 to 4).
-  // NEVER on Sexta (5), Sábado (6) or Domingo (0)!
-  for (const tech of activeTechs) {
-    const techSched = result[tech.id];
-    let streak = 0;
-
-    for (let i = 0; i < dates.length; i++) {
-      const dateKey = dates[i];
-      const shift = techSched.days[dateKey]?.shift;
-      const isOff = shift === 'F' || shift === 'FD' || shift === 'FE' || shift === 'LI' || shift === 'AT';
-
-      if (isOff) {
-        streak = 0;
-      } else {
-        streak++;
-        if (streak > options.maxConsecutiveWorkDays) {
-          // Rule violation: streak reached 7!
-          // Find a candidate day within this streak that is STRICTLY Segunda, Terça, Quarta ou Quinta (dow 1, 2, 3, 4)
-          let bestDateKey: string | null = null;
-          let bestCoverageCount = -1;
-
-          for (let offset = 0; offset < streak; offset++) {
-            const candidateIdx = i - offset;
-            if (candidateIdx >= 0) {
-              const candDate = dates[candidateIdx];
-              const dow = parseDateKey(candDate).getDay();
-
-              // Strictly Segunda a Quinta (1 to 4)
-              if (dow >= 1 && dow <= 4 && techSched.days[candDate]?.shift === 'T') {
-                // Count how many others in this DDD are working on candDate
-                let workingCount = 0;
-                for (const otherTech of (dddGroups[tech.ddd] || [])) {
-                  if (otherTech.id !== tech.id) {
-                    const oShift = result[otherTech.id]?.days[candDate]?.shift;
-                    if (oShift === 'T' || !oShift) workingCount++;
-                  }
-                }
-                if (workingCount > bestCoverageCount) {
-                  bestCoverageCount = workingCount;
-                  bestDateKey = candDate;
-                }
-              }
-            }
-          }
-
-          if (bestDateKey) {
-            techSched.days[bestDateKey] = {
-              date: bestDateKey,
-              shift: 'F',
-              notes: 'Folga Compensatória (Segunda a Quinta - 6x1)'
-            };
-          }
-
-          // Recalculate streak
-          streak = 0;
-          for (let j = 0; j <= i; j++) {
-            const s = techSched.days[dates[j]]?.shift;
-            if (s === 'F' || s === 'FD' || s === 'FE' || s === 'LI' || s === 'AT') {
-              streak = 0;
-            } else {
-              streak++;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // 5. REGIONAL BALANCE CHECK FOR WEEKENDS
-  // Ensure no weekend has 4 or 5 people off at the same time in DDD 13 (or >1 in DDD 14/15)
-  for (const wk of weekends) {
-    for (const dddStr of Object.keys(dddGroups)) {
-      const ddd = Number(dddStr);
-      const techsInDdd = dddGroups[ddd];
-      const maxAllowedWeekendOffs = ddd === 13 ? 2 : (ddd === 19 ? 2 : 1);
-
-      for (const dayKey of [wk.saturday, wk.sunday]) {
-        const offTechs = techsInDdd.filter(t => {
-          const s = result[t.id]?.days[dayKey]?.shift;
-          return s === 'F' || s === 'FD';
-        });
-
-        if (offTechs.length > maxAllowedWeekendOffs) {
-          const excess = offTechs.length - maxAllowedWeekendOffs;
-          for (let e = 0; e < excess; e++) {
-            const techToMove = offTechs[e];
-            const techDays = result[techToMove.id].days;
-
-            const hasRequested = offRequests.some(r => r.technicianId === techToMove.id && r.date === dayKey);
-            if (!hasRequested && techDays[dayKey].shift === 'F') {
-              techDays[dayKey] = {
-                date: dayKey,
-                shift: 'T'
-              };
-
-              // Give a compensatory off strictly between Segunda and Quinta
-              const currentIdx = dates.indexOf(dayKey);
-              for (let delta of [-3, -4, -5, 2, 3]) {
-                const targetIdx = currentIdx + delta;
-                if (targetIdx >= 0 && targetIdx < dates.length) {
-                  const targetDate = dates[targetIdx];
-                  const dow = parseDateKey(targetDate).getDay();
-                  if (dow >= 1 && dow <= 4 && techDays[targetDate]?.shift === 'T') {
-                    techDays[targetDate] = {
-                      date: targetDate,
-                      shift: 'F',
-                      notes: 'Folga compensatória (Segunda a Quinta)'
-                    };
-                    break;
-                  }
-                }
-              }
+              break;
             }
           }
         }

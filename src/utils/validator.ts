@@ -23,6 +23,17 @@ export interface AuditResult {
   };
 }
 
+export function isOffShift(shift?: string): boolean {
+  if (!shift) return false;
+  return shift === 'FG' || shift === 'F' || shift === 'FD' || shift === 'FC' ||
+         shift === 'FR' || shift === 'FE' || shift === 'LIC' || shift === 'LI' ||
+         shift === 'LP' || shift === 'FB' || shift === 'FM' || shift === 'AT';
+}
+
+export function isWorkingShift(shift?: string): boolean {
+  return shift === 'TB' || shift === 'T' || !shift;
+}
+
 export function validateSchedule(
   technicians: Technician[],
   schedules: Record<string, TechnicianSchedule>,
@@ -49,16 +60,15 @@ export function validateSchedule(
     let currentConsecutive = 0;
     let inversionsCount = 0;
 
-    // Track weekly rest day pattern to detect inversions
     let previousRestDayOfWeek: number | null = null;
 
     if (techSched && techSched.days) {
       for (let i = 0; i < dates.length; i++) {
         const dateKey = dates[i];
         const day = techSched.days[dateKey];
-        const shift = day ? day.shift : 'T';
+        const shift = day ? day.shift : 'TB';
 
-        const isOff = shift === 'F' || shift === 'FD' || shift === 'FE' || shift === 'LI' || shift === 'AT';
+        const isOff = isOffShift(shift);
 
         if (isOff) {
           offDaysCount++;
@@ -66,7 +76,6 @@ export function validateSchedule(
             weekendOffsCount++;
           }
 
-          // Check if this rest day shifted from previous rhythm
           const dObj = parseDateKey(dateKey);
           const dow = dObj.getDay();
           if (previousRestDayOfWeek !== null && previousRestDayOfWeek !== dow) {
@@ -74,14 +83,15 @@ export function validateSchedule(
           }
           previousRestDayOfWeek = dow;
 
-          // Check consecutive streak ended
           if (currentConsecutive > maxConsecutive) {
             maxConsecutive = currentConsecutive;
           }
           currentConsecutive = 0;
         } else {
-          // Working day
-          workDaysCount++;
+          // Working day (TB or FN)
+          if (shift === 'TB' || shift === 'T') {
+            workDaysCount++;
+          }
           currentConsecutive++;
           if (currentConsecutive > maxConsecutive) {
             maxConsecutive = currentConsecutive;
@@ -98,7 +108,7 @@ export function validateSchedule(
               date: dateKey,
               ddd: tech.ddd,
               message: `${tech.name} atingiu ${currentConsecutive} dias seguidos de trabalho em ${dateKey}.`,
-              suggestion: `Inserir uma folga no meio da semana ou ajustar para folga duplada no fim de semana.`
+              suggestion: `Inserir uma folga compensatória (FC) de segunda a quinta-feira.`
             });
           }
         }
@@ -108,8 +118,8 @@ export function validateSchedule(
       for (const wk of weekends) {
         const satShift = techSched.days[wk.saturday]?.shift;
         const sunShift = techSched.days[wk.sunday]?.shift;
-        const isSatOff = satShift === 'F' || satShift === 'FD';
-        const isSunOff = sunShift === 'F' || sunShift === 'FD';
+        const isSatOff = isOffShift(satShift);
+        const isSunOff = isOffShift(sunShift);
 
         if (isSatOff && isSunOff) {
           doubleWeekendsCount++;
@@ -126,10 +136,7 @@ export function validateSchedule(
         if (dow1 === 5 && dow2 === 6) { // Friday and Saturday
           const s1 = techSched.days[d1]?.shift;
           const s2 = techSched.days[d2]?.shift;
-          const isOff1 = s1 === 'F' || s1 === 'FD';
-          const isOff2 = s2 === 'F' || s2 === 'FD';
-
-          if (isOff1 && isOff2) {
+          if (isOffShift(s1) && isOffShift(s2)) {
             issues.push({
               id: `unwanted-fri-sat-${tech.id}-${d1}`,
               type: 'excessive_offs',
@@ -139,10 +146,25 @@ export function validateSchedule(
               date: d1,
               ddd: tech.ddd,
               message: `${tech.name} possui folga dupla em Sexta (${d1}) e Sábado (${d2}).`,
-              suggestion: `Mover a folga compensatória para Segunda a Quinta. Folgas duplas devem ser exclusivamente Sábado e Domingo.`
+              suggestion: `Folgas duplas devem ser exclusivamente Sábado e Domingo.`
             });
           }
         }
+      }
+
+      // Check excess of offs (User feedback: "os colaboradores ainda estão com excesso de folga")
+      // In 60 days, 6x1 standard is ~8-10 offs total. If > 11 offs, flag warning!
+      if (offDaysCount > 11) {
+        issues.push({
+          id: `excess-offs-${tech.id}`,
+          type: 'excessive_offs',
+          severity: 'warning',
+          technicianId: tech.id,
+          technicianName: tech.name,
+          ddd: tech.ddd,
+          message: `${tech.name} está com ${offDaysCount} folgas no bimestre (Padrão 6x1 é de 8 a 10 folgas).`,
+          suggestion: `Ajustar a escala para 1 folga por semana mais a folga duplada.`
+        });
       }
     }
 
@@ -159,8 +181,8 @@ export function validateSchedule(
         technicianId: tech.id,
         technicianName: tech.name,
         ddd: tech.ddd,
-        message: `${tech.name} não possui nenhum final de semana duplado (Sáb + Dom) no período de 2 meses.`,
-        suggestion: `Garantir ao menos 1 fim de semana completo de folga para ${tech.name}.`
+        message: `${tech.name} não possui nenhum final de semana duplado (Sáb + Dom) no período.`,
+        suggestion: `Garantir ao menos 1 fim de semana completo de folga (FD) para ${tech.name}.`
       });
     }
 
@@ -169,7 +191,7 @@ export function validateSchedule(
     let fulfilled = 0;
     for (const req of techRequests) {
       const shift = techSched?.days[req.date]?.shift;
-      if (shift === 'F' || shift === 'FD') {
+      if (isOffShift(shift)) {
         fulfilled++;
       } else {
         issues.push({
@@ -181,7 +203,7 @@ export function validateSchedule(
           date: req.date,
           ddd: tech.ddd,
           message: `Pedido de folga de ${tech.name} em ${req.date} (${req.reasonCategory}: ${req.notes.join(', ')}) não foi atendido.`,
-          suggestion: `Trocar a folga semanal para o dia solicitado.`
+          suggestion: `Conceder folga compensada (FC) na data solicitada.`
         });
       }
     }
@@ -211,14 +233,13 @@ export function validateSchedule(
 
       for (const tech of dddTechs) {
         const shift = schedules[tech.id]?.days[dateKey]?.shift;
-        if (shift === 'T' || !shift) {
+        if (isWorkingShift(shift)) {
           workingInDDD++;
         } else {
           offInDDD++;
         }
       }
 
-      // Check understaffing
       if (workingInDDD < minRequired) {
         issues.push({
           id: `understaffed-${ddd}-${dateKey}`,
@@ -226,12 +247,11 @@ export function validateSchedule(
           severity: 'warning',
           ddd: ddd,
           date: dateKey,
-          message: `DDD ${ddd} com cobertura baixa em ${dateKey}: apenas ${workingInDDD} técnico(s) ativo(s) (Mínimo sugerido: ${minRequired}).`,
+          message: `DDD ${ddd} com cobertura reduzida em ${dateKey}: ${workingInDDD} técnico(s) ativo(s) (Mínimo recomendado: ${minRequired}).`,
           suggestion: `Revezar a folga de um técnico do DDD ${ddd} para outro dia.`
         });
       }
 
-      // Check excessive offs on weekend (User: "Não pode ter quatro ou cinco pessoas no mesmo final de semana folgando")
       if ((isSaturday(dateKey) || isSunday(dateKey)) && offInDDD >= 4) {
         issues.push({
           id: `excessive-offs-${ddd}-${dateKey}`,
@@ -239,8 +259,8 @@ export function validateSchedule(
           severity: 'error',
           ddd: ddd,
           date: dateKey,
-          message: `DDD ${ddd} possui ${offInDDD} pessoas de folga simultaneamente no fim de semana em ${dateKey}.`,
-          suggestion: `Redistribuir as folgas de fim de semana para outros finais de semana.`
+          message: `DDD ${ddd} possui ${offInDDD} técnicos de folga simultaneamente no fim de semana em ${dateKey}.`,
+          suggestion: `Redistribuir as folgas de fim de semana entre as semanas do bimestre.`
         });
       }
     }
@@ -256,7 +276,7 @@ export function validateSchedule(
   const totalReqs = offRequests.length;
   const totalFulfilled = offRequests.filter(r => {
     const shift = schedules[r.technicianId]?.days[r.date]?.shift;
-    return shift === 'F' || shift === 'FD';
+    return isOffShift(shift);
   }).length;
 
   return {

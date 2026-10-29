@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Technician, TechnicianSchedule, ShiftType, SHIFT_TYPES, OffRequest, SchedulePeriod } from '../types';
 import { formatDisplayDate, parseDateKey, isSaturday, isSunday, MONTHS_PT } from '../utils/dateUtils';
-import { AuditResult } from '../utils/validator';
+import { AuditResult, isOffShift, isWorkingShift } from '../utils/validator';
 import { DDD_INFO } from '../data/defaultTechnicians';
-import { Filter, Search, AlertTriangle, Star, MessageSquare } from 'lucide-react';
+import { Filter, Search, AlertTriangle, Star, Clock } from 'lucide-react';
 
 interface RosterTableProps {
   technicians: Technician[];
@@ -28,7 +28,6 @@ export const RosterTable: React.FC<RosterTableProps> = ({
 }) => {
   const [selectedDDD, setSelectedDDD] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [activeCellPopover, setActiveCellPopover] = useState<{ techId: string; date: string } | null>(null);
 
   // Filter technicians
   const filteredTechs = technicians.filter(tech => {
@@ -65,20 +64,50 @@ export const RosterTable: React.FC<RosterTableProps> = ({
     }
   }
 
-  // Pre-index off requests by techId and date for fast lookup
+  // Pre-index off requests
   const requestsMap = new Map<string, OffRequest>();
   for (const req of offRequests) {
     requestsMap.set(`${req.technicianId}__${req.date}`, req);
   }
 
   const handleCellClick = (techId: string, date: string, currentShift: ShiftType) => {
-    // Quick toggle: T -> F -> FD -> T
-    if (currentShift === 'T') {
-      onUpdateShift(techId, date, 'F');
-    } else if (currentShift === 'F') {
+    // Cycle: TB -> FG -> FD -> FC -> TB
+    const s = currentShift === 'T' ? 'TB' : currentShift === 'F' ? 'FG' : currentShift;
+    if (s === 'TB') {
+      onUpdateShift(techId, date, 'FG');
+    } else if (s === 'FG') {
       onUpdateShift(techId, date, 'FD');
+    } else if (s === 'FD') {
+      onUpdateShift(techId, date, 'FC');
     } else {
-      onUpdateShift(techId, date, 'T');
+      onUpdateShift(techId, date, 'TB');
+    }
+  };
+
+  const getShiftBadgeStyle = (shift: string) => {
+    const norm = shift === 'T' ? 'TB' : shift === 'F' ? 'FG' : shift;
+    switch (norm) {
+      case 'TB':
+        return 'bg-emerald-100 text-emerald-900 border-emerald-300 font-semibold';
+      case 'FG':
+        return 'bg-yellow-200 text-yellow-950 border-yellow-400 font-bold';
+      case 'FD':
+        return 'bg-orange-300 text-orange-950 border-orange-400 font-black shadow-xs';
+      case 'FC':
+        return 'bg-indigo-100 text-indigo-900 border-indigo-300 font-bold';
+      case 'FN':
+        return 'bg-sky-200 text-sky-950 border-sky-400 font-bold';
+      case 'FR':
+      case 'FE':
+        return 'bg-amber-200 text-amber-950 border-amber-400 font-bold';
+      case 'LIC':
+      case 'LI':
+      case 'LP':
+        return 'bg-slate-200 text-slate-800 border-slate-300 font-bold';
+      case 'FB':
+        return 'bg-teal-200 text-teal-900 border-teal-400 font-bold';
+      default:
+        return 'bg-slate-100 text-slate-700 font-medium';
     }
   };
 
@@ -139,22 +168,25 @@ export const RosterTable: React.FC<RosterTableProps> = ({
       </div>
 
       {/* Main Roster Matrix Table */}
-      <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)] border-t border-slate-100">
+      <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-270px)] border-t border-slate-100">
         <table className="w-full text-left border-collapse min-w-max select-none">
           <thead>
             {/* Top Month Group Headers */}
-            <tr className="bg-slate-100/90 text-slate-700 text-xs font-semibold border-b border-slate-200 sticky top-0 z-30">
-              <th className="sticky left-0 z-40 bg-slate-100 px-4 py-2.5 min-w-[200px] border-r border-slate-200 shadow-xs">
+            <tr className="bg-slate-100 text-slate-700 text-xs font-semibold border-b border-slate-200 sticky top-0 z-30">
+              <th className="sticky left-0 z-40 bg-slate-100 px-3 py-2 min-w-[220px] border-r border-slate-200 shadow-xs">
                 Técnico & Região
               </th>
-              <th className="sticky left-[200px] z-40 bg-slate-100 px-3 py-2.5 w-[70px] text-center border-r border-slate-200">
-                Trab.
+              <th className="sticky left-[220px] z-40 bg-slate-100 px-2 py-2 min-w-[110px] text-center border-r border-slate-200 text-[11px]">
+                Escala (Horário)
               </th>
-              <th className="sticky left-[270px] z-40 bg-slate-100 px-3 py-2.5 w-[70px] text-center border-r border-slate-200">
+              <th className="sticky left-[330px] z-40 bg-slate-100 px-2 py-2 w-[65px] text-center border-r border-slate-200 text-[11px]">
+                TB (Trab)
+              </th>
+              <th className="sticky left-[395px] z-40 bg-slate-100 px-2 py-2 w-[65px] text-center border-r border-slate-200 text-[11px]">
                 Folgas
               </th>
-              <th className="sticky left-[340px] z-40 bg-slate-100 px-3 py-2.5 w-[85px] text-center border-r border-slate-300 shadow-r">
-                F. Dupla
+              <th className="sticky left-[460px] z-40 bg-slate-100 px-2 py-2 w-[70px] text-center border-r border-slate-300 text-[11px] shadow-r">
+                FD (Dupla)
               </th>
 
               {monthGroups.map((mg, i) => (
@@ -168,41 +200,78 @@ export const RosterTable: React.FC<RosterTableProps> = ({
               ))}
             </tr>
 
-            {/* Second Header Row: Day numbers and Weekday */}
-            <tr className="bg-slate-50 text-[11px] font-medium text-slate-600 border-b border-slate-200 sticky top-[37px] z-30">
-              <th className="sticky left-0 z-40 bg-slate-50 px-4 py-2 border-r border-slate-200 font-semibold text-slate-700">
-                {filteredTechs.length} técnicos listados
+            {/* Second Header Row: Days of Week */}
+            <tr className="bg-slate-50 text-[10px] font-bold text-slate-600 border-b border-slate-200 sticky top-[33px] z-30">
+              <th className="sticky left-0 z-40 bg-slate-50 px-3 py-1.5 border-r border-slate-200">
+                {filteredTechs.length} técnicos
               </th>
-              <th className="sticky left-[200px] z-40 bg-slate-50 px-1 py-2 text-center border-r border-slate-200 text-[10px] text-slate-500">
+              <th className="sticky left-[220px] z-40 bg-slate-50 px-2 py-1.5 text-center border-r border-slate-200 text-slate-400">
+                Turno
+              </th>
+              <th className="sticky left-[330px] z-40 bg-slate-50 px-1 py-1.5 text-center border-r border-slate-200 text-slate-400">
                 Total
               </th>
-              <th className="sticky left-[270px] z-40 bg-slate-50 px-1 py-2 text-center border-r border-slate-200 text-[10px] text-slate-500">
+              <th className="sticky left-[395px] z-40 bg-slate-50 px-1 py-1.5 text-center border-r border-slate-200 text-slate-400">
                 Total
               </th>
-              <th className="sticky left-[340px] z-40 bg-slate-50 px-1 py-2 text-center border-r border-slate-300 text-[10px] text-slate-500 shadow-r">
+              <th className="sticky left-[460px] z-40 bg-slate-50 px-1 py-1.5 text-center border-r border-slate-300 text-slate-400 shadow-r">
                 Sáb+Dom
               </th>
 
               {dates.map(d => {
                 const dateObj = parseDateKey(d);
-                const dayNum = dateObj.getDate();
                 const isSat = isSaturday(d);
                 const isSun = isSunday(d);
 
                 let headerBg = 'bg-slate-50 text-slate-700';
-                if (isSun) headerBg = 'bg-blue-100/80 text-blue-900 font-bold';
-                else if (isSat) headerBg = 'bg-indigo-100/80 text-indigo-900 font-bold';
+                if (isSun) headerBg = 'bg-yellow-100 text-yellow-950 font-black';
+                else if (isSat) headerBg = 'bg-rose-100 text-rose-950 font-black';
 
                 return (
                   <th
                     key={d}
-                    className={`px-1 py-1.5 text-center min-w-[34px] w-[34px] border-r border-slate-200 ${headerBg}`}
+                    className={`px-1 py-1 text-center min-w-[34px] w-[34px] border-r border-slate-200 text-[10px] uppercase tracking-tighter ${headerBg}`}
                     title={formatDisplayDate(d)}
                   >
-                    <div className="text-[11px] font-bold leading-tight">{dayNum}</div>
-                    <div className="text-[9px] uppercase tracking-tighter opacity-80">
-                      {isSun ? 'Dom' : isSat ? 'Sáb' : ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'][dateObj.getDay() - 1]}
-                    </div>
+                    <div>{isSun ? 'Dom' : isSat ? 'Sáb' : ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'][dateObj.getDay() - 1]}</div>
+                    <div className="font-extrabold text-[11px]">{dateObj.getDate()}</div>
+                  </th>
+                );
+              })}
+            </tr>
+
+            {/* Third Header Row: ATUANTES DIA (From user's exact spreadsheet!) */}
+            <tr className="bg-emerald-50/90 text-[10px] font-black text-emerald-950 border-b-2 border-slate-300 sticky top-[65px] z-30">
+              <th className="sticky left-0 z-40 bg-emerald-100 px-3 py-1.5 border-r border-slate-200 uppercase tracking-wider text-emerald-950">
+                ATUANTES DIA
+              </th>
+              <th className="sticky left-[220px] z-40 bg-emerald-100 px-2 py-1.5 text-center border-r border-slate-200">
+                -
+              </th>
+              <th className="sticky left-[330px] z-40 bg-emerald-100 px-1 py-1.5 text-center border-r border-slate-200">
+                -
+              </th>
+              <th className="sticky left-[395px] z-40 bg-emerald-100 px-1 py-1.5 text-center border-r border-slate-200">
+                -
+              </th>
+              <th className="sticky left-[460px] z-40 bg-emerald-100 px-1 py-1.5 text-center border-r border-slate-300 shadow-r">
+                -
+              </th>
+
+              {dates.map(d => {
+                let workingCount = 0;
+                for (const t of filteredTechs) {
+                  const s = schedules[t.id]?.days[d]?.shift || 'TB';
+                  if (isWorkingShift(s)) workingCount++;
+                }
+
+                return (
+                  <th
+                    key={d}
+                    className="px-1 py-1 text-center border-r border-slate-200 font-extrabold text-[11px] text-emerald-900 bg-emerald-100/70"
+                    title={`${workingCount} técnicos trabalhando`}
+                  >
+                    {workingCount}
                   </th>
                 );
               })}
@@ -226,16 +295,16 @@ export const RosterTable: React.FC<RosterTableProps> = ({
               return (
                 <tr
                   key={tech.id}
-                  className="hover:bg-indigo-50/30 transition-colors group"
+                  className="hover:bg-indigo-50/20 transition-colors group"
                 >
                   {/* Sticky Column: Name and DDD */}
-                  <td className="sticky left-0 z-20 bg-white group-hover:bg-indigo-50/40 px-4 py-2 border-r border-slate-200 shadow-xs">
+                  <td className="sticky left-0 z-20 bg-white group-hover:bg-indigo-50/30 px-3 py-1.5 border-r border-slate-200 shadow-xs">
                     <div className="flex items-center justify-between gap-1">
-                      <div className="truncate max-w-[150px]">
-                        <span className="font-semibold text-slate-800 block text-xs truncate">
+                      <div className="truncate max-w-[165px]">
+                        <span className="font-bold text-slate-800 block text-xs truncate">
                           {tech.name}
                         </span>
-                        <span className={`inline-block text-[10px] px-1.5 py-0.2 rounded-md font-semibold border ${dddConfig?.badge || 'bg-slate-100'}`}>
+                        <span className={`inline-block text-[9px] px-1.5 py-0.1 rounded-md font-bold border ${dddConfig?.badge || 'bg-slate-100'}`}>
                           DDD {tech.ddd}
                         </span>
                       </div>
@@ -243,11 +312,11 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                       {/* Warnings if any */}
                       {(hasMissingDouble || hasConsecutiveViolation) && (
                         <div
-                          className="text-rose-500 p-1 cursor-help"
+                          className="text-rose-500 p-0.5 cursor-help"
                           title={
                             hasConsecutiveViolation
-                              ? `Atingiu ${stats.maxConsecutiveWorkDays} dias seguidos de trabalho (limite legal: 6).`
-                              : `Nenhum fim de semana duplado programado!`
+                              ? `Atingiu ${stats.maxConsecutiveWorkDays} dias seguidos (limite: 6).`
+                              : `Sem fim de semana duplado programado!`
                           }
                         >
                           <AlertTriangle className="w-3.5 h-3.5" />
@@ -256,22 +325,27 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                     </div>
                   </td>
 
+                  {/* Sticky Column: Shift Hours (ESCALA) */}
+                  <td className="sticky left-[220px] z-20 bg-white group-hover:bg-indigo-50/30 px-2 py-1.5 text-center border-r border-slate-200 text-[10px] font-bold text-slate-600">
+                    {tech.shiftHours || '08:00 AS 16:20'}
+                  </td>
+
                   {/* Sticky Stats Columns */}
-                  <td className="sticky left-[200px] z-20 bg-white group-hover:bg-indigo-50/40 px-2 py-2 text-center border-r border-slate-200 font-semibold text-emerald-700 text-xs">
+                  <td className="sticky left-[330px] z-20 bg-white group-hover:bg-indigo-50/30 px-1 py-1.5 text-center border-r border-slate-200 font-bold text-emerald-800 text-xs">
                     {stats.totalWorkDays}
                   </td>
-                  <td className="sticky left-[270px] z-20 bg-white group-hover:bg-indigo-50/40 px-2 py-2 text-center border-r border-slate-200 font-semibold text-blue-700 text-xs">
+                  <td className="sticky left-[395px] z-20 bg-white group-hover:bg-indigo-50/30 px-1 py-1.5 text-center border-r border-slate-200 font-bold text-yellow-900 text-xs">
                     {stats.totalOffDays}
                   </td>
-                  <td className="sticky left-[340px] z-20 bg-white group-hover:bg-indigo-50/40 px-2 py-2 text-center border-r border-slate-300 text-xs shadow-r">
+                  <td className="sticky left-[460px] z-20 bg-white group-hover:bg-indigo-50/30 px-1 py-1.5 text-center border-r border-slate-300 text-xs shadow-r">
                     <span
                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-bold text-[10px] ${
                         stats.doubleWeekendsCount > 0
-                          ? 'bg-purple-100 text-purple-800'
+                          ? 'bg-orange-100 text-orange-800'
                           : 'bg-rose-100 text-rose-700'
                       }`}
                     >
-                      {stats.doubleWeekendsCount > 0 && <Star className="w-2.5 h-2.5 fill-purple-700" />}
+                      {stats.doubleWeekendsCount > 0 && <Star className="w-2.5 h-2.5 fill-orange-600" />}
                       {stats.doubleWeekendsCount}
                     </span>
                   </td>
@@ -279,38 +353,24 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                   {/* Day cells */}
                   {dates.map(dateKey => {
                     const day = techSched?.days[dateKey];
-                    const shift = day?.shift || 'T';
+                    const rawShift = day?.shift || 'TB';
+                    const shift = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
                     const isSat = isSaturday(dateKey);
                     const isSun = isSunday(dateKey);
                     const offReq = requestsMap.get(`${tech.id}__${dateKey}`);
 
-                    // Styling for shift
-                    let cellBg = '';
-                    let badgeClass = '';
-
-                    if (shift === 'T') {
-                      cellBg = isSun ? 'bg-blue-50/40' : isSat ? 'bg-indigo-50/30' : '';
-                      badgeClass = 'text-slate-400 hover:text-slate-700 text-[11px] font-medium';
-                    } else if (shift === 'F') {
-                      badgeClass = 'bg-blue-600 text-white font-bold rounded-md shadow-2xs';
-                    } else if (shift === 'FD') {
-                      badgeClass = 'bg-purple-600 text-white font-bold rounded-md shadow-2xs ring-1 ring-purple-400';
-                    } else {
-                      const sInfo = SHIFT_TYPES[shift];
-                      badgeClass = `${sInfo?.badgeClass || 'bg-slate-200'} font-bold rounded-md`;
-                    }
+                    const badgeStyle = getShiftBadgeStyle(shift);
+                    const cellBg = isSun ? 'bg-yellow-50/30' : isSat ? 'bg-rose-50/20' : '';
 
                     return (
                       <td
                         key={dateKey}
-                        onClick={() => handleCellClick(tech.id, dateKey, shift)}
+                        onClick={() => handleCellClick(tech.id, dateKey, shift as ShiftType)}
                         className={`p-0.5 text-center border-r border-slate-100 cursor-pointer transition-colors relative hover:ring-2 hover:ring-indigo-400 hover:z-10 ${cellBg}`}
-                        title={`${tech.name} - ${formatDisplayDate(dateKey)}: ${
-                          shift === 'T' ? 'Trabalho' : shift === 'FD' ? 'Folga Dupla (Sáb+Dom)' : 'Folga'
-                        }${day?.notes ? ` (${day.notes})` : ''} - Clique para alterar`}
+                        title={`${tech.name} - ${formatDisplayDate(dateKey)}: ${shift} - Clique para alternar`}
                       >
-                        <div className="w-full h-8 flex items-center justify-center relative">
-                          <span className={`w-7 h-6 flex items-center justify-center text-[11px] transition-transform ${badgeClass}`}>
+                        <div className="w-full h-7 flex items-center justify-center relative">
+                          <span className={`w-7 h-5 flex items-center justify-center text-[10px] rounded-xs transition-transform ${badgeStyle}`}>
                             {shift}
                           </span>
 
@@ -333,105 +393,57 @@ export const RosterTable: React.FC<RosterTableProps> = ({
               );
             })}
           </tbody>
-
-          {/* Bottom Summary Rows */}
-          <tfoot>
-            {/* Total Working */}
-            <tr className="bg-emerald-50/80 text-xs font-semibold text-emerald-900 border-t-2 border-slate-300">
-              <td className="sticky left-0 z-20 bg-emerald-100/90 px-4 py-2 border-r border-slate-200 shadow-xs font-bold">
-                Técnicos Trabalhando
-              </td>
-              <td className="sticky left-[200px] z-20 bg-emerald-100/90 px-2 py-2 text-center border-r border-slate-200 font-bold">
-                -
-              </td>
-              <td className="sticky left-[270px] z-20 bg-emerald-100/90 px-2 py-2 text-center border-r border-slate-200 font-bold">
-                -
-              </td>
-              <td className="sticky left-[340px] z-20 bg-emerald-100/90 px-2 py-2 text-center border-r border-slate-300 font-bold shadow-r">
-                -
-              </td>
-
-              {dates.map(d => {
-                let workingCount = 0;
-                for (const t of filteredTechs) {
-                  const s = schedules[t.id]?.days[d]?.shift || 'T';
-                  if (s === 'T') workingCount++;
-                }
-
-                return (
-                  <td key={d} className="px-1 py-1.5 text-center border-r border-slate-200 font-bold text-[11px]">
-                    {workingCount}
-                  </td>
-                );
-              })}
-            </tr>
-
-            {/* Total Off */}
-            <tr className="bg-blue-50/80 text-xs font-semibold text-blue-900 border-t border-slate-200">
-              <td className="sticky left-0 z-20 bg-blue-100/90 px-4 py-2 border-r border-slate-200 shadow-xs font-bold">
-                Técnicos de Folga
-              </td>
-              <td className="sticky left-[200px] z-20 bg-blue-100/90 px-2 py-2 text-center border-r border-slate-200 font-bold">
-                -
-              </td>
-              <td className="sticky left-[270px] z-20 bg-blue-100/90 px-2 py-2 text-center border-r border-slate-200 font-bold">
-                -
-              </td>
-              <td className="sticky left-[340px] z-20 bg-blue-100/90 px-2 py-2 text-center border-r border-slate-300 font-bold shadow-r">
-                -
-              </td>
-
-              {dates.map(d => {
-                let offCount = 0;
-                for (const t of filteredTechs) {
-                  const s = schedules[t.id]?.days[d]?.shift || 'T';
-                  if (s === 'F' || s === 'FD' || s === 'FE' || s === 'LI' || s === 'AT') offCount++;
-                }
-
-                const isWeekendDay = isSaturday(d) || isSunday(d);
-                const isExcessiveWeekend = isWeekendDay && offCount >= 4;
-
-                return (
-                  <td
-                    key={d}
-                    className={`px-1 py-1.5 text-center border-r border-slate-200 font-bold text-[11px] ${
-                      isExcessiveWeekend ? 'bg-rose-200 text-rose-900 font-black' : ''
-                    }`}
-                    title={isExcessiveWeekend ? 'Alerta: Mais de 3 técnicos de folga no mesmo fim de semana!' : undefined}
-                  >
-                    {offCount}
-                  </td>
-                );
-              })}
-            </tr>
-          </tfoot>
         </table>
       </div>
 
-      {/* Legend & Help Footer */}
-      <div className="p-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between flex-wrap gap-2 text-xs text-slate-600">
-        <div className="flex items-center gap-4 flex-wrap">
-          <span className="font-semibold text-slate-700">Legenda:</span>
-          <div className="flex items-center gap-1.5">
-            <span className="w-5 h-5 rounded-md bg-white border border-slate-300 text-slate-600 font-semibold flex items-center justify-center text-[10px]">T</span>
-            <span>Trabalho</span>
+      {/* Official Legenda matching User's Spreadsheet */}
+      <div className="p-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between flex-wrap gap-2 text-xs text-slate-700">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="font-extrabold text-slate-900 text-xs">LEGENDA SPI:</span>
+
+          <div className="flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">TB</span>
+            <span>Dia Trabalhado</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-5 h-5 rounded-md bg-blue-600 text-white font-bold flex items-center justify-center text-[10px]">F</span>
+
+          <div className="flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-yellow-200 text-yellow-950 border border-yellow-400">FG</span>
             <span>Folga Regular</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-5 h-5 rounded-md bg-purple-600 text-white font-bold flex items-center justify-center text-[10px]">FD</span>
-            <span className="font-semibold text-purple-900">Folga Dupla (Sáb + Dom)</span>
+
+          <div className="flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-black bg-orange-300 text-orange-950 border border-orange-400">FD</span>
+            <span className="font-semibold text-orange-950">Folga Duplada (Sáb+Dom)</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-            <span>Pedido de Folga Cadastrado</span>
+
+          <div className="flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">FC</span>
+            <span>Folga Compensada</span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-sky-200 text-sky-950 border border-sky-400">FN</span>
+            <span>Feriado Nacional</span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-amber-200 text-amber-950 border border-amber-400">FR</span>
+            <span>Férias</span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-teal-200 text-teal-900 border border-teal-400">FB</span>
+            <span>Folga Banco</span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-slate-200 text-slate-800 border border-slate-300">LIC</span>
+            <span>Afastado</span>
           </div>
         </div>
 
-        <div className="text-[11px] text-slate-500 italic">
-          💡 Dica: Clique em qualquer célula para alternar rapidamente entre Trabalho (T), Folga (F) e Folga Dupla (FD).
+        <div className="text-[11px] text-slate-500 font-medium">
+          💡 Clique em qualquer célula para alternar entre <strong>TB</strong> (Trabalho), <strong>FG</strong> (Folga), <strong>FD</strong> (Folga Dupla) e <strong>FC</strong> (Compensada).
         </div>
       </div>
     </div>

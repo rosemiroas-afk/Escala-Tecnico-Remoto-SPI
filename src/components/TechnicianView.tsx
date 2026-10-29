@@ -82,7 +82,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   const doubleWeekends = weekends.filter(wk => {
     const sat = currentSched.days[wk.saturday]?.shift;
     const sun = currentSched.days[wk.sunday]?.shift;
-    return (sat === 'F' || sat === 'FD') && (sun === 'F' || sun === 'FD');
+    return (sat === 'FD' || sat === 'FG' || sat === 'F') && (sun === 'FD' || sun === 'FG' || sun === 'F');
   });
 
   const handleCopyWhatsApp = () => {
@@ -129,26 +129,36 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
                   Selecione o Técnico para Visualização Individual:
                 </label>
-                <select
-                  value={selectedTechId}
-                  onChange={e => setSelectedTechId(e.target.value)}
-                  className="text-base font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 min-w-[300px]"
-                >
-                  {activeTechs.map(t => (
-                    <option key={t.id} value={t.id}>
-                      [DDD {t.ddd}] {t.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select
+                    value={selectedTechId}
+                    onChange={e => setSelectedTechId(e.target.value)}
+                    className="text-base font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 min-w-[280px]"
+                  >
+                    {activeTechs.map(t => (
+                      <option key={t.id} value={t.id}>
+                        [DDD {t.ddd}] {t.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200 px-3 py-2 rounded-xl flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                    Turno: {currentTech.shiftHours || '08:00 AS 16:20'}
+                  </span>
+                </div>
               </>
             ) : (
               <>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
                     Seu Painel Individual Privativo
                   </span>
                   <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
                     DDD {currentTech.ddd}
+                  </span>
+                  <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-indigo-500" />
+                    {currentTech.shiftHours || '08:00 AS 16:20'}
                   </span>
                 </div>
                 <h2 className="text-lg font-black text-slate-900 mt-1">
@@ -301,7 +311,8 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
             {dates.map(d => {
               const day = currentSched.days[d];
-              const shift = day?.shift || 'T';
+              const rawShift = day?.shift || 'TB';
+              const shift = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
               const isSat = isSaturday(d);
               const isSun = isSunday(d);
               const dObj = parseDateKey(d);
@@ -309,10 +320,29 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
               const req = techRequests.find(r => r.date === d);
 
               let cardStyle = 'bg-slate-50 border-slate-200 text-slate-700 hover:border-indigo-300';
+              let badgeColor = 'bg-slate-200 text-slate-800';
+              let shiftTitle = 'Trabalho';
+
               if (shift === 'FD') {
-                cardStyle = 'bg-purple-600 border-purple-700 text-white shadow-xs';
-              } else if (shift === 'F') {
-                cardStyle = 'bg-blue-600 border-blue-700 text-white shadow-xs';
+                cardStyle = 'bg-orange-50 border-orange-300 text-orange-950 shadow-xs ring-1 ring-orange-300';
+                badgeColor = 'bg-orange-300 text-orange-950 font-black';
+                shiftTitle = 'Folga Dupla';
+              } else if (shift === 'FG') {
+                cardStyle = 'bg-yellow-50 border-yellow-300 text-yellow-950 shadow-xs';
+                badgeColor = 'bg-yellow-200 text-yellow-950 font-bold';
+                shiftTitle = 'Folga Regular';
+              } else if (shift === 'FC') {
+                cardStyle = 'bg-indigo-50 border-indigo-200 text-indigo-950';
+                badgeColor = 'bg-indigo-100 text-indigo-900 font-bold';
+                shiftTitle = 'Compensada';
+              } else if (shift === 'TB') {
+                cardStyle = 'bg-white border-slate-200 text-slate-800 hover:bg-emerald-50/30';
+                badgeColor = 'bg-emerald-100 text-emerald-900 font-semibold';
+                shiftTitle = 'Trabalho';
+              } else if (shift === 'FN') {
+                cardStyle = 'bg-sky-50 border-sky-200 text-sky-950';
+                badgeColor = 'bg-sky-200 text-sky-950 font-bold';
+                shiftTitle = 'Feriado';
               }
 
               return (
@@ -320,8 +350,8 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                   key={d}
                   onClick={() => {
                     if (isAdmin) {
-                      const next = shift === 'T' ? 'F' : shift === 'F' ? 'FD' : 'T';
-                      onUpdateShift(currentTech.id, d, next);
+                      const next = shift === 'TB' ? 'FG' : shift === 'FG' ? 'FD' : shift === 'FD' ? 'FC' : 'TB';
+                      onUpdateShift(currentTech.id, d, next as ShiftType);
                     } else {
                       // Technician clicks: set as date for request
                       setReqDate(d);
@@ -330,23 +360,27 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                   className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[85px] relative ${cardStyle}`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold opacity-90">
+                    <span className={`text-xs font-semibold ${isSun ? 'text-amber-700' : isSat ? 'text-rose-600' : 'text-slate-500'}`}>
                       {isSun ? 'Dom' : isSat ? 'Sáb' : ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'][dObj.getDay() - 1]}
                     </span>
-                    <span className="text-base font-extrabold">{dayNum}</span>
+                    <span className="text-base font-extrabold text-slate-900">{dayNum}</span>
                   </div>
 
                   <div className="mt-2 flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider">
-                      {shift === 'T' ? 'Trabalho' : shift === 'FD' ? 'Folga Dupla' : 'Folga'}
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-sm uppercase tracking-wider ${badgeColor}`}>
+                      {shift}
                     </span>
 
-                    {shift === 'FD' && <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />}
+                    <span className="text-[10px] font-semibold text-slate-600">
+                      {shiftTitle}
+                    </span>
+
+                    {shift === 'FD' && <Star className="w-3.5 h-3.5 fill-orange-500 text-orange-500" />}
                   </div>
 
                   {req && (
                     <div
-                      className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-400 border border-white"
+                      className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-rose-500 border border-white"
                       title={`Pedido: ${req.notes.join(', ')}`}
                     />
                   )}

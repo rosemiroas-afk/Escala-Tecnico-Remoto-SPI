@@ -121,7 +121,7 @@ export const DDDView: React.FC<DDDViewProps> = ({
                     const offTechs = dddTechs.filter(t => {
                       const sat = schedules[t.id]?.days[wk.saturday]?.shift;
                       const sun = schedules[t.id]?.days[wk.sunday]?.shift;
-                      return (sat === 'F' || sat === 'FD') && (sun === 'F' || sun === 'FD');
+                      return (sat === 'FD' || sat === 'FG' || sat === 'F') && (sun === 'FD' || sun === 'FG' || sun === 'F');
                     });
 
                     // Count how many are working

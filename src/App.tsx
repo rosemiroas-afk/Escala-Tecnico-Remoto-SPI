@@ -26,7 +26,7 @@ import { LoginModal } from './components/LoginModal';
 
 const STORAGE_KEY_TECHS = 'escalamaster_techs_v2';
 const STORAGE_KEY_PERIOD = 'escalamaster_period_v2';
-const STORAGE_KEY_SCHEDULE = 'escalamaster_schedule_v2';
+const STORAGE_KEY_SCHEDULE = 'escalamaster_schedule_v4';
 const STORAGE_KEY_REQUESTS = 'escalamaster_requests_v2';
 const STORAGE_KEY_USERS = 'escalamaster_users_v2';
 const STORAGE_KEY_AUTH_USER = 'escalamaster_auth_user_v2';

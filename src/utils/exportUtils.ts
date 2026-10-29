@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { Technician, TechnicianSchedule, OffRequest, SchedulePeriod } from '../types';
 import { formatDisplayDate, parseDateKey, isSaturday, isSunday, extractWeekends, MONTHS_PT } from './dateUtils';
-import { validateSchedule } from './validator';
+import { validateSchedule, isWorkingShift, isOffShift } from './validator';
 
 export function exportScheduleToExcel(
   technicians: Technician[],
@@ -12,13 +12,42 @@ export function exportScheduleToExcel(
 ) {
   const wb = XLSX.utils.book_new();
   const audit = validateSchedule(technicians, schedules, dates, offRequests);
-
-  // 1. Matriz de Escala Sheet
-  const header = ['DDD', 'Técnico', 'Telefone', ...dates.map(d => formatDisplayDate(d)), 'Dias Trabalhados', 'Total Folgas', 'Fins de Semana Duplados'];
-  const rows: any[][] = [header];
-
   const sortedTechs = [...technicians].sort((a, b) => a.ddd - b.ddd || a.name.localeCompare(b.name));
 
+  // 1. Matriz de Escala Sheet (ESCALA TÉCNICO REMOTO SPI)
+  const rows: any[][] = [];
+
+  // Title Row
+  rows.push(['ESCALA TÉCNICO REMOTO SPI', '', '', ...dates.map(() => '')]);
+  rows.push([]);
+
+  // Date and Day of Week Header
+  const dowHeader = ['NOME', 'DDD', 'ESCALA', ...dates.map(d => {
+    const isSat = isSaturday(d);
+    const isSun = isSunday(d);
+    const dow = parseDateKey(d).getDay();
+    return isSun ? 'domingo' : isSat ? 'sábado' : ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira'][dow - 1];
+  }), 'DIAS TB', 'TOTAL FOLGAS', 'FD DUPLADO'];
+
+  const dateHeader = ['NOME', 'DDD', 'ESCALA', ...dates.map(d => formatDisplayDate(d)), 'DIAS TB', 'TOTAL FOLGAS', 'FD DUPLADO'];
+
+  // ATUANTES DIA row (matching user's SPI spreadsheet Row 4)
+  const atuantesRow = ['ATUANTES DIA', '-', '-'];
+  for (const d of dates) {
+    let working = 0;
+    for (const tech of sortedTechs) {
+      const shift = schedules[tech.id]?.days[d]?.shift || 'TB';
+      if (isWorkingShift(shift)) working++;
+    }
+    atuantesRow.push(String(working));
+  }
+  atuantesRow.push('-', '-', '-');
+
+  rows.push(dowHeader);
+  rows.push(dateHeader);
+  rows.push(atuantesRow);
+
+  // Technician Rows
   for (const tech of sortedTechs) {
     const techSched = schedules[tech.id];
     const stats = audit.techStats[tech.id] || {
@@ -28,13 +57,14 @@ export function exportScheduleToExcel(
     };
 
     const rowData: any[] = [
-      `DDD ${tech.ddd}`,
       tech.name,
-      tech.phone || '-'
+      tech.ddd,
+      tech.shiftHours || '08:00 AS 16:20'
     ];
 
     for (const d of dates) {
-      const shift = techSched?.days[d]?.shift || 'T';
+      const rawShift = techSched?.days[d]?.shift || 'TB';
+      const shift = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
       rowData.push(shift);
     }
 
@@ -45,33 +75,45 @@ export function exportScheduleToExcel(
     rows.push(rowData);
   }
 
-  // Summary row at bottom for daily coverage
-  const dailyWorkCountRow: any[] = ['RESUMO', 'Técnicos Trabalhando', '-'];
-  const dailyOffCountRow: any[] = ['RESUMO', 'Técnicos Folgando', '-'];
-
+  // Summary row at bottom for daily off counts
+  const folgantesRow: any[] = ['TOTAL FOLGANDO NO DIA', '-', '-'];
   for (const d of dates) {
-    let working = 0;
-    let off = 0;
+    let offCount = 0;
     for (const tech of sortedTechs) {
-      const shift = schedules[tech.id]?.days[d]?.shift || 'T';
-      if (shift === 'T') working++;
-      else off++;
+      const shift = schedules[tech.id]?.days[d]?.shift || 'TB';
+      if (isOffShift(shift)) offCount++;
     }
-    dailyWorkCountRow.push(working);
-    dailyOffCountRow.push(off);
+    folgantesRow.push(String(offCount));
   }
-  rows.push(dailyWorkCountRow);
-  rows.push(dailyOffCountRow);
+  rows.push(folgantesRow);
 
   const wsEscala = XLSX.utils.aoa_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb, wsEscala, 'Escala 6x1 Bimestral');
+  XLSX.utils.book_append_sheet(wb, wsEscala, 'ESCALA SPI');
 
-  // 2. Pedidos de Folga Sheet
+  // 2. Legenda e Resumo Sheet
+  const legendaRows = [
+    ['CÓDIGO', 'SIGNIFICADO', 'DESCRIÇÃO'],
+    ['TB', 'Dia Trabalhado', 'Turno regular de trabalho conforme horário'],
+    ['FG', 'Folga Regular', 'Descanso semanal remunerado (Sábado ou Domingo)'],
+    ['FD', 'Folga Duplada', 'Fim de semana completo de folga (Sábado + Domingo)'],
+    ['FC', 'Folga Compensada', 'Folga entre 2ª e 5ª feira para compensar inversão sem exceder 6 dias'],
+    ['FN', 'Feriado Nacional', 'Feriado civil ou nacional'],
+    ['FR', 'Férias', 'Período de férias regulamentares'],
+    ['LIC', 'Afastado', 'Afastamento médico ou licença'],
+    ['FB', 'Folga Banco', 'Folga por compensação de banco de horas']
+  ];
+  const wsLegenda = XLSX.utils.aoa_to_sheet(legendaRows);
+  XLSX.utils.book_append_sheet(wb, wsLegenda, 'LEGENDA');
+
+  // 3. Pedidos de Folga Sheet
   const reqHeader = ['Técnico', 'DDD', 'Data', 'Motivo', 'Observações', 'Prioridade', 'Status'];
   const reqRows: any[][] = [reqHeader];
 
   for (const req of offRequests) {
     const tech = technicians.find(t => t.id === req.technicianId);
+    const shift = schedules[req.technicianId]?.days[req.date]?.shift;
+    const isGranted = isOffShift(shift);
+
     reqRows.push([
       tech ? tech.name : 'Desconhecido',
       tech ? `DDD ${tech.ddd}` : '-',
@@ -79,7 +121,7 @@ export function exportScheduleToExcel(
       req.reasonCategory.toUpperCase(),
       req.notes.join('; '),
       req.priority.toUpperCase(),
-      schedules[req.technicianId]?.days[req.date]?.shift === 'F' ? 'ATENDIDO' : 'NÃO ATENDIDO'
+      isGranted ? 'ATENDIDO' : 'EM ANÁLISE'
     ]);
   }
 
@@ -87,7 +129,7 @@ export function exportScheduleToExcel(
   XLSX.utils.book_append_sheet(wb, wsRequests, 'Solicitações de Folga');
 
   // Write file
-  const fileName = `Escala_6x1_${period.name.replace(/\s+/g, '_')}_DDD13_14_15_19.xlsx`;
+  const fileName = `Escala_Tecnico_Remoto_SPI_${period.name.replace(/\s+/g, '_')}.xlsx`;
   XLSX.writeFile(wb, fileName);
 }
 
@@ -105,23 +147,26 @@ export function generateIndividualWhatsAppMessage(
   const doubleWeekends: string[] = [];
 
   for (const d of dates) {
-    const shift = schedule?.days[d]?.shift;
-    if (shift === 'F' || shift === 'FD') {
-      offDays.push(formatDisplayDate(d));
+    const rawShift = schedule?.days[d]?.shift;
+    const shift = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
+    if (isOffShift(shift)) {
+      const typeLabel = shift === 'FD' ? 'Folga Dupla' : shift === 'FC' ? 'Folga Compensada' : 'Folga Regular';
+      offDays.push(`${formatDisplayDate(d)} (${typeLabel})`);
     }
   }
 
   for (const wk of weekends) {
     const sat = schedule?.days[wk.saturday]?.shift;
     const sun = schedule?.days[wk.sunday]?.shift;
-    if ((sat === 'F' || sat === 'FD') && (sun === 'F' || sun === 'FD')) {
+    if ((sat === 'FD' || sat === 'FG' || sat === 'F') && (sun === 'FD' || sun === 'FG' || sun === 'F')) {
       doubleWeekends.push(`${formatDisplayDate(wk.saturday)} e ${formatDisplayDate(wk.sunday)}`);
     }
   }
 
-  let msg = `📅 *ESCALA DE TRABALHO 6x1*\n`;
+  let msg = `📅 *ESCALA TÉCNICO REMOTO SPI - 6x1*\n`;
   msg += `👤 *Técnico:* ${tech.name}\n`;
   msg += `📍 *Região:* DDD ${tech.ddd}\n`;
+  msg += `⏰ *Horário / Turno:* ${tech.shiftHours || '08:00 AS 16:20'}\n`;
   msg += `🗓️ *Período:* ${period.name}\n\n`;
 
   msg += `⭐ *SEU FIM DE SEMANA DUPLADO (Sábado + Domingo LIVRES):*\n`;
@@ -130,10 +175,10 @@ export function generateIndividualWhatsAppMessage(
       msg += `  🎉 *${dw}*\n`;
     });
   } else {
-    msg += `  (Ajuste pendente com a supervisão)\n`;
+    msg += `  (Ajuste em andamento com a supervisão)\n`;
   }
 
-  msg += `\n🏖️ *TODAS AS SUAS FOLGAS NO BIMESTRE (${offDays.length} folgas):*\n`;
+  msg += `\n🏖️ *PROGRAMAÇÃO DE FOLGAS NO BIMESTRE (${offDays.length} folgas):*\n`;
   offDays.forEach(f => {
     msg += `  • ${f}\n`;
   });
@@ -141,12 +186,13 @@ export function generateIndividualWhatsAppMessage(
   if (techRequests.length > 0) {
     msg += `\n📝 *Pedidos de Folga Registrados:*\n`;
     techRequests.forEach(req => {
-      const isGranted = schedule?.days[req.date]?.shift === 'F' || schedule?.days[req.date]?.shift === 'FD';
+      const shift = schedule?.days[req.date]?.shift;
+      const isGranted = isOffShift(shift);
       msg += `  ${isGranted ? '✅' : '⚠️'} ${formatDisplayDate(req.date)}: ${req.notes.join(', ')} (${isGranted ? 'Atendido' : 'Em análise'})\n`;
     });
   }
 
-  msg += `\n_Escala gerada em conformidade com o descanso semanal 6x1._`;
+  msg += `\n_Escala oficial 6x1 validada sem excesso de folgas (limite de 6 dias trabalhados)._`;
   return msg;
 }
 
@@ -158,7 +204,8 @@ export function generateTeamGroupWhatsAppSummary(
 ): string {
   const weekends = extractWeekends(dates);
 
-  let msg = `📋 *ESCALA GERAL 6x1 - ${period.name.toUpperCase()}*\n`;
+  let msg = `📋 *ESCALA TÉCNICO REMOTO SPI - GERAL 6x1*\n`;
+  msg += `🗓️ *Período:* ${period.name.toUpperCase()}\n`;
   msg += `👥 Equipes DDD 13, 14, 15 e 19\n\n`;
   msg += `🏖️ *DISTRIBUIÇÃO DOS FINAIS DE SEMANA DUPLADOS (Sáb + Dom):*\n`;
 
@@ -168,7 +215,7 @@ export function generateTeamGroupWhatsAppSummary(
     for (const tech of technicians) {
       const sat = schedules[tech.id]?.days[wk.saturday]?.shift;
       const sun = schedules[tech.id]?.days[wk.sunday]?.shift;
-      if ((sat === 'F' || sat === 'FD') && (sun === 'F' || sun === 'FD')) {
+      if ((sat === 'FD' || sat === 'FG' || sat === 'F') && (sun === 'FD' || sun === 'FG' || sun === 'F')) {
         offTechs.push(tech);
       }
     }
