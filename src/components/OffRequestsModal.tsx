@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Technician, OffRequest } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Technician, OffRequest, AppUser } from '../types';
 import { formatDisplayDate } from '../utils/dateUtils';
 import { X, Plus, Trash2, Calendar, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 
@@ -9,6 +9,7 @@ interface OffRequestsModalProps {
   technicians: Technician[];
   dates: string[];
   requests: OffRequest[];
+  currentUser?: AppUser | null;
   onAddRequest: (req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => void;
   onDeleteRequest: (id: string) => void;
   schedules: Record<string, { days: Record<string, { shift: string }> }>;
@@ -20,16 +21,27 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
   technicians,
   dates,
   requests,
+  currentUser,
   onAddRequest,
   onDeleteRequest,
   schedules
 }) => {
-  const [selectedTechId, setSelectedTechId] = useState<string>(technicians[0]?.id || '');
+  const isAdmin = currentUser?.role === 'admin';
+  const myTechId = !isAdmin && currentUser?.technicianId ? currentUser.technicianId : technicians[0]?.id || '';
+
+  const [selectedTechId, setSelectedTechId] = useState<string>(myTechId);
   const [selectedDate, setSelectedDate] = useState<string>(dates[0] || '');
   const [category, setCategory] = useState<'casamento' | 'medico' | 'aniversario' | 'pessoal' | 'outro'>('casamento');
   const [priority, setPriority] = useState<'alta' | 'media' | 'baixa'>('alta');
   const [observations, setObservations] = useState<string[]>(['']);
-  const [filterTech, setFilterTech] = useState<string>('all');
+  const [filterTech, setFilterTech] = useState<string>(!isAdmin ? myTechId : 'all');
+
+  useEffect(() => {
+    if (!isAdmin && currentUser?.technicianId) {
+      setSelectedTechId(currentUser.technicianId);
+      setFilterTech(currentUser.technicianId);
+    }
+  }, [currentUser, isAdmin]);
 
   if (!isOpen) return null;
 
@@ -108,17 +120,23 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                 <label className="block text-xs font-medium text-slate-700 mb-1">
                   Técnico Solicitante:
                 </label>
-                <select
-                  value={selectedTechId}
-                  onChange={e => setSelectedTechId(e.target.value)}
-                  className="w-full text-sm bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                >
-                  {technicians.map(t => (
-                    <option key={t.id} value={t.id}>
-                      [DDD {t.ddd}] {t.name}
-                    </option>
-                  ))}
-                </select>
+                {isAdmin ? (
+                  <select
+                    value={selectedTechId}
+                    onChange={e => setSelectedTechId(e.target.value)}
+                    className="w-full text-sm bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    {technicians.map(t => (
+                      <option key={t.id} value={t.id}>
+                        [DDD {t.ddd}] {t.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="w-full text-xs font-bold bg-slate-100 border border-slate-200 rounded-lg px-3 py-2.5 text-slate-900">
+                    {technicians.find(t => t.id === myTechId)?.name} (DDD {currentUser?.ddd})
+                  </div>
+                )}
               </div>
 
               <div>
@@ -226,21 +244,23 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
           <div className="md:col-span-7 flex flex-col">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-slate-800 text-sm">
-                Solicitações Cadastradas ({filteredRequests.length})
+                {isAdmin ? `Solicitações Cadastradas (${filteredRequests.length})` : `Minhas Solicitações (${filteredRequests.length})`}
               </h3>
 
-              <select
-                value={filterTech}
-                onChange={e => setFilterTech(e.target.value)}
-                className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700"
-              >
-                <option value="all">Todos os técnicos</option>
-                {technicians.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+              {isAdmin && (
+                <select
+                  value={filterTech}
+                  onChange={e => setFilterTech(e.target.value)}
+                  className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700"
+                >
+                  <option value="all">Todos os técnicos</option>
+                  {technicians.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {filteredRequests.length === 0 ? (

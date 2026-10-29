@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType, AppUser } from '../types';
 import { formatDisplayDate, formatFullDate, parseDateKey, isSaturday, isSunday, extractWeekends, MONTHS_PT } from '../utils/dateUtils';
 import { AuditResult } from '../utils/validator';
 import { generateIndividualWhatsAppMessage } from '../utils/exportUtils';
@@ -16,7 +16,8 @@ import {
   Clock,
   Sparkles,
   ShieldCheck,
-  Briefcase
+  Briefcase,
+  Lock
 } from 'lucide-react';
 
 interface TechnicianViewProps {
@@ -26,8 +27,10 @@ interface TechnicianViewProps {
   period: SchedulePeriod;
   auditResult: AuditResult;
   offRequests: OffRequest[];
+  currentUser: AppUser | null;
   onAddRequest: (req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => void;
   onUpdateShift: (techId: string, date: string, shift: ShiftType) => void;
+  onOpenRequestsModal?: (techId: string) => void;
 }
 
 export const TechnicianView: React.FC<TechnicianViewProps> = ({
@@ -37,12 +40,28 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   period,
   auditResult,
   offRequests,
+  currentUser,
   onAddRequest,
-  onUpdateShift
+  onUpdateShift,
+  onOpenRequestsModal
 }) => {
   const activeTechs = technicians.filter(t => t.active);
-  const [selectedTechId, setSelectedTechId] = useState<string>(activeTechs[0]?.id || '');
+  const isAdmin = currentUser?.role === 'admin';
+
+  // If user is technician, lock to their own ID strictly!
+  const initialTechId = !isAdmin && currentUser?.technicianId
+    ? currentUser.technicianId
+    : activeTechs[0]?.id || '';
+
+  const [selectedTechId, setSelectedTechId] = useState<string>(initialTechId);
   const [copied, setCopied] = useState<boolean>(false);
+
+  // Keep synced if user switches
+  useEffect(() => {
+    if (!isAdmin && currentUser?.technicianId) {
+      setSelectedTechId(currentUser.technicianId);
+    }
+  }, [currentUser, isAdmin]);
 
   // Quick request form states
   const [reqDate, setReqDate] = useState<string>(dates[0] || '');
@@ -59,7 +78,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     return <div className="p-8 text-center text-slate-500">Nenhum técnico disponível.</div>;
   }
 
-  // Find their double weekends
+  // Find their double weekends (strictly Sáb + Dom)
   const doubleWeekends = weekends.filter(wk => {
     const sat = currentSched.days[wk.saturday]?.shift;
     const sun = currentSched.days[wk.sunday]?.shift;
@@ -97,28 +116,49 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top selector and Action Card */}
+      {/* Top Profile / Selector Card */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
             <User className="w-6 h-6" />
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-              Selecione o Técnico para Visualização Individual:
-            </label>
-            <select
-              value={selectedTechId}
-              onChange={e => setSelectedTechId(e.target.value)}
-              className="text-base font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 min-w-[300px]"
-            >
-              {activeTechs.map(t => (
-                <option key={t.id} value={t.id}>
-                  [DDD {t.ddd}] {t.name}
-                </option>
-              ))}
-            </select>
+            {isAdmin ? (
+              <>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
+                  Selecione o Técnico para Visualização Individual:
+                </label>
+                <select
+                  value={selectedTechId}
+                  onChange={e => setSelectedTechId(e.target.value)}
+                  className="text-base font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 min-w-[300px]"
+                >
+                  {activeTechs.map(t => (
+                    <option key={t.id} value={t.id}>
+                      [DDD {t.ddd}] {t.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                    Seu Painel Individual Privativo
+                  </span>
+                  <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                    DDD {currentTech.ddd}
+                  </span>
+                </div>
+                <h2 className="text-lg font-black text-slate-900 mt-1">
+                  {currentTech.name}
+                </h2>
+                <p className="text-xs text-slate-500">
+                  {DDD_INFO[currentTech.ddd]?.region} • Escala 6x1 Pessoal
+                </p>
+              </>
+            )}
           </div>
         </div>
 
@@ -168,7 +208,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
             <p className="text-xs text-purple-100 mt-1">
               {doubleWeekends.length > 0
                 ? `${doubleWeekends.map(w => w.label).join(' | ')}`
-                : 'Nenhum final de semana duplado programado'}
+                : 'Ajuste em andamento com a supervisão'}
             </p>
           </div>
           <div className="text-[11px] bg-white/20 px-2.5 py-1 rounded-lg backdrop-blur-xs font-medium w-fit">
@@ -187,11 +227,11 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
               {currentStats?.totalOffDays || 0} dias
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Sendo {currentStats?.weekendDaysOff || 0} dias em fins de semana
+              Sendo {currentStats?.weekendDaysOff || 0} dias em finais de semana
             </p>
           </div>
           <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg font-medium w-fit">
-            Média de 1 folga a cada 6 dias
+            Regime 6x1 regular
           </div>
         </div>
 
@@ -209,12 +249,12 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
             </div>
             <p className="text-xs text-slate-500 mt-1">
               {(currentStats?.maxConsecutiveWorkDays || 0) <= 6
-                ? '✅ Total conformidade com a CLT 6x1'
-                : '⚠️ Violação legal (ultrapassou 6 dias)'}
+                ? '✅ Conforme com o limite legal CLT'
+                : '⚠️ Violação do limite de 6 dias'}
             </p>
           </div>
           <div className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-medium w-fit">
-            Limite legal: até 6 dias seguidos
+            Máximo 6 dias de trabalho seguidos
           </div>
         </div>
 
@@ -229,7 +269,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
               {currentStats?.inversionsCount || 0}
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Viradas de turno com folga compensatória
+              Folga compensatória de segunda a quinta
             </p>
           </div>
           <div className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg font-medium w-fit">
@@ -245,10 +285,12 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
             <div>
               <h3 className="text-base font-bold text-slate-800">
-                Calendário Bimestral de {currentTech.name}
+                Calendário da Escala - {currentTech.name}
               </h3>
               <p className="text-xs text-slate-500">
-                Clique em qualquer dia para alterar o status entre Trabalho e Folga.
+                {isAdmin
+                  ? 'Clique em qualquer dia para alterar o status.'
+                  : 'Suas folgas programadas e dias de trabalho para o bimestre.'}
               </p>
             </div>
             <span className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${DDD_INFO[currentTech.ddd]?.badge}`}>
@@ -277,8 +319,13 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                 <div
                   key={d}
                   onClick={() => {
-                    const next = shift === 'T' ? 'F' : shift === 'F' ? 'FD' : 'T';
-                    onUpdateShift(currentTech.id, d, next);
+                    if (isAdmin) {
+                      const next = shift === 'T' ? 'F' : shift === 'F' ? 'FD' : 'T';
+                      onUpdateShift(currentTech.id, d, next);
+                    } else {
+                      // Technician clicks: set as date for request
+                      setReqDate(d);
+                    }
                   }}
                   className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[85px] relative ${cardStyle}`}
                 >
@@ -315,15 +362,15 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200">
             <h4 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
               <Plus className="w-4 h-4 text-indigo-600" />
-              Solicitar Folga para este Técnico
+              Solicitar Folga (Compromisso / Casamento)
             </h4>
             <p className="text-xs text-slate-500 mb-4">
-              O técnico pode registrar compromissos (casamento, consulta, evento) para este bimestre.
+              Informe a data e adicione observações para avaliação pelo gestor.
             </p>
 
             <form onSubmit={handleQuickAddRequest} className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Data:</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Data Desejada:</label>
                 <select
                   value={reqDate}
                   onChange={e => setReqDate(e.target.value)}
@@ -358,8 +405,9 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                   type="text"
                   value={reqNote}
                   onChange={e => setReqNote(e.target.value)}
-                  placeholder="Ex: Padrinho de casamento em Santos"
+                  placeholder="Ex: Casamento de familiar em Santos"
                   className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800"
+                  required
                 />
               </div>
 
@@ -376,7 +424,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           {/* List of technician's requests */}
           <div className="bg-white rounded-2xl p-5 border border-slate-200">
             <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center justify-between">
-              <span>Pedidos Cadastrados</span>
+              <span>Meus Pedidos Cadastrados</span>
               <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-full">
                 {techRequests.length}
               </span>
@@ -384,7 +432,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
 
             {techRequests.length === 0 ? (
               <p className="text-xs text-slate-400 py-4 text-center">
-                Nenhum pedido de folga registrado para este técnico.
+                Nenhum pedido de folga registrado para este período.
               </p>
             ) : (
               <div className="space-y-2.5 max-h-64 overflow-y-auto">

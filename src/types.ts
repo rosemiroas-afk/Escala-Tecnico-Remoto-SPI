@@ -142,3 +142,16 @@ export interface GeneratorOptions {
   balanceDDDCoverage: boolean; // default true
   randomSeed?: number;
 }
+
+export type UserRole = 'admin' | 'technician';
+
+export interface AppUser {
+  id: string; // 'admin' or technicianId
+  name: string;
+  role: UserRole;
+  pin: string; // default '1234'
+  isFirstLogin: boolean;
+  technicianId?: string;
+  ddd?: DDDNumber;
+}
+

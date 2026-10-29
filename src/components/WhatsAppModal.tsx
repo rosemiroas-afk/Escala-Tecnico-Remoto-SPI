@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest } from '../types';
+import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, AppUser } from '../types';
 import { generateIndividualWhatsAppMessage, generateTeamGroupWhatsAppSummary } from '../utils/exportUtils';
 import { MessageSquare, Copy, Check, Send, X, Users, User } from 'lucide-react';
 
@@ -11,6 +11,7 @@ interface WhatsAppModalProps {
   dates: string[];
   period: SchedulePeriod;
   offRequests: OffRequest[];
+  currentUser?: AppUser | null;
 }
 
 export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
@@ -20,11 +21,15 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
   schedules,
   dates,
   period,
-  offRequests
+  offRequests,
+  currentUser
 }) => {
+  const isAdmin = currentUser?.role === 'admin';
+  const myTechId = !isAdmin && currentUser?.technicianId ? currentUser.technicianId : technicians[0]?.id || '';
+
   const activeTechs = technicians.filter(t => t.active);
   const [tab, setTab] = useState<'individual' | 'group'>('individual');
-  const [selectedTechId, setSelectedTechId] = useState<string>(activeTechs[0]?.id || '');
+  const [selectedTechId, setSelectedTechId] = useState<string>(myTechId);
   const [copied, setCopied] = useState<boolean>(false);
 
   if (!isOpen) return null;
@@ -71,35 +76,37 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
         </div>
 
         {/* Tab switcher */}
-        <div className="px-6 pt-4 border-b border-slate-200 flex items-center gap-4 bg-slate-50">
-          <button
-            onClick={() => setTab('individual')}
-            className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 cursor-pointer transition-colors ${
-              tab === 'individual'
-                ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <User className="w-4 h-4" />
-            Mensagem Individual do Técnico
-          </button>
+        {isAdmin && (
+          <div className="px-6 pt-4 border-b border-slate-200 flex items-center gap-4 bg-slate-50">
+            <button
+              onClick={() => setTab('individual')}
+              className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 cursor-pointer transition-colors ${
+                tab === 'individual'
+                  ? 'border-emerald-600 text-emerald-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <User className="w-4 h-4" />
+              Mensagem Individual do Técnico
+            </button>
 
-          <button
-            onClick={() => setTab('group')}
-            className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 cursor-pointer transition-colors ${
-              tab === 'group'
-                ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            Resumo Geral do Grupo da Equipe
-          </button>
-        </div>
+            <button
+              onClick={() => setTab('group')}
+              className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 cursor-pointer transition-colors ${
+                tab === 'group'
+                  ? 'border-emerald-600 text-emerald-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Resumo Geral do Grupo da Equipe
+            </button>
+          </div>
+        )}
 
         {/* Body */}
         <div className="p-6 flex-1 overflow-y-auto space-y-4">
-          {tab === 'individual' && (
+          {tab === 'individual' && isAdmin && (
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Selecione o Técnico:

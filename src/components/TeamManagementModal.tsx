@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
 import { Technician, DDDNumber } from '../types';
 import { INITIAL_TECHNICIANS, DDD_INFO } from '../data/defaultTechnicians';
-import { Users, Plus, Trash2, Edit3, Check, X, RotateCcw } from 'lucide-react';
+import { Users, Plus, Trash2, Edit3, Check, X, RotateCcw, KeyRound } from 'lucide-react';
 
 interface TeamManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
   technicians: Technician[];
   onUpdateTechnicians: (techs: Technician[]) => void;
+  onResetUserPin?: (techId: string) => void;
 }
 
 export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
   isOpen,
   onClose,
   technicians,
-  onUpdateTechnicians
+  onUpdateTechnicians,
+  onResetUserPin
 }) => {
   const [filterDDD, setFilterDDD] = useState<string>('all');
   const [newName, setNewName] = useState<string>('');
@@ -255,6 +257,19 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1">
+                      {onResetUserPin && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`Resetar senha de ${tech.name} para o padrão '1234'?`)) {
+                              onResetUserPin(tech.id);
+                            }
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-amber-600 rounded-md hover:bg-amber-50 transition-colors"
+                          title="Resetar senha para 1234"
+                        >
+                          <KeyRound className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleStartEdit(tech)}
                         className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-md hover:bg-slate-100"

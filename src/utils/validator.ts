@@ -104,7 +104,7 @@ export function validateSchedule(
         }
       }
 
-      // Check double weekends
+      // Check double weekends (strictly Sábado + Domingo)
       for (const wk of weekends) {
         const satShift = techSched.days[wk.saturday]?.shift;
         const sunShift = techSched.days[wk.sunday]?.shift;
@@ -113,6 +113,35 @@ export function validateSchedule(
 
         if (isSatOff && isSunOff) {
           doubleWeekendsCount++;
+        }
+      }
+
+      // Check unwanted Friday + Saturday double off
+      for (let i = 0; i < dates.length - 1; i++) {
+        const d1 = dates[i];
+        const d2 = dates[i + 1];
+        const dow1 = parseDateKey(d1).getDay();
+        const dow2 = parseDateKey(d2).getDay();
+
+        if (dow1 === 5 && dow2 === 6) { // Friday and Saturday
+          const s1 = techSched.days[d1]?.shift;
+          const s2 = techSched.days[d2]?.shift;
+          const isOff1 = s1 === 'F' || s1 === 'FD';
+          const isOff2 = s2 === 'F' || s2 === 'FD';
+
+          if (isOff1 && isOff2) {
+            issues.push({
+              id: `unwanted-fri-sat-${tech.id}-${d1}`,
+              type: 'excessive_offs',
+              severity: 'warning',
+              technicianId: tech.id,
+              technicianName: tech.name,
+              date: d1,
+              ddd: tech.ddd,
+              message: `${tech.name} possui folga dupla em Sexta (${d1}) e Sábado (${d2}).`,
+              suggestion: `Mover a folga compensatória para Segunda a Quinta. Folgas duplas devem ser exclusivamente Sábado e Domingo.`
+            });
+          }
         }
       }
     }
