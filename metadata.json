@@ -1,0 +1,6 @@
+{
+  "name": "EscalaMaster 6x1 - Distribuidor de Escalas",
+  "description": "Sistema de gestão e distribuição automática de escalas 6x1 bimestrais por DDD com folgas de fim de semana dupladas e controle de pedidos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
