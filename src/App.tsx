@@ -483,38 +483,25 @@ export default function App() {
 
   // Handler: Admin Approves Off Request
   const handleApproveRequest = useCallback((id: string) => {
-    const req = offRequests.find(r => r.id === id);
-    if (!req) return;
+    setOffRequests(prevRequests => {
+      const req = prevRequests.find(r => r.id === id);
+      if (!req) return prevRequests;
 
-    const updatedRequests: OffRequest[] = offRequests.map(r => r.id === id ? { ...r, status: 'atendido' as const } : r);
-    setOffRequests(updatedRequests);
+      const updatedRequests: OffRequest[] = prevRequests.map(r => r.id === id ? { ...r, status: 'atendido' as const } : r);
+      
+      // Determine shift type based on day of week:
+      const dObj = new Date(req.date + 'T12:00:00');
+      const dow = dObj.getDay();
+      const targetShift: ShiftType = (dow === 0 || dow === 6) ? 'FG' : 'FC';
 
-    // Determine shift type based on day of week:
-    const dObj = new Date(req.date + 'T12:00:00');
-    const dow = dObj.getDay();
-    const targetShift: ShiftType = (dow === 0 || dow === 6) ? 'FG' : 'FC';
+      // Grant off on requested date
+      handleUpdateShift(req.technicianId, req.date, targetShift, `Folga Aprovada: ${req.notes.join(' | ')}`);
 
-    // Grant off on requested date
-    handleUpdateShift(req.technicianId, req.date, targetShift, `Folga Aprovada: ${req.notes.join(' | ')}`);
-
-    // If granted on weekday, switch that week's Sunday off to TB to avoid excess offs
-    if (dow >= 1 && dow <= 5) {
-      const reqIdx = dates.indexOf(req.date);
-      for (let forward = 1; forward <= 6; forward++) {
-        const fIdx = reqIdx + forward;
-        if (fIdx < dates.length) {
-          const fDate = dates[fIdx];
-          const fDow = new Date(fDate + 'T12:00:00').getDay();
-          if (fDow === 0 && schedules[req.technicianId]?.days[fDate]?.shift === 'FG') {
-            handleUpdateShift(req.technicianId, fDate, 'TB', `Plantão (Compensado com folga em ${req.date})`);
-            break;
-          }
-        }
-      }
-    }
-    
-    saveToFirestore({ offRequests: updatedRequests });
-  }, [offRequests, dates, schedules, handleUpdateShift, saveToFirestore]);
+      // Trigger save after state update
+      saveToFirestore({ offRequests: updatedRequests });
+      return updatedRequests;
+    });
+  }, [handleUpdateShift, saveToFirestore]);
 
   // Handler: Admin Rejects Off Request
   const handleRejectRequest = useCallback((id: string) => {
