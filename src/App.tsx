@@ -319,15 +319,44 @@ export default function App() {
   // Firestore Quota Exceeded State
   const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState<boolean>(false);
 
+  // Real-time Validation Audit
+  const auditResult = useMemo(() => {
+    return validateSchedule(technicians, schedules, dates, offRequests);
+  }, [technicians, schedules, dates, offRequests]);
+
+  // Pending Off Requests
+  const pendingRequests = useMemo(() => {
+    return offRequests.filter(r => r.status === 'pendente');
+  }, [offRequests]);
+
   // Real-time synchronization using Supabase for 100% real-time data sync across devices
   useEffect(() => {
     // 1. Fetch initial state
     const fetchData = async () => {
-      const { data: folgas } = await supabase.from('solicitacoes_folga').select('*');
-      if (folgas) setOffRequests(folgas);
-      
-      const { data: usersData } = await supabase.from('usuarios').select('*');
-      if (usersData) setUsers(usersData);
+      try {
+        // Fetch Off Requests
+        const { data: folgas } = await supabase.from('solicitacoes_folga').select('*');
+        if (folgas) setOffRequests(folgas);
+        
+        // Fetch Users
+        const { data: usersData } = await supabase.from('usuarios').select('*');
+        if (usersData) setUsers(usersData);
+
+        // Fetch Global App Data (Schedules, Techs, Period)
+        const { data: appData, error: appDataError } = await supabase
+          .from('appData')
+          .select('*')
+          .eq('id', 'state')
+          .maybeSingle();
+
+        if (appData && !appDataError) {
+          if (appData.technicians) setTechnicians(appData.technicians);
+          if (appData.schedules) setSchedules(appData.schedules);
+          if (appData.period) setPeriod(appData.period);
+        }
+      } catch (err) {
+        console.error('Error fetching initial data from Supabase:', err);
+      }
     };
     fetchData();
 
@@ -335,6 +364,14 @@ export default function App() {
     const channel = supabase.channel('realtime_sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitacoes_folga' }, payload => {
         console.log('Folgas updated:', payload);
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios' }, payload => {
+        console.log('Users updated:', payload);
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'appData' }, payload => {
+        console.log('App Data updated:', payload);
         fetchData();
       })
       .subscribe();
@@ -357,16 +394,6 @@ export default function App() {
     }
   }, []);
 
-
-  // Real-time Validation Audit
-  const auditResult = useMemo(() => {
-    return validateSchedule(technicians, schedules, dates, offRequests);
-  }, [technicians, schedules, dates, offRequests]);
-
-  // Pending Off Requests
-  const pendingRequests = useMemo(() => {
-    return offRequests.filter(r => r.status === 'pendente');
-  }, [offRequests]);
 
   // Admin Pending Requests Alert Modal
   const [isAdminAlertOpen, setIsAdminAlertOpen] = useState<boolean>(false);
@@ -530,6 +557,34 @@ export default function App() {
   const handleExportExcel = () => {
     exportScheduleToExcel(technicians, schedules, dates, period, offRequests);
   };
+
+  // Handler: Generate Schedule
+  const handleGenerate = useCallback((options: GeneratorOptions, periodConfig: { startYear: number; startMonth: number }) => {
+    // Generate new dates for the new period
+    const newDates = generateDateRange(periodConfig.startYear, periodConfig.startMonth, period.durationMonths);
+    
+    // Update period state
+    const newPeriod = {
+      ...period,
+      startYear: periodConfig.startYear,
+      startMonth: periodConfig.startMonth,
+      updatedAt: new Date().toISOString()
+    };
+    setPeriod(newPeriod);
+
+    // Generate new schedule
+    const newSchedule = generateSchedule(technicians, newDates, offRequests, options);
+    setSchedules(newSchedule);
+    
+    // Save everything to Supabase
+    saveToSupabase('appData', { 
+      schedules: newSchedule,
+      period: newPeriod
+    }, 'state');
+    
+    setIsGeneratorOpen(false);
+    alert('Escala gerada com sucesso para o novo período!');
+  }, [technicians, offRequests, period, saveToSupabase]);
 
   const isAdmin = currentUser?.role === 'admin';
 
