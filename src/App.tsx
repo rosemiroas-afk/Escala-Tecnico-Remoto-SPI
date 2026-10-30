@@ -315,6 +315,9 @@ export default function App() {
     }
   }, [schedules]);
 
+  // Firestore Quota Exceeded State
+  const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState<boolean>(false);
+
   // Real-time synchronization using onSnapshot for 100% real-time data sync across devices
   useEffect(() => {
     const docRef = doc(db, 'appData', 'state');
@@ -342,7 +345,13 @@ export default function App() {
         setPeriod(prev => JSON.stringify(prev) !== JSON.stringify(data.period) ? (data.period || prev) : prev);
       }
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'appData/state');
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if (errMsg.includes('Quota exceeded') || errMsg.includes('quota')) {
+        setFirestoreQuotaExceeded(true);
+        console.warn('Firestore quota exceeded. Operating in offline/local storage mode.');
+      } else {
+        handleFirestoreError(error, OperationType.GET, 'appData/state');
+      }
     });
 
     return () => unsubscribe();
@@ -368,7 +377,13 @@ export default function App() {
         updatedAt: new Date().toISOString()
       }, { merge: true });
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'appData/state');
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if (errMsg.includes('Quota exceeded') || errMsg.includes('quota')) {
+        setFirestoreQuotaExceeded(true);
+        console.warn('Firestore quota exceeded during save. Saved locally.');
+      } else {
+        handleFirestoreError(error, OperationType.WRITE, 'appData/state');
+      }
     }
   }, [technicians, users, offRequests, schedules, period]);
 
@@ -606,6 +621,39 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
+        {/* Firestore Quota Exceeded Banner */}
+        {firestoreQuotaExceeded && (
+          <div className="mb-5 p-4 rounded-2xl border bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 flex items-start gap-3 shadow-sm">
+            <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-sm">
+              ⚠️
+            </div>
+            <div className="flex-1">
+              <h4 className="font-bold text-sm sm:text-base">
+                Cota Diária do Firestore Excedida (Quota Exceeded)
+              </h4>
+              <p className="text-xs mt-1 text-rose-800 dark:text-rose-300">
+                O limite gratuito diário de leituras/escritas do Firebase foi atingido. O aplicativo está operando em modo de salvamento local automático para garantir que suas alterações não sejam perdidas. A cota será redefinida amanhã.
+              </p>
+              <div className="mt-2">
+                <a
+                  href="https://firebase.google.com/pricing#cloud-firestore"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-bold underline text-rose-900 dark:text-rose-200 hover:text-rose-950"
+                >
+                  Saiba mais sobre os planos e cota do Firestore →
+                </a>
+              </div>
+            </div>
+            <button
+              onClick={() => setFirestoreQuotaExceeded(false)}
+              className="text-rose-600 dark:text-rose-400 hover:text-rose-800 font-bold px-2 py-1 text-xs cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Prominent Pending Requests Alert Banner for Admin */}
         {isAdmin && pendingRequests.length > 0 && (
           <div className={`mb-5 p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm transition-all ${
