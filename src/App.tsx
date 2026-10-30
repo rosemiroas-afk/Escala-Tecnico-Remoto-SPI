@@ -24,6 +24,8 @@ import { TeamManagementModal } from './components/TeamManagementModal';
 import { WhatsAppModal } from './components/WhatsAppModal';
 import { LoginModal } from './components/LoginModal';
 import { AdminPendingAlert } from './components/AdminPendingAlert';
+import { db } from './firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const STORAGE_KEY_TECHS = 'escalamaster_techs_v2';
 const STORAGE_KEY_PERIOD = 'escalamaster_period_v2';
@@ -310,6 +312,51 @@ export default function App() {
     }
   }, [schedules]);
 
+  // Load from Firestore on mount
+  useEffect(() => {
+    async function loadFromFirestore() {
+      try {
+        const docRef = doc(db, 'appData', 'state');
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.technicians && Array.isArray(data.technicians)) setTechnicians(data.technicians);
+          if (data.users && Array.isArray(data.users)) setUsers(data.users);
+          if (data.offRequests && Array.isArray(data.offRequests)) setOffRequests(data.offRequests);
+          if (data.schedules && typeof data.schedules === 'object' && Object.keys(data.schedules).length > 0) setSchedules(data.schedules);
+          if (data.period) setPeriod(data.period);
+        }
+      } catch (error) {
+        console.error("Firestore load error (using localStorage fallback):", error);
+      }
+    }
+    loadFromFirestore();
+  }, []);
+
+  // Save to Firestore helper
+  const saveToFirestore = useCallback(async (updatedState: {
+    technicians?: Technician[];
+    users?: AppUser[];
+    offRequests?: OffRequest[];
+    schedules?: Record<string, TechnicianSchedule>;
+    period?: SchedulePeriod;
+  }) => {
+    try {
+      const docRef = doc(db, 'appData', 'state');
+      await setDoc(docRef, {
+        technicians,
+        users,
+        offRequests,
+        schedules,
+        period,
+        ...updatedState,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (error) {
+      console.error("Firestore save error:", error);
+    }
+  }, [technicians, users, offRequests, schedules, period]);
+
   // Real-time Validation Audit
   const auditResult = useMemo(() => {
     return validateSchedule(technicians, schedules, dates, offRequests);
@@ -317,18 +364,22 @@ export default function App() {
 
   // Handler: Update User PIN
   const handleUpdateUserPin = useCallback((userId: string, newPin: string) => {
-    setUsers(prev =>
-      prev.map(u => (u.id === userId ? { ...u, pin: newPin, isFirstLogin: false } : u))
-    );
-  }, []);
+    setUsers(prev => {
+      const updated = prev.map(u => (u.id === userId ? { ...u, pin: newPin, isFirstLogin: false } : u));
+      saveToFirestore({ users: updated });
+      return updated;
+    });
+  }, [saveToFirestore]);
 
   // Handler: Admin Reset Technician PIN back to 1234
   const handleResetUserPin = useCallback((techId: string) => {
-    setUsers(prev =>
-      prev.map(u => (u.id === techId ? { ...u, pin: '1234', isFirstLogin: true } : u))
-    );
+    setUsers(prev => {
+      const updated = prev.map(u => (u.id === techId ? { ...u, pin: '1234', isFirstLogin: true } : u));
+      saveToFirestore({ users: updated });
+      return updated;
+    });
     alert('Senha resetada com sucesso para o padrão inicial: 1234');
-  }, []);
+  }, [saveToFirestore]);
 
   // Pending Off Requests
   const pendingRequests = useMemo(() => {
