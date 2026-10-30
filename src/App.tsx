@@ -24,8 +24,8 @@ import { TeamManagementModal } from './components/TeamManagementModal';
 import { WhatsAppModal } from './components/WhatsAppModal';
 import { LoginModal } from './components/LoginModal';
 import { AdminPendingAlert } from './components/AdminPendingAlert';
-import { db } from './firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from './firebase';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
 const STORAGE_KEY_TECHS = 'escalamaster_techs_v2';
 const STORAGE_KEY_PERIOD = 'escalamaster_period_v2';
@@ -312,28 +312,26 @@ export default function App() {
     }
   }, [schedules]);
 
-  // Load from Firestore on mount
+  // Real-time synchronization using onSnapshot for 100% real-time data sync across devices
   useEffect(() => {
-    async function loadFromFirestore() {
-      try {
-        const docRef = doc(db, 'appData', 'state');
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data.technicians && Array.isArray(data.technicians)) setTechnicians(data.technicians);
-          if (data.users && Array.isArray(data.users)) setUsers(data.users);
-          if (data.offRequests && Array.isArray(data.offRequests)) setOffRequests(data.offRequests);
-          if (data.schedules && typeof data.schedules === 'object' && Object.keys(data.schedules).length > 0) setSchedules(data.schedules);
-          if (data.period) setPeriod(data.period);
-        }
-      } catch (error) {
-        console.error("Firestore load error (using localStorage fallback):", error);
+    const docRef = doc(db, 'appData', 'state');
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.technicians && Array.isArray(data.technicians)) setTechnicians(data.technicians);
+        if (data.users && Array.isArray(data.users)) setUsers(data.users);
+        if (data.offRequests && Array.isArray(data.offRequests)) setOffRequests(data.offRequests);
+        if (data.schedules) setSchedules(data.schedules);
+        if (data.period) setPeriod(data.period);
       }
-    }
-    loadFromFirestore();
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'appData/state');
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  // Save to Firestore helper
+  // Save to Firestore helper with error handling
   const saveToFirestore = useCallback(async (updatedState: {
     technicians?: Technician[];
     users?: AppUser[];
@@ -353,7 +351,7 @@ export default function App() {
         updatedAt: new Date().toISOString()
       }, { merge: true });
     } catch (error) {
-      console.error("Firestore save error:", error);
+      handleFirestoreError(error, OperationType.WRITE, 'appData/state');
     }
   }, [technicians, users, offRequests, schedules, period]);
 
