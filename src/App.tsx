@@ -424,7 +424,7 @@ export default function App() {
   const handleUpdateShift = useCallback((techId: string, date: string, shift: ShiftType, notes?: string) => {
     setSchedules(prev => {
       const currentTechSched = prev[techId] || { technicianId: techId, days: {} };
-      return {
+      const updated = {
         ...prev,
         [techId]: {
           ...currentTechSched,
@@ -439,8 +439,10 @@ export default function App() {
           }
         }
       };
+      saveToFirestore({ schedules: updated });
+      return updated;
     });
-  }, []);
+  }, [saveToFirestore]);
 
   // Handler: Run Generator
   const handleGenerate = useCallback((options: GeneratorOptions, periodConfig: { startYear: number; startMonth: number }) => {
@@ -453,12 +455,14 @@ export default function App() {
       name: `${MONTHS_PT[periodConfig.startMonth]} e ${MONTHS_PT[nextM]} de ${periodConfig.startYear === nextY ? periodConfig.startYear : `${periodConfig.startYear}/${nextY}`}`,
       updatedAt: new Date().toISOString()
     };
-    setPeriod(newPeriod);
-
+    
     const newDates = generateDateRange(periodConfig.startYear, periodConfig.startMonth, 2);
     const newSchedule = generateSchedule(technicians, newDates, offRequests, options);
+    
+    setPeriod(newPeriod);
     setSchedules(newSchedule);
-  }, [period, technicians, offRequests]);
+    saveToFirestore({ period: newPeriod, schedules: newSchedule });
+  }, [period, technicians, offRequests, saveToFirestore]);
 
   // Handler: Add Off Request (stays PENDENTE in analysis until Admin approval)
   const handleAddRequest = useCallback((req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => {
@@ -468,25 +472,29 @@ export default function App() {
       createdAt: new Date().toISOString(),
       status: 'pendente'
     };
-    setOffRequests(prev => [...prev, newReq]);
+    setOffRequests(prev => {
+      const updated = [...prev, newReq];
+      saveToFirestore({ offRequests: updated });
+      return updated;
+    });
     // Notify admin if logged in
     if (currentUser?.role === 'admin') {
       setIsAdminAlertOpen(true);
     }
-  }, [currentUser]);
+  }, [currentUser, saveToFirestore]);
 
   // Handler: Admin Approves Off Request
   const handleApproveRequest = useCallback((id: string) => {
     const req = offRequests.find(r => r.id === id);
     if (!req) return;
 
-    setOffRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'atendido' } : r));
+    const updatedRequests: OffRequest[] = offRequests.map(r => r.id === id ? { ...r, status: 'atendido' as const } : r);
+    setOffRequests(updatedRequests);
 
     // Determine shift type based on day of week:
-    // If weekend (Saturday), grant FG. If weekday, grant FC (Folga Compensada).
     const dObj = new Date(req.date + 'T12:00:00');
     const dow = dObj.getDay();
-    const targetShift: ShiftType = dow === 6 ? 'FG' : 'FC';
+    const targetShift: ShiftType = (dow === 0 || dow === 6) ? 'FG' : 'FC';
 
     // Grant off on requested date
     handleUpdateShift(req.technicianId, req.date, targetShift, `Folga Aprovada: ${req.notes.join(' | ')}`);
@@ -506,17 +514,27 @@ export default function App() {
         }
       }
     }
-  }, [offRequests, dates, schedules, handleUpdateShift]);
+    
+    saveToFirestore({ offRequests: updatedRequests });
+  }, [offRequests, dates, schedules, handleUpdateShift, saveToFirestore]);
 
   // Handler: Admin Rejects Off Request
   const handleRejectRequest = useCallback((id: string) => {
-    setOffRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'recusado' } : r));
-  }, []);
+    setOffRequests(prev => {
+      const updated: OffRequest[] = prev.map(r => r.id === id ? { ...r, status: 'recusado' as const } : r);
+      saveToFirestore({ offRequests: updated });
+      return updated;
+    });
+  }, [saveToFirestore]);
 
   // Handler: Delete Off Request
   const handleDeleteRequest = useCallback((id: string) => {
-    setOffRequests(prev => prev.filter(r => r.id !== id));
-  }, []);
+    setOffRequests(prev => {
+      const updated: OffRequest[] = prev.filter(r => r.id !== id);
+      saveToFirestore({ offRequests: updated });
+      return updated;
+    });
+  }, [saveToFirestore]);
 
   // Handler: Open Off Requests modal focused on a technician
   const handleOpenRequestsModal = (techId?: string) => {
@@ -528,13 +546,14 @@ export default function App() {
   const handleClearSchedule = useCallback(() => {
     if (confirm('Deseja realmente apagar 100% da escala atual?')) {
       setSchedules({});
+      saveToFirestore({ schedules: {} });
       try {
         localStorage.removeItem(STORAGE_KEY_SCHEDULE);
       } catch (e) {
         console.error('Failed to clear schedule storage', e);
       }
     }
-  }, []);
+  }, [saveToFirestore]);
 
   // Handler: Export Excel
   const handleExportExcel = () => {
@@ -542,6 +561,12 @@ export default function App() {
   };
 
   const isAdmin = currentUser?.role === 'admin';
+
+  // Handler: Update Technicians List
+  const handleUpdateTechnicians = useCallback((updated: Technician[]) => {
+    setTechnicians(updated);
+    saveToFirestore({ technicians: updated });
+  }, [saveToFirestore]);
 
   return (
     <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
@@ -731,7 +756,7 @@ export default function App() {
         isOpen={isTeamOpen && isAdmin}
         onClose={() => setIsTeamOpen(false)}
         technicians={technicians}
-        onUpdateTechnicians={setTechnicians}
+        onUpdateTechnicians={handleUpdateTechnicians}
         onResetUserPin={handleResetUserPin}
       />
 
