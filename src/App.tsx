@@ -25,7 +25,7 @@ import { WhatsAppModal } from './components/WhatsAppModal';
 import { LoginModal } from './components/LoginModal';
 import { AdminPendingAlert } from './components/AdminPendingAlert';
 import { db, handleFirestoreError, OperationType } from './firebase';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
 
 const STORAGE_KEY_TECHS = 'escalamaster_techs_v2';
 const STORAGE_KEY_PERIOD = 'escalamaster_period_v2';
@@ -324,7 +324,19 @@ export default function App() {
         
         // Use functional state updates to check for actual changes before updating
         setTechnicians(prev => JSON.stringify(prev) !== JSON.stringify(data.technicians) ? (data.technicians || prev) : prev);
-        setUsers(prev => JSON.stringify(prev) !== JSON.stringify(data.users) ? (data.users || prev) : prev);
+        setUsers(prev => {
+          if (!data.users) return prev;
+          const serverUsers: AppUser[] = data.users;
+          const localMap = new Map(prev.map(u => [u.id, u]));
+          const merged = serverUsers.map(su => {
+            const localU = localMap.get(su.id);
+            if (localU && localU.pin && localU.pin !== '1234' && (su.pin === '1234' || !su.pin)) {
+              return { ...su, pin: localU.pin, isFirstLogin: localU.isFirstLogin };
+            }
+            return su;
+          });
+          return JSON.stringify(prev) !== JSON.stringify(merged) ? merged : prev;
+        });
         setOffRequests(prev => JSON.stringify(prev) !== JSON.stringify(data.offRequests) ? (data.offRequests || prev) : prev);
         setSchedules(prev => JSON.stringify(prev) !== JSON.stringify(data.schedules) ? (data.schedules || prev) : prev);
         setPeriod(prev => JSON.stringify(prev) !== JSON.stringify(data.period) ? (data.period || prev) : prev);
@@ -531,15 +543,16 @@ export default function App() {
   };
 
   // Handler: Clear Schedule
-  const handleClearSchedule = useCallback(() => {
-    if (confirm('Deseja realmente apagar 100% da escala atual?')) {
+  const handleClearSchedule = useCallback(async () => {
+    if (window.confirm('Deseja realmente apagar 100% da escala atual?')) {
       setSchedules({});
-      saveToFirestore({ schedules: {} });
+      await saveToFirestore({ schedules: {} });
       try {
         localStorage.removeItem(STORAGE_KEY_SCHEDULE);
       } catch (e) {
         console.error('Failed to clear schedule storage', e);
       }
+      alert('Escala apagada 100% com sucesso!');
     }
   }, [saveToFirestore]);
 
@@ -693,6 +706,7 @@ export default function App() {
                 onAddRequest={handleAddRequest}
                 onUpdateShift={handleUpdateShift}
                 onOpenRequestsModal={handleOpenRequestsModal}
+                onSave={handleSave}
               />
             )}
 

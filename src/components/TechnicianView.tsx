@@ -31,6 +31,7 @@ interface TechnicianViewProps {
   onAddRequest: (req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => void;
   onUpdateShift: (techId: string, date: string, shift: ShiftType) => void;
   onOpenRequestsModal?: (techId: string) => void;
+  onSave?: () => void;
 }
 
 export const TechnicianView: React.FC<TechnicianViewProps> = ({
@@ -43,7 +44,8 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   currentUser,
   onAddRequest,
   onUpdateShift,
-  onOpenRequestsModal
+  onOpenRequestsModal,
+  onSave
 }) => {
   const activeTechs = technicians.filter(t => t.active);
   const isAdmin = currentUser?.role === 'admin';
@@ -174,8 +176,23 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           </div>
         </div>
 
-        {/* WhatsApp Actions */}
+        {/* WhatsApp Actions & Save */}
         <div className="flex items-center gap-3">
+          {isAdmin && onSave && (
+            <button
+              onClick={() => {
+                if (window.confirm('Deseja salvar todas as alterações na escala?')) {
+                  onSave();
+                }
+              }}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+              title="Salvar alterações no Firebase"
+            >
+              <Check className="w-4 h-4" />
+              <span>Salvar Escala</span>
+            </button>
+          )}
+
           <button
             onClick={handleCopyWhatsApp}
             className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs flex items-center gap-2 transition-colors cursor-pointer"
