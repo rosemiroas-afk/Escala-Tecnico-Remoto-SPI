@@ -143,12 +143,14 @@ export default function App() {
       const techUsers: AppUser[] = technicians.map(t => {
         const existing = existingUserMap.get(t.id);
         if (existing) {
+          // Keep the existing user (and their password/PIN!)
           return {
             ...existing,
             name: t.name,
             ddd: t.ddd
           };
         }
+        // New technician, default PIN
         return {
           id: t.id,
           name: t.name,
@@ -162,7 +164,8 @@ export default function App() {
 
       return [admin, ...techUsers];
     });
-  }, [technicians]);
+    // Note: saveToFirestore is not called here intentionally to avoid unintended overwrites during initialization
+  }, [technicians]); // Removed setUsers dependency to prevent loops, but keep technicians as dependency
 
   // Current Logged In User
   const [currentUser, setCurrentUser] = useState<AppUser | null>(() => {
