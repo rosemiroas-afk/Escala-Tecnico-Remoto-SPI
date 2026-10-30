@@ -276,8 +276,8 @@ export const RosterTable: React.FC<RosterTableProps> = ({
               {dates.map(d => {
                 let workingCount = 0;
                 for (const t of filteredTechs) {
-                  const s = schedules[t.id]?.days[d]?.shift || 'TB';
-                  if (isWorkingShift(s)) workingCount++;
+                  const s = schedules[t.id]?.days[d]?.shift;
+                  if (s && isWorkingShift(s)) workingCount++;
                 }
 
                 return (
@@ -296,15 +296,21 @@ export const RosterTable: React.FC<RosterTableProps> = ({
           <tbody className="divide-y divide-slate-100 text-xs">
             {filteredTechs.map(tech => {
               const techSched = schedules[tech.id];
-              const stats = auditResult.techStats[tech.id] || {
+              const hasSchedule = !!techSched && Object.keys(techSched.days).length > 0;
+              const stats = hasSchedule ? (auditResult.techStats[tech.id] || {
+                totalWorkDays: 0,
+                totalOffDays: 0,
+                doubleWeekendsCount: 0,
+                maxConsecutiveWorkDays: 0
+              }) : {
                 totalWorkDays: 0,
                 totalOffDays: 0,
                 doubleWeekendsCount: 0,
                 maxConsecutiveWorkDays: 0
               };
 
-              const hasMissingDouble = stats.doubleWeekendsCount === 0;
-              const hasConsecutiveViolation = stats.maxConsecutiveWorkDays > 6;
+              const hasMissingDouble = hasSchedule && stats.doubleWeekendsCount === 0;
+              const hasConsecutiveViolation = hasSchedule && stats.maxConsecutiveWorkDays > 6;
               const dddConfig = DDD_INFO[tech.ddd];
 
               return (
@@ -347,34 +353,36 @@ export const RosterTable: React.FC<RosterTableProps> = ({
 
                   {/* Sticky Stats Columns */}
                   <td className="sticky left-[330px] z-20 bg-white dark:bg-slate-900 group-hover:bg-indigo-50/30 dark:group-hover:bg-slate-800 px-1 py-1.5 text-center border-r border-slate-200 dark:border-slate-800 font-bold text-emerald-800 dark:text-emerald-400 text-xs">
-                    {stats.totalWorkDays}
+                    {hasSchedule ? stats.totalWorkDays : '-'}
                   </td>
                   <td className="sticky left-[395px] z-20 bg-white dark:bg-slate-900 group-hover:bg-indigo-50/30 dark:group-hover:bg-slate-800 px-1 py-1.5 text-center border-r border-slate-200 dark:border-slate-800 font-bold text-yellow-900 dark:text-yellow-400 text-xs">
-                    {stats.totalOffDays}
+                    {hasSchedule ? stats.totalOffDays : '-'}
                   </td>
                   <td className="sticky left-[460px] z-20 bg-white dark:bg-slate-900 group-hover:bg-indigo-50/30 dark:group-hover:bg-slate-800 px-1 py-1.5 text-center border-r border-slate-300 dark:border-slate-700 text-xs shadow-r">
                     <span
                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-bold text-[10px] ${
-                        stats.doubleWeekendsCount > 0
+                        !hasSchedule
+                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                          : stats.doubleWeekendsCount > 0
                           ? 'bg-orange-100 dark:bg-orange-950/80 text-orange-800 dark:text-orange-300 border border-orange-300 dark:border-orange-800'
                           : 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
                       }`}
                     >
-                      {stats.doubleWeekendsCount > 0 && <Star className="w-2.5 h-2.5 fill-orange-600" />}
-                      {stats.doubleWeekendsCount}
+                      {hasSchedule && stats.doubleWeekendsCount > 0 && <Star className="w-2.5 h-2.5 fill-orange-600" />}
+                      {hasSchedule ? stats.doubleWeekendsCount : '-'}
                     </span>
                   </td>
 
                   {/* Day cells */}
                   {dates.map(dateKey => {
                     const day = techSched?.days[dateKey];
-                    const rawShift = day?.shift || 'TB';
-                    const shift = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
+                    const rawShift = day?.shift;
+                    const shift = rawShift ? (rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift) : '-';
                     const isSat = isSaturday(dateKey);
                     const isSun = isSunday(dateKey);
                     const offReq = requestsMap.get(`${tech.id}__${dateKey}`);
 
-                    const badgeStyle = getShiftBadgeStyle(shift);
+                    const badgeStyle = shift === '-' ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-normal border border-slate-200 dark:border-slate-700' : getShiftBadgeStyle(shift);
                     const cellBg = isSun
                       ? 'bg-yellow-50/30 dark:bg-yellow-950/20'
                       : isSat
