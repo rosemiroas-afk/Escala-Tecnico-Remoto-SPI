@@ -363,6 +363,45 @@ export default function App() {
     return validateSchedule(technicians, schedules, dates, offRequests);
   }, [technicians, schedules, dates, offRequests]);
 
+  // Pending Off Requests
+  const pendingRequests = useMemo(() => {
+    return offRequests.filter(r => r.status === 'pendente');
+  }, [offRequests]);
+
+  // Admin Pending Requests Alert Modal
+  const [isAdminAlertOpen, setIsAdminAlertOpen] = useState<boolean>(false);
+  const [hasTriggeredInitialAlert, setHasTriggeredInitialAlert] = useState<boolean>(false);
+
+  // Trigger alert when admin is active and there are pending requests
+  useEffect(() => {
+    if (currentUser?.role === 'admin' && pendingRequests.length > 0 && !hasTriggeredInitialAlert) {
+      setIsAdminAlertOpen(true);
+      setHasTriggeredInitialAlert(true);
+    }
+  }, [currentUser, pendingRequests.length, hasTriggeredInitialAlert]);
+
+  // Handler: User Login
+  const handleLogin = useCallback((user: AppUser) => {
+    setCurrentUser(user);
+    if (user.role === 'technician') {
+      setActiveTab('individual');
+    } else {
+      setActiveTab('matrix');
+      const pending = offRequests.filter(r => r.status === 'pendente');
+      if (pending.length > 0) {
+        setIsAdminAlertOpen(true);
+        setHasTriggeredInitialAlert(true);
+      }
+    }
+  }, [offRequests]);
+
+  // Handler: User Logout
+  const handleLogout = useCallback(() => {
+    setCurrentUser(null);
+    setHasTriggeredInitialAlert(false);
+    setIsAdminAlertOpen(false);
+  }, []);
+
   // Handler: Update User PIN
   const handleUpdateUserPin = useCallback((userId: string, newPin: string) => {
     setUsers(prev => {
