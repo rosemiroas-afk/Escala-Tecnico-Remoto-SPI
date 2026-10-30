@@ -473,6 +473,27 @@ export default function App() {
     setIsRequestsOpen(true);
   };
 
+  // Handler: Clear Schedule
+  const handleClearSchedule = useCallback(() => {
+    if (confirm('Deseja realmente limpar toda a escala gerada?')) {
+      const cleared: Record<string, TechnicianSchedule> = {};
+      for (const tech of technicians) {
+        cleared[tech.id] = {
+          technicianId: tech.id,
+          days: {}
+        };
+        for (const d of dates) {
+          cleared[tech.id].days[d] = {
+            date: d,
+            shift: 'TB',
+            manualOverride: false
+          };
+        }
+      }
+      setSchedules(cleared);
+    }
+  }, [technicians, dates]);
+
   // Handler: Export Excel
   const handleExportExcel = () => {
     exportScheduleToExcel(technicians, schedules, dates, period, offRequests);
@@ -578,6 +599,7 @@ export default function App() {
                 offRequests={offRequests}
                 onUpdateShift={handleUpdateShift}
                 onOpenRequests={handleOpenRequestsModal}
+                onClearSchedule={handleClearSchedule}
               />
             )}
 
