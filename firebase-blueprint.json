@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "Technician": {
+      "title": "Technician",
+      "description": "Technician profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "ddd": { "type": "number" },
+        "active": { "type": "boolean" },
+        "phone": { "type": "string", "maxLength": 30 },
+        "notes": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "name", "ddd", "active"]
+    },
+    "OffRequest": {
+      "title": "OffRequest",
+      "description": "Time off request by technician",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "technicianId": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 20 },
+        "reasonCategory": { "type": "string", "maxLength": 50 },
+        "priority": { "type": "string", "maxLength": 20 },
+        "createdAt": { "type": "string", "maxLength": 30 },
+        "status": { "type": "string", "maxLength": 30 }
+      },
+      "required": ["id", "technicianId", "date", "status"]
+    },
+    "User": {
+      "title": "User",
+      "description": "App user account",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "maxLength": 30 },
+        "pin": { "type": "string", "maxLength": 20 },
+        "isFirstLogin": { "type": "boolean" },
+        "technicianId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "name", "role"]
+    }
+  },
+  "firestore": {
+    "/technicians/{technicianId}": {
+      "schema": { "$ref": "#/entities/Technician" },
+      "description": "Technicians collection"
+    },
+    "/offRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/OffRequest" },
+      "description": "Off requests collection"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Users collection"
+    }
+  }
+}
