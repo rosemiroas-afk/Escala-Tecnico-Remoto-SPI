@@ -116,148 +116,137 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-12 gap-6">
-          {/* Form to add request (5 cols) */}
-          <div className="md:col-span-5 bg-slate-50 dark:bg-slate-800/80 p-5 rounded-xl border border-slate-200 dark:border-slate-700">
-            <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm mb-4 flex items-center gap-2">
-              <Plus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              Nova Solicitação de Folga
-            </h3>
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+            {/* Form to add request (only for technicians, not admin) */}
+            {!isAdmin && (
+              <div className="md:col-span-5 bg-slate-50 dark:bg-slate-800/80 p-5 rounded-xl border border-slate-200 dark:border-slate-700">
+                <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm mb-4 flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  Nova Solicitação de Folga
+                </h3>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Técnico Solicitante:
-                </label>
-                {isAdmin ? (
-                  <select
-                    value={selectedTechId}
-                    onChange={e => setSelectedTechId(e.target.value)}
-                    className="w-full text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500"
-                  >
-                    {sortedTechs.map(t => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="w-full text-xs font-bold bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100">
-                    {technicians.find(t => t.id === myTechId)?.name}
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Técnico Solicitante:
+                    </label>
+                    <div className="w-full text-xs font-bold bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-900 dark:text-slate-100">
+                      {technicians.find(t => t.id === myTechId)?.name}
+                    </div>
                   </div>
-                )}
-              </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Data Desejada:
-                </label>
-                <select
-                  value={selectedDate}
-                  onChange={e => setSelectedDate(e.target.value)}
-                  className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500"
-                >
-                  {dates.map(d => (
-                    <option key={d} value={d}>
-                      {formatDisplayDate(d)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Motivo Principal:
-                </label>
-                <select
-                  value={category}
-                  onChange={e => setCategory(e.target.value as any)}
-                  className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="casamento">Casamento</option>
-                  <option value="medico">Consulta / Procedimento Médico</option>
-                  <option value="aniversario">Aniversário / Celebração</option>
-                  <option value="pessoal">Compromisso Pessoal</option>
-                  <option value="outro">Outro Motivo</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Prioridade:
-                </label>
-                <div className="flex gap-2">
-                  {(['alta', 'media', 'baixa'] as const).map(p => (
-                    <button
-                      type="button"
-                      key={p}
-                      onClick={() => setPriority(p)}
-                      className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border cursor-pointer capitalize transition-all ${
-                        priority === p
-                          ? p === 'alta'
-                            ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300'
-                            : p === 'media'
-                            ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300'
-                            : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200'
-                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
-                      }`}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Data Desejada:
+                    </label>
+                    <select
+                      value={selectedDate}
+                      onChange={e => setSelectedDate(e.target.value)}
+                      className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500"
                     >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                      {dates.map(d => (
+                        <option key={d} value={d}>
+                          {formatDisplayDate(d)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                    Observações do Pedido:
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleAddObsField}
-                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 cursor-pointer"
-                  >
-                    + Adicionar Observação
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {observations.map((obs, idx) => (
-                    <div key={idx} className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={obs}
-                        onChange={e => handleUpdateObs(idx, e.target.value)}
-                        placeholder={`Observação ${idx + 1}...`}
-                        className="flex-1 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-slate-800 dark:text-slate-100"
-                        required={idx === 0}
-                      />
-                      {observations.length > 1 && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Motivo Principal:
+                    </label>
+                    <select
+                      value={category}
+                      onChange={e => setCategory(e.target.value as any)}
+                      className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="casamento">Casamento</option>
+                      <option value="medico">Consulta / Procedimento Médico</option>
+                      <option value="aniversario">Aniversário / Celebração</option>
+                      <option value="pessoal">Compromisso Pessoal</option>
+                      <option value="outro">Outro Motivo</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                      Prioridade:
+                    </label>
+                    <div className="flex gap-2">
+                      {(['alta', 'media', 'baixa'] as const).map(p => (
                         <button
                           type="button"
-                          onClick={() => handleRemoveObsField(idx)}
-                          className="px-2 text-rose-500 hover:text-rose-700 cursor-pointer"
+                          key={p}
+                          onClick={() => setPriority(p)}
+                          className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border cursor-pointer capitalize transition-all ${
+                            priority === p
+                              ? p === 'alta'
+                                ? 'bg-rose-50 dark:bg-rose-950/60 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300'
+                                : p === 'media'
+                                ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+                                : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200'
+                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400'
+                          }`}
                         >
-                          ×
+                          {p}
                         </button>
-                      )}
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                        Observações do Pedido:
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAddObsField}
+                        className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 cursor-pointer"
+                      >
+                        + Adicionar Observação
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {observations.map((obs, idx) => (
+                        <div key={idx} className="flex gap-1.5">
+                          <input
+                            type="text"
+                            value={obs}
+                            onChange={e => handleUpdateObs(idx, e.target.value)}
+                            placeholder={`Observação ${idx + 1}...`}
+                            className="flex-1 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-slate-800 dark:text-slate-100"
+                            required={idx === 0}
+                          />
+                          {observations.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveObsField(idx)}
+                              className="px-2 text-rose-500 hover:text-rose-700 cursor-pointer"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Cadastrar Solicitação (Em Análise)
+                  </button>
+                </form>
               </div>
+            )}
 
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-              >
-                <Plus className="w-4 h-4" />
-                Cadastrar Solicitação (Em Análise)
-              </button>
-            </form>
-          </div>
-
-          {/* List of existing requests (7 cols) */}
-          <div className="md:col-span-7 flex flex-col">
+            {/* List of existing requests */}
+            <div className={`${isAdmin ? 'md:col-span-12' : 'md:col-span-7'} flex flex-col`}>
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
                 Solicitações Registradas ({filteredRequests.length})
@@ -394,6 +383,7 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
             )}
           </div>
         </div>
+      </div>
 
         {/* Footer */}
         <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
