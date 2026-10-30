@@ -23,15 +23,15 @@ export interface AuditResult {
   };
 }
 
-export function isOffShift(shift?: string): boolean {
-  if (!shift) return false;
-  return shift === 'FG' || shift === 'F' || shift === 'FD' || shift === 'FC' ||
-         shift === 'FR' || shift === 'FE' || shift === 'LIC' || shift === 'LI' ||
-         shift === 'LP' || shift === 'FB' || shift === 'FM' || shift === 'AT';
+export function isWorkingShift(shift?: string): boolean {
+  return shift === 'TB' || shift === 'T';
 }
 
-export function isWorkingShift(shift?: string): boolean {
-  return shift === 'TB' || shift === 'T' || !shift;
+export function isOffShift(shift?: string): boolean {
+  if (!shift) return false;
+  // Rule: All nomenclatures in the legend break the 7 consecutive work days,
+  // with the sole exception of TB (Dia Trabalhado).
+  return !isWorkingShift(shift);
 }
 
 export function validateSchedule(

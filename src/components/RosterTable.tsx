@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Technician, TechnicianSchedule, ShiftType, SHIFT_TYPES, OffRequest, SchedulePeriod } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { Technician, TechnicianSchedule, ShiftType, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS, OffRequest, SchedulePeriod } from '../types';
 import { formatDisplayDate, parseDateKey, isSaturday, isSunday, MONTHS_PT } from '../utils/dateUtils';
 import { AuditResult, isOffShift, isWorkingShift } from '../utils/validator';
 import { DDD_INFO } from '../data/defaultTechnicians';
-import { Filter, Search, AlertTriangle, Star, Clock, Trash2, Check, FileSpreadsheet } from 'lucide-react';
+import { Filter, Search, AlertTriangle, Star, Trash2, Check, FileSpreadsheet, X, HelpCircle } from 'lucide-react';
 
 interface RosterTableProps {
   technicians: Technician[];
@@ -17,6 +17,15 @@ interface RosterTableProps {
   onClearSchedule?: () => void;
   onSave?: () => void;
   onLoadOfficialSchedule?: () => void;
+}
+
+interface ActiveCellPicker {
+  techId: string;
+  techName: string;
+  date: string;
+  currentShift: ShiftType;
+  top: number;
+  left: number;
 }
 
 export const RosterTable: React.FC<RosterTableProps> = ({
@@ -34,6 +43,28 @@ export const RosterTable: React.FC<RosterTableProps> = ({
 }) => {
   const [selectedDDD, setSelectedDDD] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [activePicker, setActivePicker] = useState<ActiveCellPicker | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Close picker on outside click or escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActivePicker(null);
+    };
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setActivePicker(null);
+      }
+    };
+    if (activePicker) {
+      document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activePicker]);
 
   // Filter technicians
   const filteredTechs = technicians.filter(tech => {
@@ -76,45 +107,47 @@ export const RosterTable: React.FC<RosterTableProps> = ({
     requestsMap.set(`${req.technicianId}__${req.date}`, req);
   }
 
-  const handleCellClick = (techId: string, date: string, currentShift: ShiftType) => {
-    // Cycle: TB -> FG -> FD -> FC -> TB
-    const s = currentShift === 'T' ? 'TB' : currentShift === 'F' ? 'FG' : currentShift;
-    if (s === 'TB') {
-      onUpdateShift(techId, date, 'FG');
-    } else if (s === 'FG') {
-      onUpdateShift(techId, date, 'FD');
-    } else if (s === 'FD') {
-      onUpdateShift(techId, date, 'FC');
-    } else {
-      onUpdateShift(techId, date, 'TB');
+  const handleCellClick = (e: React.MouseEvent, tech: Technician, date: string, currentShift: ShiftType) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+
+    // Calculate picker popover position safely within viewport
+    let left = rect.left + window.scrollX - 120;
+    let top = rect.bottom + window.scrollY + 6;
+
+    if (left + 320 > windowWidth) {
+      left = windowWidth - 330;
     }
+    if (left < 10) left = 10;
+
+    if (top + 260 > windowHeight + window.scrollY) {
+      top = rect.top + window.scrollY - 270;
+    }
+
+    setActivePicker({
+      techId: tech.id,
+      techName: tech.name,
+      date,
+      currentShift,
+      top,
+      left
+    });
+  };
+
+  const selectShiftForCell = (shift: ShiftType) => {
+    if (!activePicker) return;
+    onUpdateShift(activePicker.techId, activePicker.date, shift);
+    setActivePicker(null);
   };
 
   const getShiftBadgeStyle = (shift: string) => {
-    const norm = shift === 'T' ? 'TB' : shift === 'F' ? 'FG' : shift;
-    switch (norm) {
-      case 'TB':
-        return 'bg-emerald-100 text-emerald-900 border-emerald-300 font-semibold';
-      case 'FG':
-        return 'bg-yellow-200 text-yellow-950 border-yellow-400 font-bold';
-      case 'FD':
-        return 'bg-orange-300 text-orange-950 border-orange-400 font-black shadow-xs';
-      case 'FC':
-        return 'bg-indigo-100 text-indigo-900 border-indigo-300 font-bold';
-      case 'FN':
-        return 'bg-sky-200 text-sky-950 border-sky-400 font-bold';
-      case 'FR':
-      case 'FE':
-        return 'bg-amber-200 text-amber-950 border-amber-400 font-bold';
-      case 'LIC':
-      case 'LI':
-      case 'LP':
-        return 'bg-slate-200 text-slate-800 border-slate-300 font-bold';
-      case 'FB':
-        return 'bg-teal-200 text-teal-900 border-teal-400 font-bold';
-      default:
-        return 'bg-slate-100 text-slate-700 font-medium';
+    const norm = shift === 'T' ? 'TB' : shift === 'F' ? 'FG' : shift === 'FE' ? 'FR' : shift === 'LI' ? 'LIC' : shift === 'AT' ? 'A' : shift;
+    const item = SHIFT_TYPES[norm];
+    if (item && item.badgeClass) {
+      return item.badgeClass;
     }
+    return 'bg-white text-slate-800 border-slate-300 font-bold';
   };
 
   return (
@@ -417,15 +450,17 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                       ? 'bg-rose-50/20 dark:bg-rose-950/20'
                       : '';
 
-                    return (
+                      return (
                       <td
                         key={dateKey}
-                        onClick={() => handleCellClick(tech.id, dateKey, shift as ShiftType)}
-                        className={`p-0.5 text-center border-r border-slate-100 dark:border-slate-800 cursor-pointer transition-colors relative hover:ring-2 hover:ring-indigo-400 hover:z-10 ${cellBg}`}
-                        title={`${tech.name} - ${formatDisplayDate(dateKey)}: ${shift} - Clique para alternar`}
+                        onClick={(e) => handleCellClick(e, tech, dateKey, (shift === '-' ? 'TB' : shift) as ShiftType)}
+                        className={`p-0.5 text-center border-r border-slate-100 dark:border-slate-800 cursor-pointer transition-all relative hover:ring-2 hover:ring-indigo-500 hover:z-10 ${cellBg}`}
+                        title={`${tech.name} - ${formatDisplayDate(dateKey)}: ${shift} - Clique para alterar a escala`}
                       >
                         <div className="w-full h-7 flex items-center justify-center relative">
-                          <span className={`w-7 h-5 flex items-center justify-center text-[10px] rounded-xs transition-transform ${badgeStyle}`}>
+                          <span
+                            className={`w-7 h-5 flex items-center justify-center text-[10px] rounded-xs transition-transform ${badgeStyle}`}
+                          >
                             {shift}
                           </span>
 
@@ -457,54 +492,124 @@ export const RosterTable: React.FC<RosterTableProps> = ({
         </table>
       </div>
 
-      {/* Official Legenda matching User's Spreadsheet */}
-      <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-between flex-wrap gap-2 text-xs text-slate-700 dark:text-slate-300">
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="font-extrabold text-slate-900 dark:text-white text-xs">LEGENDA SPI:</span>
-
-          <div className="flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">TB</span>
-            <span>Dia Trabalhado</span>
+      {/* Floating Shift Picker Popover */}
+      {activePicker && (
+        <div
+          ref={pickerRef}
+          style={{ top: `${activePicker.top}px`, left: `${activePicker.left}px` }}
+          className="fixed z-50 w-[310px] bg-white dark:bg-slate-900 rounded-xl shadow-2xl border-2 border-indigo-500 p-3 animate-in fade-in zoom-in-95 duration-100"
+        >
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
+            <div className="truncate max-w-[220px]">
+              <div className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">
+                {activePicker.techName}
+              </div>
+              <div className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
+                {formatDisplayDate(activePicker.date)} (Atual: {activePicker.currentShift})
+              </div>
+            </div>
+            <button
+              onClick={() => setActivePicker(null)}
+              className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
-          <div className="flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-yellow-200 text-yellow-950 border border-yellow-400">FG</span>
-            <span>Folga Regular</span>
+          <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+            Selecione a Escala / Folga:
           </div>
 
-          <div className="flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-black bg-orange-300 text-orange-950 border border-orange-400">FD</span>
-            <span className="font-semibold text-orange-950">Folga Duplada (Sáb+Dom)</span>
+          <div className="grid grid-cols-2 gap-1.5 max-h-[290px] overflow-y-auto pr-0.5">
+            {OFFICIAL_LEGEND_ITEMS.map(item => {
+              const isSelected = activePicker.currentShift === item.type;
+              return (
+                <button
+                  key={item.type}
+                  onClick={() => selectShiftForCell(item.type)}
+                  style={{
+                    backgroundColor: item.bgColor,
+                    color: item.textColor,
+                    borderColor: item.borderColor
+                  }}
+                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-left transition-all cursor-pointer hover:brightness-95 hover:scale-[1.02] shadow-2xs ${
+                    isSelected ? 'ring-2 ring-indigo-600 font-black' : ''
+                  }`}
+                  title={`${item.shortLabel}: ${item.label} (${item.isWork ? 'Trabalho' : 'Quebra 7 dias'})`}
+                >
+                  <span className="w-7 h-5 flex items-center justify-center text-[10px] font-extrabold rounded-xs bg-white/70 shadow-2xs shrink-0">
+                    {item.shortLabel}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] font-bold truncate leading-tight">
+                      {item.label}
+                    </div>
+                    <div className="text-[9px] opacity-80 truncate leading-tight">
+                      {item.isWork ? 'Dia Trabalhado' : 'Quebra 7 dias'}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">FC</span>
-            <span>Folga Compensada</span>
+          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
+            <span>💡 Esc = fechar</span>
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">Salva automaticamente</span>
           </div>
+        </div>
+      )}
 
-          <div className="flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-sky-200 text-sky-950 border border-sky-400">FN</span>
-            <span>Feriado Nacional</span>
+      {/* Official Legenda matching User's Exact Reference Image */}
+      <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 flex flex-col gap-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-md bg-[#e2efda] text-[#274e13] border border-[#c5e0b4] font-black text-xs uppercase tracking-wider shadow-2xs">
+              LEGENDA OFICIAL SPI
+            </span>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+              Disponível para seleção em todos os dias e colaboradores
+            </span>
           </div>
-
-          <div className="flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-amber-200 text-amber-950 border border-amber-400">FR</span>
-            <span>Férias</span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-teal-200 text-teal-900 border border-teal-400">FB</span>
-            <span>Folga Banco</span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <span className="px-1.5 py-0.5 rounded-xs text-[10px] font-bold bg-slate-200 text-slate-800 border border-slate-300">LIC</span>
-            <span>Afastado</span>
+          <div className="text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 px-2.5 py-1 rounded-lg">
+            ⚠️ Regra: Todas as nomenclaturas quebram os 7 dias seguidos, exceto <strong>TB</strong> (Dia Trabalhado).
           </div>
         </div>
 
-        <div className="text-[11px] text-slate-500 font-medium">
-          💡 Clique em qualquer célula para alternar entre <strong>TB</strong> (Trabalho), <strong>FG</strong> (Folga), <strong>FD</strong> (Folga Dupla) e <strong>FC</strong> (Compensada).
+        {/* Legend grid formatted exactly as the reference table */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+          {OFFICIAL_LEGEND_ITEMS.map(item => (
+            <div
+              key={item.type}
+              style={{
+                backgroundColor: item.bgColor,
+                borderColor: item.borderColor
+              }}
+              className="flex items-center gap-2 p-2 rounded-lg border shadow-2xs transition-transform hover:scale-[1.01]"
+            >
+              <span
+                style={{
+                  color: item.textColor,
+                  borderColor: item.borderColor
+                }}
+                className="w-9 h-6 flex items-center justify-center font-black text-xs rounded-xs bg-white/80 border shadow-2xs shrink-0"
+              >
+                {item.shortLabel}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div style={{ color: item.textColor }} className="font-extrabold text-xs truncate">
+                  {item.label}
+                </div>
+                <div style={{ color: item.textColor }} className="text-[10px] opacity-80 truncate">
+                  {item.isWork ? 'Dia Trabalhado' : 'Quebra 7 dias'}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 text-center sm:text-left">
+          💡 Para alterar a escala de qualquer colaborador em qualquer dia, basta <strong>clicar sobre a célula do dia</strong> na tabela e escolher a opção desejada.
         </div>
       </div>
     </div>

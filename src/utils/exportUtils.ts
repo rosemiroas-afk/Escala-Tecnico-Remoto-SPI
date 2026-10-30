@@ -92,15 +92,19 @@ export function exportScheduleToExcel(
 
   // 2. Legenda e Resumo Sheet
   const legendaRows = [
-    ['CÓDIGO', 'SIGNIFICADO', 'DESCRIÇÃO'],
-    ['TB', 'Dia Trabalhado', 'Turno regular de trabalho conforme horário'],
-    ['FG', 'Folga Regular', 'Descanso semanal remunerado (Sábado ou Domingo)'],
-    ['FD', 'Folga Duplada', 'Fim de semana completo de folga (Sábado + Domingo)'],
-    ['FC', 'Folga Compensada', 'Folga entre 2ª e 5ª feira para compensar inversão sem exceder 6 dias'],
-    ['FN', 'Feriado Nacional', 'Feriado civil ou nacional'],
-    ['FR', 'Férias', 'Período de férias regulamentares'],
-    ['LIC', 'Afastado', 'Afastamento médico ou licença'],
-    ['FB', 'Folga Banco', 'Folga por compensação de banco de horas']
+    ['CÓDIGO', 'SIGNIFICADO', 'REGRA 7 DIAS', 'DESCRIÇÃO'],
+    ['FR', 'Ferias', 'Quebra 7 dias', 'Período de férias regulamentares'],
+    ['FD', 'Folga Duplada', 'Quebra 7 dias', 'Fim de semana completo de folga (Sábado e Domingo)'],
+    ['FC', 'Folga Compensada', 'Quebra 7 dias', 'Folga compensada para ajuste de escala sem exceder limite'],
+    ['FN', 'Feriado Nacional', 'Quebra 7 dias', 'Feriado civil ou nacional'],
+    ['LIC', 'Afastado', 'Quebra 7 dias', 'Afastamento médico ou licença'],
+    ['TB', 'Dia Trabalhado', 'CONTA COMO TRABALHO', 'Turno regular de trabalho conforme horário'],
+    ['A', 'Afastado', 'Quebra 7 dias', 'Afastamento'],
+    ['LP', 'Licença', 'Quebra 7 dias', 'Licença pessoal ou autorizada'],
+    ['FB', 'Folga Banco', 'Quebra 7 dias', 'Folga por compensação de banco de horas'],
+    ['TR', 'Treinamento', 'Quebra 7 dias', 'Treinamento e capacitação profissional'],
+    ['FM', 'Folga Municipal', 'Quebra 7 dias', 'Folga ou feriado municipal'],
+    ['FG', 'Folga Regular', 'Quebra 7 dias', 'Descanso semanal remunerado regular (Sábado ou Domingo)']
   ];
   const wsLegenda = XLSX.utils.aoa_to_sheet(legendaRows);
   XLSX.utils.book_append_sheet(wb, wsLegenda, 'LEGENDA');

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType, AppUser } from '../types';
+import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType, AppUser, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS } from '../types';
 import { formatDisplayDate, formatFullDate, parseDateKey, isSaturday, isSunday, extractWeekends, MONTHS_PT } from '../utils/dateUtils';
 import { AuditResult } from '../utils/validator';
 import { generateIndividualWhatsAppMessage } from '../utils/exportUtils';
@@ -17,7 +17,8 @@ import {
   Sparkles,
   ShieldCheck,
   Briefcase,
-  Lock
+  Lock,
+  X
 } from 'lucide-react';
 
 interface TechnicianViewProps {
@@ -69,6 +70,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   const [reqDate, setReqDate] = useState<string>(dates[0] || '');
   const [reqCategory, setReqCategory] = useState<'casamento' | 'medico' | 'aniversario' | 'pessoal' | 'outro'>('casamento');
   const [reqNote, setReqNote] = useState<string>('');
+  const [adminPickerDate, setAdminPickerDate] = useState<string | null>(null);
 
   const currentTech = technicians.find(t => t.id === selectedTechId) || activeTechs[0];
   const currentSched = currentTech ? schedules[currentTech.id] : null;
@@ -338,63 +340,49 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
               const dayNum = dObj.getDate();
               const req = techRequests.find(r => r.date === d);
 
-              let cardStyle = 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-500';
-              let badgeColor = 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200';
-              let shiftTitle = 'Trabalho';
-
-              if (shift === 'FD') {
-                cardStyle = 'bg-orange-50 dark:bg-orange-950/40 border-orange-300 dark:border-orange-800 text-orange-950 dark:text-orange-200 shadow-xs ring-1 ring-orange-300 dark:ring-orange-800';
-                badgeColor = 'bg-orange-300 dark:bg-orange-900 text-orange-950 dark:text-orange-100 font-black';
-                shiftTitle = 'Folga Dupla';
-              } else if (shift === 'FG') {
-                cardStyle = 'bg-yellow-50 dark:bg-yellow-950/40 border-yellow-300 dark:border-yellow-800 text-yellow-950 dark:text-yellow-200 shadow-xs';
-                badgeColor = 'bg-yellow-200 dark:bg-yellow-900 text-yellow-950 dark:text-yellow-100 font-bold';
-                shiftTitle = 'Folga Regular';
-              } else if (shift === 'FC') {
-                cardStyle = 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 text-indigo-950 dark:text-indigo-200';
-                badgeColor = 'bg-indigo-100 dark:bg-indigo-900 text-indigo-900 dark:text-indigo-200 font-bold';
-                shiftTitle = 'Compensada';
-              } else if (shift === 'TB') {
-                cardStyle = 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20';
-                badgeColor = 'bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-300 font-semibold border dark:border-emerald-800/60';
-                shiftTitle = 'Trabalho';
-              } else if (shift === 'FN') {
-                cardStyle = 'bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800 text-sky-950 dark:text-sky-200';
-                badgeColor = 'bg-sky-200 dark:bg-sky-900 text-sky-950 dark:text-sky-200 font-bold';
-                shiftTitle = 'Feriado';
-              }
+              const shiftDef = SHIFT_TYPES[shift] || SHIFT_TYPES['TB'];
 
               return (
                 <div
                   key={d}
                   onClick={() => {
                     if (isAdmin) {
-                      const next = shift === 'TB' ? 'FG' : shift === 'FG' ? 'FD' : shift === 'FD' ? 'FC' : 'TB';
-                      onUpdateShift(currentTech.id, d, next as ShiftType);
+                      setAdminPickerDate(d);
                     } else {
                       // Technician clicks: set as date for request
                       setReqDate(d);
                     }
                   }}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[85px] relative ${cardStyle}`}
+                  style={{
+                    backgroundColor: shiftDef.isWork ? undefined : `${shiftDef.bgColor}22`,
+                    borderColor: shiftDef.borderColor
+                  }}
+                  className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[85px] relative hover:shadow-md hover:scale-[1.01] bg-white dark:bg-slate-800`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`text-xs font-semibold ${isSun ? 'text-amber-700' : isSat ? 'text-rose-600' : 'text-slate-500'}`}>
+                    <span className={`text-xs font-semibold ${isSun ? 'text-amber-700 font-bold' : isSat ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
                       {isSun ? 'Dom' : isSat ? 'Sáb' : ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'][dObj.getDay() - 1]}
                     </span>
-                    <span className="text-base font-extrabold text-slate-900">{dayNum}</span>
+                    <span className="text-base font-extrabold text-slate-900 dark:text-slate-100">{dayNum}</span>
                   </div>
 
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-sm uppercase tracking-wider ${badgeColor}`}>
-                      {shift}
+                  <div className="mt-2 flex items-center justify-between gap-1">
+                    <span
+                      style={{
+                        backgroundColor: shiftDef.bgColor,
+                        color: shiftDef.textColor,
+                        borderColor: shiftDef.borderColor
+                      }}
+                      className="text-[10px] px-2 py-0.5 rounded-sm uppercase tracking-wider font-extrabold border shadow-2xs"
+                    >
+                      {shiftDef.shortLabel}
                     </span>
 
-                    <span className="text-[10px] font-semibold text-slate-600">
-                      {shiftTitle}
+                    <span style={{ color: shiftDef.textColor }} className="text-[10px] font-bold truncate">
+                      {shiftDef.label}
                     </span>
 
-                    {shift === 'FD' && <Star className="w-3.5 h-3.5 fill-orange-500 text-orange-500" />}
+                    {shift === 'FD' && <Star className="w-3.5 h-3.5 fill-orange-500 text-orange-500 shrink-0" />}
                   </div>
 
                   {req && (
@@ -521,6 +509,74 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
 
         </div>
       </div>
+
+      {/* Admin Shift Selection Modal */}
+      {adminPickerDate && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-3">
+              <div>
+                <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
+                  Alterar Escala do Dia
+                </h3>
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold">
+                  {currentTech.name} &bull; {formatDisplayDate(adminPickerDate)}
+                </p>
+              </div>
+              <button
+                onClick={() => setAdminPickerDate(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="text-xs font-semibold text-slate-500 mb-2">
+              Selecione qualquer nomenclatura da legenda oficial:
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 max-h-[340px] overflow-y-auto pr-1">
+              {OFFICIAL_LEGEND_ITEMS.map(item => (
+                <button
+                  key={item.type}
+                  onClick={() => {
+                    onUpdateShift(currentTech.id, adminPickerDate, item.type);
+                    setAdminPickerDate(null);
+                  }}
+                  style={{
+                    backgroundColor: item.bgColor,
+                    color: item.textColor,
+                    borderColor: item.borderColor
+                  }}
+                  className="flex items-center gap-2 p-2 rounded-xl border text-left cursor-pointer hover:brightness-95 hover:scale-[1.02] transition-all shadow-2xs"
+                >
+                  <span className="w-8 h-6 flex items-center justify-center text-xs font-black rounded-sm bg-white/80 border shadow-2xs shrink-0">
+                    {item.shortLabel}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold truncate leading-tight">
+                      {item.label}
+                    </div>
+                    <div className="text-[10px] opacity-80 truncate leading-tight">
+                      {item.isWork ? 'Trabalho' : 'Quebra 7 dias'}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400">
+              <span>⚠️ Todas quebram 7 dias exceto TB</span>
+              <button
+                onClick={() => setAdminPickerDate(null)}
+                className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,17 +1,18 @@
 export type DDDNumber = 13 | 14 | 15 | 19 | number;
 
 export type ShiftType =
-  | 'TB' // Dia Trabalhado (Trabalho)
-  | 'FG' // Folga Regular (Sábado ou Domingo)
+  | 'FR' // Férias
   | 'FD' // Folga Duplada (Sábado e Domingo)
   | 'FC' // Folga Compensada (Segunda a Quinta)
   | 'FN' // Feriado Nacional
-  | 'FR' // Férias
-  | 'LIC' // Afastado / Licença
-  | 'LP' // Licença Pessoal
+  | 'LIC' // Afastado
+  | 'TB' // Dia Trabalhado (Trabalho Normal - Única que conta como dia trabalhado)
+  | 'A' // Afastado
+  | 'LP' // Licença
   | 'FB' // Folga Banco
   | 'TR' // Treinamento
   | 'FM' // Folga Municipal
+  | 'FG' // Folga Regular (Sábado ou Domingo)
   // Backward compatibility:
   | 'T'
   | 'F'
@@ -24,139 +25,181 @@ export interface ShiftInfo {
   label: string;
   shortLabel: string;
   color: string;
+  bgColor: string;
+  textColor: string;
+  borderColor: string;
   badgeClass: string;
   description: string;
+  isWork: boolean;
 }
 
-export const SHIFT_TYPES: Record<string, ShiftInfo> = {
-  TB: {
-    type: 'TB',
-    label: 'Dia Trabalhado',
-    shortLabel: 'TB',
-    color: '#059669',
-    badgeClass: 'bg-emerald-100/90 text-emerald-900 border-emerald-300 font-semibold',
-    description: 'Dia de trabalho normal'
+export const OFFICIAL_LEGEND_ITEMS: ShiftInfo[] = [
+  {
+    type: 'FR',
+    label: 'Ferias',
+    shortLabel: 'FR',
+    color: '#385723',
+    bgColor: '#e2efda',
+    textColor: '#274e13',
+    borderColor: '#c5e0b4',
+    badgeClass: 'bg-[#e2efda] text-[#274e13] border-[#c5e0b4] font-bold',
+    description: 'Férias Regulamentares',
+    isWork: false
   },
-  T: {
-    type: 'TB',
-    label: 'Dia Trabalhado',
-    shortLabel: 'TB',
-    color: '#059669',
-    badgeClass: 'bg-emerald-100/90 text-emerald-900 border-emerald-300 font-semibold',
-    description: 'Dia de trabalho normal'
-  },
-  FG: {
-    type: 'FG',
-    label: 'Folga Regular',
-    shortLabel: 'FG',
-    color: '#ca8a04',
-    badgeClass: 'bg-amber-100 text-amber-900 border-amber-300 font-bold',
-    description: 'Folga semanal regular (Sábado ou Domingo)'
-  },
-  F: {
-    type: 'FG',
-    label: 'Folga Regular',
-    shortLabel: 'FG',
-    color: '#ca8a04',
-    badgeClass: 'bg-amber-100 text-amber-900 border-amber-300 font-bold',
-    description: 'Folga semanal regular'
-  },
-  FD: {
+  {
     type: 'FD',
     label: 'Folga Duplada',
     shortLabel: 'FD',
-    color: '#ea580c',
-    badgeClass: 'bg-orange-200 text-orange-900 border-orange-400 font-extrabold shadow-xs',
-    description: 'Fim de semana duplado (Sáb + Dom)'
+    color: '#c65911',
+    bgColor: '#fce4d6',
+    textColor: '#c65911',
+    borderColor: '#f8cbad',
+    badgeClass: 'bg-[#fce4d6] text-[#c65911] border-[#f8cbad] font-black shadow-xs',
+    description: 'Folga Duplada (Sábado e Domingo)',
+    isWork: false
   },
-  FC: {
+  {
     type: 'FC',
     label: 'Folga Compensada',
     shortLabel: 'FC',
-    color: '#4f46e5',
-    badgeClass: 'bg-indigo-100 text-indigo-900 border-indigo-300 font-bold',
-    description: 'Folga compensada por inversão (Segunda a Quinta)'
+    color: '#333333',
+    bgColor: '#d9d9d9',
+    textColor: '#333333',
+    borderColor: '#bfbfbf',
+    badgeClass: 'bg-[#d9d9d9] text-[#333333] border-[#bfbfbf] font-bold',
+    description: 'Folga Compensada',
+    isWork: false
   },
-  FN: {
+  {
     type: 'FN',
     label: 'Feriado Nacional',
     shortLabel: 'FN',
-    color: '#0284c7',
-    badgeClass: 'bg-sky-100 text-sky-900 border-sky-300 font-bold',
-    description: 'Feriado Nacional'
+    color: '#1f4e78',
+    bgColor: '#bdd7ee',
+    textColor: '#1f4e78',
+    borderColor: '#9bc2e6',
+    badgeClass: 'bg-[#bdd7ee] text-[#1f4e78] border-[#9bc2e6] font-bold',
+    description: 'Feriado Nacional',
+    isWork: false
   },
-  FR: {
-    type: 'FR',
-    label: 'Férias',
-    shortLabel: 'FR',
-    color: '#eab308',
-    badgeClass: 'bg-yellow-100 text-yellow-900 border-yellow-300 font-bold',
-    description: 'Período de férias regulamentares'
-  },
-  FE: {
-    type: 'FR',
-    label: 'Férias',
-    shortLabel: 'FR',
-    color: '#eab308',
-    badgeClass: 'bg-yellow-100 text-yellow-900 border-yellow-300 font-bold',
-    description: 'Férias'
-  },
-  LIC: {
+  {
     type: 'LIC',
     label: 'Afastado',
     shortLabel: 'LIC',
-    color: '#64748b',
-    badgeClass: 'bg-slate-200 text-slate-800 border-slate-300 font-bold',
-    description: 'Afastamento'
+    color: '#c00000',
+    bgColor: '#fce4d6',
+    textColor: '#c00000',
+    borderColor: '#f4b084',
+    badgeClass: 'bg-[#fce4d6] text-[#c00000] border-[#f4b084] font-bold',
+    description: 'Afastado (Licença médica/afastamento)',
+    isWork: false
   },
-  LI: {
-    type: 'LIC',
+  {
+    type: 'TB',
+    label: 'Dia Trabalhado',
+    shortLabel: 'TB',
+    color: '#0f172a',
+    bgColor: '#ffffff',
+    textColor: '#0f172a',
+    borderColor: '#cbd5e1',
+    badgeClass: 'bg-white text-slate-900 border-slate-300 font-bold shadow-xs',
+    description: 'Dia de trabalho normal (Única que conta como dia trabalhado)',
+    isWork: true
+  },
+  {
+    type: 'A',
     label: 'Afastado',
-    shortLabel: 'LIC',
-    color: '#64748b',
-    badgeClass: 'bg-slate-200 text-slate-800 border-slate-300 font-bold',
-    description: 'Afastado'
+    shortLabel: 'A',
+    color: '#900000',
+    bgColor: '#f8cbcd',
+    textColor: '#900000',
+    borderColor: '#ea9999',
+    badgeClass: 'bg-[#f8cbcd] text-[#900000] border-[#ea9999] font-bold',
+    description: 'Afastado',
+    isWork: false
   },
-  LP: {
+  {
     type: 'LP',
     label: 'Licença',
     shortLabel: 'LP',
-    color: '#64748b',
-    badgeClass: 'bg-slate-200 text-slate-800 border-slate-300 font-bold',
-    description: 'Licença'
+    color: '#594a38',
+    bgColor: '#e2dcd2',
+    textColor: '#594a38',
+    borderColor: '#c9bfae',
+    badgeClass: 'bg-[#e2dcd2] text-[#594a38] border-[#c9bfae] font-bold',
+    description: 'Licença',
+    isWork: false
   },
-  FB: {
+  {
     type: 'FB',
     label: 'Folga Banco',
     shortLabel: 'FB',
-    color: '#16a34a',
-    badgeClass: 'bg-teal-100 text-teal-900 border-teal-300 font-bold',
-    description: 'Folga Banco de Horas'
+    color: '#274e13',
+    bgColor: '#a9d08e',
+    textColor: '#274e13',
+    borderColor: '#70ad47',
+    badgeClass: 'bg-[#a9d08e] text-[#274e13] border-[#70ad47] font-bold',
+    description: 'Folga Banco de Horas',
+    isWork: false
   },
-  TR: {
+  {
     type: 'TR',
     label: 'Treinamento',
     shortLabel: 'TR',
-    color: '#9333ea',
-    badgeClass: 'bg-purple-100 text-purple-900 border-purple-300 font-bold',
-    description: 'Treinamento e Capacitação'
+    color: '#ffffff',
+    bgColor: '#c00000',
+    textColor: '#ffffff',
+    borderColor: '#900000',
+    badgeClass: 'bg-[#c00000] text-white border-[#900000] font-bold',
+    description: 'Treinamento e Capacitação',
+    isWork: false
   },
-  FM: {
+  {
     type: 'FM',
     label: 'Folga Municipal',
     shortLabel: 'FM',
-    color: '#2563eb',
-    badgeClass: 'bg-blue-100 text-blue-900 border-blue-300 font-bold',
-    description: 'Feriado / Folga Municipal'
+    color: '#ffffff',
+    bgColor: '#1f4e78',
+    textColor: '#ffffff',
+    borderColor: '#16365c',
+    badgeClass: 'bg-[#1f4e78] text-white border-[#16365c] font-bold',
+    description: 'Folga / Feriado Municipal',
+    isWork: false
   },
-  AT: {
-    type: 'LIC',
-    label: 'Atestado',
-    shortLabel: 'LIC',
-    color: '#ef4444',
-    badgeClass: 'bg-rose-100 text-rose-900 border-rose-300 font-bold',
-    description: 'Atestado médico'
+  {
+    type: 'FG',
+    label: 'Folga Regular',
+    shortLabel: 'FG',
+    color: '#7f6000',
+    bgColor: '#fff2cc',
+    textColor: '#7f6000',
+    borderColor: '#ffe599',
+    badgeClass: 'bg-[#fff2cc] text-[#7f6000] border-[#ffe599] font-bold',
+    description: 'Folga semanal regular (Sábado ou Domingo)',
+    isWork: false
   }
+];
+
+export const SHIFT_TYPES: Record<string, ShiftInfo> = {
+  FR: OFFICIAL_LEGEND_ITEMS[0],
+  FD: OFFICIAL_LEGEND_ITEMS[1],
+  FC: OFFICIAL_LEGEND_ITEMS[2],
+  FN: OFFICIAL_LEGEND_ITEMS[3],
+  LIC: OFFICIAL_LEGEND_ITEMS[4],
+  TB: OFFICIAL_LEGEND_ITEMS[5],
+  A: OFFICIAL_LEGEND_ITEMS[6],
+  LP: OFFICIAL_LEGEND_ITEMS[7],
+  FB: OFFICIAL_LEGEND_ITEMS[8],
+  TR: OFFICIAL_LEGEND_ITEMS[9],
+  FM: OFFICIAL_LEGEND_ITEMS[10],
+  FG: OFFICIAL_LEGEND_ITEMS[11],
+
+  // Compatibility aliases
+  T: OFFICIAL_LEGEND_ITEMS[5],
+  F: OFFICIAL_LEGEND_ITEMS[11],
+  FE: OFFICIAL_LEGEND_ITEMS[0],
+  LI: OFFICIAL_LEGEND_ITEMS[4],
+  AT: OFFICIAL_LEGEND_ITEMS[6]
 };
 
 export interface Technician {
