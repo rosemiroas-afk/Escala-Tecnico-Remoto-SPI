@@ -25,8 +25,6 @@ import { WhatsAppModal } from './components/WhatsAppModal';
 import { LoginModal } from './components/LoginModal';
 import { AdminPendingAlert } from './components/AdminPendingAlert';
 import { supabase } from './supabase';
-// import { db, handleFirestoreError, OperationType } from './firebase';
-// import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
 
 const STORAGE_KEY_TECHS = 'escalamaster_techs_v2';
 const STORAGE_KEY_PERIOD = 'escalamaster_period_v2';
@@ -165,7 +163,7 @@ export default function App() {
 
       return [admin, ...techUsers];
     });
-    // Note: saveToFirestore is not called here intentionally to avoid unintended overwrites during initialization
+    // Note: Initial sync and real-time updates are handled by Supabase
   }, [technicians]); // Removed setUsers dependency to prevent loops, but keep technicians as dependency
 
   // Current Logged In User
@@ -316,8 +314,6 @@ export default function App() {
     }
   }, [schedules]);
 
-  // Firestore Quota Exceeded State
-  const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState<boolean>(false);
 
   // Real-time Validation Audit
   const auditResult = useMemo(() => {
@@ -631,38 +627,6 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
-        {/* Firestore Quota Exceeded Banner */}
-        {firestoreQuotaExceeded && (
-          <div className="mb-5 p-4 rounded-2xl border bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 flex items-start gap-3 shadow-sm">
-            <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-sm">
-              ⚠️
-            </div>
-            <div className="flex-1">
-              <h4 className="font-bold text-sm sm:text-base">
-                Cota Diária do Firestore Excedida (Quota Exceeded)
-              </h4>
-              <p className="text-xs mt-1 text-rose-800 dark:text-rose-300">
-                O limite gratuito diário de leituras/escritas do Firebase foi atingido. O aplicativo está operando em modo de salvamento local automático para garantir que suas alterações não sejam perdidas. A cota será redefinida amanhã.
-              </p>
-              <div className="mt-2">
-                <a
-                  href="https://firebase.google.com/pricing#cloud-firestore"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs font-bold underline text-rose-900 dark:text-rose-200 hover:text-rose-950"
-                >
-                  Saiba mais sobre os planos e cota do Firestore →
-                </a>
-              </div>
-            </div>
-            <button
-              onClick={() => setFirestoreQuotaExceeded(false)}
-              className="text-rose-600 dark:text-rose-400 hover:text-rose-800 font-bold px-2 py-1 text-xs cursor-pointer"
-            >
-              ✕
-            </button>
-          </div>
-        )}
 
         {/* Prominent Pending Requests Alert Banner for Admin */}
         {isAdmin && pendingRequests.length > 0 && (
