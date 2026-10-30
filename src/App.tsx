@@ -24,8 +24,9 @@ import { TeamManagementModal } from './components/TeamManagementModal';
 import { WhatsAppModal } from './components/WhatsAppModal';
 import { LoginModal } from './components/LoginModal';
 import { AdminPendingAlert } from './components/AdminPendingAlert';
-import { db, handleFirestoreError, OperationType } from './firebase';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
+import { supabase } from './supabase';
+// import { db, handleFirestoreError, OperationType } from './firebase';
+// import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
 
 const STORAGE_KEY_TECHS = 'escalamaster_techs_v2';
 const STORAGE_KEY_PERIOD = 'escalamaster_period_v2';
@@ -318,74 +319,44 @@ export default function App() {
   // Firestore Quota Exceeded State
   const [firestoreQuotaExceeded, setFirestoreQuotaExceeded] = useState<boolean>(false);
 
-  // Real-time synchronization using onSnapshot for 100% real-time data sync across devices
+  // Real-time synchronization using Supabase for 100% real-time data sync across devices
   useEffect(() => {
-    const docRef = doc(db, 'appData', 'state');
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        
-        // Use functional state updates to check for actual changes before updating
-        setTechnicians(prev => JSON.stringify(prev) !== JSON.stringify(data.technicians) ? (data.technicians || prev) : prev);
-        setUsers(prev => {
-          if (!data.users) return prev;
-          const serverUsers: AppUser[] = data.users;
-          const localMap = new Map(prev.map(u => [u.id, u]));
-          const merged = serverUsers.map(su => {
-            const localU = localMap.get(su.id);
-            if (localU && localU.pin && localU.pin !== '1234' && (su.pin === '1234' || !su.pin)) {
-              return { ...su, pin: localU.pin, isFirstLogin: localU.isFirstLogin };
-            }
-            return su;
-          });
-          return JSON.stringify(prev) !== JSON.stringify(merged) ? merged : prev;
-        });
-        setOffRequests(prev => JSON.stringify(prev) !== JSON.stringify(data.offRequests) ? (data.offRequests || prev) : prev);
-        setSchedules(prev => JSON.stringify(prev) !== JSON.stringify(data.schedules) ? (data.schedules || prev) : prev);
-        setPeriod(prev => JSON.stringify(prev) !== JSON.stringify(data.period) ? (data.period || prev) : prev);
-      }
-    }, (error) => {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      if (errMsg.includes('Quota exceeded') || errMsg.includes('quota')) {
-        setFirestoreQuotaExceeded(true);
-        console.warn('Firestore quota exceeded. Operating in offline/local storage mode.');
-      } else {
-        handleFirestoreError(error, OperationType.GET, 'appData/state');
-      }
-    });
+    // 1. Fetch initial state
+    const fetchData = async () => {
+      const { data: folgas } = await supabase.from('solicitacoes_folga').select('*');
+      if (folgas) setOffRequests(folgas);
+      
+      const { data: usersData } = await supabase.from('usuarios').select('*');
+      if (usersData) setUsers(usersData);
+    };
+    fetchData();
 
-    return () => unsubscribe();
+    // 2. Real-time subscription
+    const channel = supabase.channel('realtime_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitacoes_folga' }, payload => {
+        console.log('Folgas updated:', payload);
+        fetchData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  // Save to Firestore helper with error handling
-  const saveToFirestore = useCallback(async (updatedState: {
-    technicians?: Technician[];
-    users?: AppUser[];
-    offRequests?: OffRequest[];
-    schedules?: Record<string, TechnicianSchedule>;
-    period?: SchedulePeriod;
-  }) => {
+  // Save to Supabase helper
+  const saveToSupabase = useCallback(async (table: string, data: any, id?: string) => {
     try {
-      const docRef = doc(db, 'appData', 'state');
-      await setDoc(docRef, {
-        technicians,
-        users,
-        offRequests,
-        schedules,
-        period,
-        ...updatedState,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      if (errMsg.includes('Quota exceeded') || errMsg.includes('quota')) {
-        setFirestoreQuotaExceeded(true);
-        console.warn('Firestore quota exceeded during save. Saved locally.');
+      if (id) {
+        await supabase.from(table).update(data).eq('id', id);
       } else {
-        handleFirestoreError(error, OperationType.WRITE, 'appData/state');
+        await supabase.from(table).upsert(data);
       }
+    } catch (error) {
+      console.error('Supabase error:', error);
     }
-  }, [technicians, users, offRequests, schedules, period]);
+  }, []);
+
 
   // Real-time Validation Audit
   const auditResult = useMemo(() => {
@@ -396,103 +367,47 @@ export default function App() {
   const handleUpdateUserPin = useCallback((userId: string, newPin: string) => {
     setUsers(prev => {
       const updated = prev.map(u => (u.id === userId ? { ...u, pin: newPin, isFirstLogin: false } : u));
-      saveToFirestore({ users: updated });
+      saveToSupabase('usuarios', { pin: newPin, isFirstLogin: false }, userId);
       return updated;
     });
-  }, [saveToFirestore]);
+  }, [saveToSupabase]);
 
   // Handler: Admin Reset Technician PIN back to 1234
   const handleResetUserPin = useCallback((techId: string) => {
     setUsers(prev => {
       const updated = prev.map(u => (u.id === techId ? { ...u, pin: '1234', isFirstLogin: true } : u));
-      saveToFirestore({ users: updated });
+      saveToSupabase('usuarios', { pin: '1234', isFirstLogin: true }, techId);
       return updated;
     });
     alert('Senha resetada com sucesso para o padrão inicial: 1234');
-  }, [saveToFirestore]);
+  }, [saveToSupabase]);
 
-  // Pending Off Requests
-  const pendingRequests = useMemo(() => {
-    return offRequests.filter(r => r.status === 'pendente');
-  }, [offRequests]);
-
-  // Admin Pending Requests Alert Modal
-  const [isAdminAlertOpen, setIsAdminAlertOpen] = useState<boolean>(false);
-  const [hasTriggeredInitialAlert, setHasTriggeredInitialAlert] = useState<boolean>(false);
-
-  // Trigger alert when admin is active and there are pending requests
-  useEffect(() => {
-    if (currentUser?.role === 'admin' && pendingRequests.length > 0 && !hasTriggeredInitialAlert) {
-      setIsAdminAlertOpen(true);
-      setHasTriggeredInitialAlert(true);
-    }
-  }, [currentUser, pendingRequests.length, hasTriggeredInitialAlert]);
-
-  // Handler: User Login
-  const handleLogin = useCallback((user: AppUser) => {
-    setCurrentUser(user);
-    if (user.role === 'technician') {
-      setActiveTab('individual');
-    } else {
-      setActiveTab('matrix');
-      const pending = offRequests.filter(r => r.status === 'pendente');
-      if (pending.length > 0) {
-        setIsAdminAlertOpen(true);
-        setHasTriggeredInitialAlert(true);
-      }
-    }
-  }, [offRequests]);
-
-  // Handler: User Logout
-  const handleLogout = useCallback(() => {
-    setCurrentUser(null);
-    setHasTriggeredInitialAlert(false);
-    setIsAdminAlertOpen(false);
-  }, []);
-
-  // Handler: Update a single shift cell (Manual edit, doesn't auto-save)
+  // Handler: Update a single shift cell
   const handleUpdateShift = useCallback((techId: string, date: string, shift: ShiftType, notes?: string) => {
     setSchedules(prev => {
       const currentTechSched = prev[techId] || { technicianId: techId, days: {} };
-      return {
+      const updatedDays = {
+        ...currentTechSched.days,
+        [date]: {
+          date,
+          shift,
+          manualOverride: true,
+          notes: notes !== undefined ? notes : currentTechSched.days[date]?.notes
+        }
+      };
+      const updatedSchedules = {
         ...prev,
         [techId]: {
           ...currentTechSched,
-          days: {
-            ...currentTechSched.days,
-            [date]: {
-              date,
-              shift,
-              manualOverride: true,
-              notes: notes !== undefined ? notes : currentTechSched.days[date]?.notes
-            }
-          }
+          days: updatedDays
         }
       };
+      saveToSupabase('appData', { schedules: updatedSchedules }, 'state');
+      return updatedSchedules;
     });
-  }, []); // Removed [saveToFirestore] dependency
+  }, [saveToSupabase]);
 
-  // Handler: Run Generator
-  const handleGenerate = useCallback((options: GeneratorOptions, periodConfig: { startYear: number; startMonth: number }) => {
-    const nextM = (periodConfig.startMonth + 1) % 12;
-    const nextY = periodConfig.startMonth === 11 ? periodConfig.startYear + 1 : periodConfig.startYear;
-    const newPeriod: SchedulePeriod = {
-      ...period,
-      startYear: periodConfig.startYear,
-      startMonth: periodConfig.startMonth,
-      name: `${MONTHS_PT[periodConfig.startMonth]} e ${MONTHS_PT[nextM]} de ${periodConfig.startYear === nextY ? periodConfig.startYear : `${periodConfig.startYear}/${nextY}`}`,
-      updatedAt: new Date().toISOString()
-    };
-    
-    const newDates = generateDateRange(periodConfig.startYear, periodConfig.startMonth, 2);
-    const newSchedule = generateSchedule(technicians, newDates, offRequests, options);
-    
-    setPeriod(newPeriod);
-    setSchedules(newSchedule);
-    saveToFirestore({ period: newPeriod, schedules: newSchedule });
-  }, [period, technicians, offRequests, saveToFirestore]);
-
-  // Handler: Add Off Request (stays PENDENTE in analysis until Admin approval)
+  // Handler: Add Off Request
   const handleAddRequest = useCallback((req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => {
     const newReq: OffRequest = {
       ...req,
@@ -502,14 +417,14 @@ export default function App() {
     };
     setOffRequests(prev => {
       const updated = [...prev, newReq];
-      saveToFirestore({ offRequests: updated });
+      saveToSupabase('solicitacoes_folga', newReq);
       return updated;
     });
     // Notify admin if logged in
     if (currentUser?.role === 'admin') {
       setIsAdminAlertOpen(true);
     }
-  }, [currentUser, saveToFirestore]);
+  }, [currentUser, saveToSupabase]);
 
   // Handler: Admin Approves Off Request
   const handleApproveRequest = useCallback((id: string) => {
@@ -528,28 +443,29 @@ export default function App() {
       handleUpdateShift(req.technicianId, req.date, targetShift, `Folga Aprovada: ${req.notes.join(' | ')}`);
 
       // Trigger save after state update
-      saveToFirestore({ offRequests: updatedRequests });
+      saveToSupabase('solicitacoes_folga', { status: 'atendido' }, id);
       return updatedRequests;
     });
-  }, [handleUpdateShift, saveToFirestore]);
+  }, [handleUpdateShift, saveToSupabase]);
 
   // Handler: Admin Rejects Off Request
   const handleRejectRequest = useCallback((id: string) => {
     setOffRequests(prev => {
       const updated: OffRequest[] = prev.map(r => r.id === id ? { ...r, status: 'recusado' as const } : r);
-      saveToFirestore({ offRequests: updated });
+      saveToSupabase('solicitacoes_folga', { status: 'recusado' }, id);
       return updated;
     });
-  }, [saveToFirestore]);
+  }, [saveToSupabase]);
 
   // Handler: Delete Off Request
   const handleDeleteRequest = useCallback((id: string) => {
     setOffRequests(prev => {
       const updated: OffRequest[] = prev.filter(r => r.id !== id);
-      saveToFirestore({ offRequests: updated });
+      supabase.from('solicitacoes_folga').delete().eq('id', id);
       return updated;
     });
-  }, [saveToFirestore]);
+  }, []);
+
 
   // Handler: Open Off Requests modal focused on a technician
   const handleOpenRequestsModal = (techId?: string) => {
@@ -561,7 +477,7 @@ export default function App() {
   const handleClearSchedule = useCallback(async () => {
     if (window.confirm('Deseja realmente apagar 100% da escala atual?')) {
       setSchedules({});
-      await saveToFirestore({ schedules: {} });
+      await saveToSupabase('appData', { schedules: {} }, 'state');
       try {
         localStorage.removeItem(STORAGE_KEY_SCHEDULE);
       } catch (e) {
@@ -569,7 +485,7 @@ export default function App() {
       }
       alert('Escala apagada 100% com sucesso!');
     }
-  }, [saveToFirestore]);
+  }, [saveToSupabase]);
 
   // Handler: Export Excel
   const handleExportExcel = () => {
@@ -578,23 +494,23 @@ export default function App() {
 
   const isAdmin = currentUser?.role === 'admin';
 
-  // Handler: Save all changes to Firebase
+  // Handler: Save all changes to Supabase
   const handleSave = useCallback(() => {
-    saveToFirestore({
+    saveToSupabase('appData', {
       technicians,
       users,
       offRequests,
       schedules,
       period
-    });
-    alert('Escala e solicitações salvas com sucesso no sistema!');
-  }, [technicians, users, offRequests, schedules, period, saveToFirestore]);
+    }, 'state');
+    alert('Escala e solicitações salvas com sucesso no Supabase!');
+  }, [technicians, users, offRequests, schedules, period, saveToSupabase]);
 
   // Handler: Update Technicians List
   const handleUpdateTechnicians = useCallback((updated: Technician[]) => {
     setTechnicians(updated);
-    saveToFirestore({ technicians: updated });
-  }, [saveToFirestore]);
+    saveToSupabase('appData', { technicians: updated }, 'state');
+  }, [saveToSupabase]);
 
   return (
     <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
