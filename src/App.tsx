@@ -9,6 +9,7 @@ import {
   AppUser
 } from './types';
 import { INITIAL_TECHNICIANS } from './data/defaultTechnicians';
+import { OFFICIAL_TECHNICIANS, OFFICIAL_SHIFTS_BY_TECH_NAME } from './data/officialScheduleNovDez';
 import { generateDateRange, MONTHS_PT } from './utils/dateUtils';
 import { generateSchedule } from './utils/scheduler';
 import { validateSchedule } from './utils/validator';
@@ -226,29 +227,21 @@ export default function App() {
       console.error('Failed reading schedules from localStorage', e);
     }
 
-    // Default initial generation
-    const initialDates = generateDateRange(2026, 10, 2);
-    const initialReqs: OffRequest[] = [
-      {
-        id: 'req-sample-1',
-        technicianId: 'tech-13-1',
-        date: '2026-11-14',
-        reasonCategory: 'casamento',
-        notes: ['Casamento de familiar'],
-        priority: 'alta',
-        createdAt: new Date().toISOString(),
-        status: 'atendido'
+    // Default initial generation from Official Spreadsheet
+    const officialSched: Record<string, TechnicianSchedule> = {};
+    for (const tech of OFFICIAL_TECHNICIANS) {
+      const techShifts = OFFICIAL_SHIFTS_BY_TECH_NAME[tech.name] || {};
+      officialSched[tech.id] = { technicianId: tech.id, days: {} };
+      for (const [dateStr, shiftCode] of Object.entries(techShifts)) {
+        officialSched[tech.id].days[dateStr] = {
+          date: dateStr,
+          shift: shiftCode,
+          manualOverride: true,
+          notes: tech.shiftHours
+        };
       }
-    ];
-
-    return generateSchedule(INITIAL_TECHNICIANS, initialDates, initialReqs, {
-      ensureDoubleWeekend: true,
-      targetDoubleWeekendsPerTech: 1,
-      targetInversionsPerTech: 2,
-      maxConsecutiveWorkDays: 6,
-      prioritizeOffRequests: true,
-      balanceDDDCoverage: true
-    });
+    }
+    return officialSched;
   });
 
   // Active View Tab: For technicians, always 'individual'
@@ -403,8 +396,8 @@ export default function App() {
         // C. Fetch Schedule Shifts from escalas
         const { data: escalasData, error: escalasError } = await supabase.from('escalas').select('*');
         if (escalasData && Array.isArray(escalasData) && escalasData.length > 0 && !escalasError) {
-          setSchedules(prev => {
-            const next: Record<string, TechnicianSchedule> = { ...prev };
+          setSchedules(() => {
+            const next: Record<string, TechnicianSchedule> = {};
             let detectedRegime: '6x1' | '5x2' | undefined;
 
             escalasData.forEach((row: any) => {
@@ -750,6 +743,52 @@ export default function App() {
     }
   }, []);
 
+  // Handler: Load Official Schedule from Spreadsheet (Novembro e Dezembro)
+  const handleLoadOfficialSchedule = useCallback(async () => {
+    if (!window.confirm('Deseja carregar a Escala Oficial da Planilha (Novembro e Dezembro de 2026)?')) {
+      return;
+    }
+    const newSchedules: Record<string, TechnicianSchedule> = {};
+    const escalaRows: any[] = [];
+
+    for (const tech of OFFICIAL_TECHNICIANS) {
+      const techShifts = OFFICIAL_SHIFTS_BY_TECH_NAME[tech.name] || {};
+      newSchedules[tech.id] = { technicianId: tech.id, days: {} };
+
+      for (const [dateStr, shiftCode] of Object.entries(techShifts)) {
+        newSchedules[tech.id].days[dateStr] = {
+          date: dateStr,
+          shift: shiftCode,
+          manualOverride: true,
+          notes: tech.shiftHours
+        };
+
+        escalaRows.push({
+          id_usuario: tech.id,
+          data: dateStr,
+          tipo_escala: '6x1',
+          legenda_dia: shiftCode,
+          horario: tech.shiftHours,
+          updated_at: new Date().toISOString()
+        });
+      }
+    }
+
+    setSchedules(newSchedules);
+
+    try {
+      await supabase.from('escalas').delete().gte('data', '2026-11-01').lte('data', '2026-12-31');
+      for (let i = 0; i < escalaRows.length; i += 100) {
+        const chunk = escalaRows.slice(i, i + 100);
+        await supabase.from('escalas').insert(chunk);
+      }
+      alert('Escala Oficial de Novembro e Dezembro carregada e salva com sucesso no Supabase!');
+    } catch (err) {
+      console.error('Error saving official schedule to Supabase:', err);
+      alert('Escala oficial aplicada na tela com sucesso!');
+    }
+  }, []);
+
   // Handler: Export Excel
   const handleExportExcel = () => {
     exportScheduleToExcel(technicians, schedules, dates, period, offRequests);
@@ -956,6 +995,7 @@ export default function App() {
                 onOpenRequests={handleOpenRequestsModal}
                 onClearSchedule={handleClearSchedule}
                 onSave={handleSave}
+                onLoadOfficialSchedule={handleLoadOfficialSchedule}
               />
             )}
 

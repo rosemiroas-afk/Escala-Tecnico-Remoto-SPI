@@ -3,7 +3,7 @@ import { Technician, TechnicianSchedule, ShiftType, SHIFT_TYPES, OffRequest, Sch
 import { formatDisplayDate, parseDateKey, isSaturday, isSunday, MONTHS_PT } from '../utils/dateUtils';
 import { AuditResult, isOffShift, isWorkingShift } from '../utils/validator';
 import { DDD_INFO } from '../data/defaultTechnicians';
-import { Filter, Search, AlertTriangle, Star, Clock, Trash2, Check } from 'lucide-react';
+import { Filter, Search, AlertTriangle, Star, Clock, Trash2, Check, FileSpreadsheet } from 'lucide-react';
 
 interface RosterTableProps {
   technicians: Technician[];
@@ -16,6 +16,7 @@ interface RosterTableProps {
   onOpenRequests: (techId?: string) => void;
   onClearSchedule?: () => void;
   onSave?: () => void;
+  onLoadOfficialSchedule?: () => void;
 }
 
 export const RosterTable: React.FC<RosterTableProps> = ({
@@ -28,7 +29,8 @@ export const RosterTable: React.FC<RosterTableProps> = ({
   onUpdateShift,
   onOpenRequests,
   onClearSchedule,
-  onSave
+  onSave,
+  onLoadOfficialSchedule
 }) => {
   const [selectedDDD, setSelectedDDD] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -160,6 +162,17 @@ export const RosterTable: React.FC<RosterTableProps> = ({
 
         {/* Search, Clear & Save Roster */}
         <div className="flex items-center gap-2">
+          {onLoadOfficialSchedule && (
+            <button
+              onClick={onLoadOfficialSchedule}
+              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+              title="Carregar Escala Oficial da Planilha (Novembro e Dezembro 2026)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Escala da Planilha</span>
+            </button>
+          )}
+
           {onClearSchedule && (
             <button
               onClick={onClearSchedule}
@@ -178,7 +191,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
               }
             }}
             className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-            title="Salvar alterações no Firebase"
+            title="Salvar alterações no Supabase"
           >
             <Check className="w-3.5 h-3.5 text-white" />
             <span>Salvar Escala</span>
