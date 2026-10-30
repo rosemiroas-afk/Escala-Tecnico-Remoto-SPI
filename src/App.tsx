@@ -318,11 +318,13 @@ export default function App() {
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.technicians && Array.isArray(data.technicians)) setTechnicians(data.technicians);
-        if (data.users && Array.isArray(data.users)) setUsers(data.users);
-        if (data.offRequests && Array.isArray(data.offRequests)) setOffRequests(data.offRequests);
-        if (data.schedules) setSchedules(data.schedules);
-        if (data.period) setPeriod(data.period);
+        
+        // Use functional state updates to check for actual changes before updating
+        setTechnicians(prev => JSON.stringify(prev) !== JSON.stringify(data.technicians) ? (data.technicians || prev) : prev);
+        setUsers(prev => JSON.stringify(prev) !== JSON.stringify(data.users) ? (data.users || prev) : prev);
+        setOffRequests(prev => JSON.stringify(prev) !== JSON.stringify(data.offRequests) ? (data.offRequests || prev) : prev);
+        setSchedules(prev => JSON.stringify(prev) !== JSON.stringify(data.schedules) ? (data.schedules || prev) : prev);
+        setPeriod(prev => JSON.stringify(prev) !== JSON.stringify(data.period) ? (data.period || prev) : prev);
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'appData/state');
