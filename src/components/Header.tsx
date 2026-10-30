@@ -98,9 +98,21 @@ export const Header: React.FC<HeaderProps> = ({
               }`}>
                 DDDs 13, 14, 15 e 19
               </span>
+              <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${
+                period.regime === '5x2'
+                  ? darkMode
+                    ? 'bg-emerald-950/70 text-emerald-300 border-emerald-800'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : darkMode
+                    ? 'bg-blue-950/70 text-blue-300 border-blue-800'
+                    : 'bg-blue-50 text-blue-700 border-blue-200'
+              }`}>
+                {period.regime === '5x2' ? 'Escala 5x2' : 'Escala 6x1'}
+              </span>
             </div>
           </div>
         </div>
+
 
         {/* User identification badge and Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">

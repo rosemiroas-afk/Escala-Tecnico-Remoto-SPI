@@ -400,9 +400,9 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                   {req && (
                     <div
                       className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white ${
-                        req.status === 'atendido' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
+                        (req.status === 'atendido' || req.status === 'aprovado') ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
                       }`}
-                      title={req.status === 'atendido' ? `Folga Concedida: ${req.notes.join(', ')}` : `Folga em Análise: ${req.notes.join(', ')}`}
+                      title={(req.status === 'atendido' || req.status === 'aprovado') ? `Folga Concedida: ${req.notes.join(', ')}` : `Folga em Análise: ${req.notes.join(', ')}`}
                     />
                   )}
                 </div>
@@ -492,7 +492,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
             ) : (
               <div className="space-y-2.5 max-h-64 overflow-y-auto">
                 {techRequests.map(r => {
-                  const isApproved = r.status === 'atendido';
+                  const isApproved = r.status === 'atendido' || r.status === 'aprovado';
                   const isRejected = r.status === 'recusado';
 
                   return (
@@ -518,6 +518,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
               </div>
             )}
           </div>
+
         </div>
       </div>
     </div>

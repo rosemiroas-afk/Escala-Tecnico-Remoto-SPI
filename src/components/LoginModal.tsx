@@ -48,8 +48,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    // Check if it's the first login or still on default PIN '1234'
-    if (currentUserData.isFirstLogin || currentUserData.pin === '1234') {
+    // Check if it's the first login with default PIN '1234'
+    const isFirstAccess = (currentUserData.primeiro_acesso !== undefined)
+      ? currentUserData.primeiro_acesso
+      : (currentUserData.isFirstLogin ?? true);
+
+    if (isFirstAccess && currentUserData.pin === '1234') {
       setPendingUser(currentUserData);
       setIsChangingPassword(true);
       return;
@@ -80,11 +84,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    // Update password and complete login
-    onUpdateUserPin(pendingUser.id, newPin.trim());
+    // Update password and complete login without looping
+    const trimmedPin = newPin.trim();
+    onUpdateUserPin(pendingUser.id, trimmedPin);
     const updatedUser: AppUser = {
       ...pendingUser,
-      pin: newPin.trim(),
+      pin: trimmedPin,
+      primeiro_acesso: false,
       isFirstLogin: false
     };
 
@@ -95,6 +101,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setConfirmPin('');
     setEnteredPin('');
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 overflow-y-auto">

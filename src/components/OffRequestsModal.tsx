@@ -280,7 +280,7 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
               <div className="space-y-3 flex-1 overflow-y-auto pr-1">
                 {filteredRequests.map(req => {
                   const tech = technicians.find(t => t.id === req.technicianId);
-                  const isApproved = req.status === 'atendido';
+                  const isApproved = req.status === 'atendido' || req.status === 'aprovado';
                   const isRejected = req.status === 'recusado';
                   const isPending = !isApproved && !isRejected;
 

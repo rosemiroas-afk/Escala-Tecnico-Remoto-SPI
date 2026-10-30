@@ -178,7 +178,7 @@ export interface OffRequest {
   notes: string[]; // N observações para o mesmo dia
   priority: 'alta' | 'media' | 'baixa';
   createdAt: string;
-  status: 'pendente' | 'atendido' | 'recusado' | 'parcial' | 'conflito';
+  status: 'pendente' | 'aprovado' | 'atendido' | 'recusado' | 'parcial' | 'conflito';
 }
 
 export interface DaySchedule {
@@ -202,6 +202,7 @@ export interface SchedulePeriod {
   durationMonths: number; // 2
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
+  regime?: '6x1' | '5x2';
   createdAt: string;
   updatedAt: string;
 }
@@ -239,10 +240,11 @@ export interface DDDStats {
 }
 
 export interface GeneratorOptions {
+  regime?: '6x1' | '5x2'; // default '6x1'
   ensureDoubleWeekend: boolean; // default true
   targetDoubleWeekendsPerTech: number; // default 1 or 2
   targetInversionsPerTech: number; // default 2
-  maxConsecutiveWorkDays: number; // default 6 (CLT)
+  maxConsecutiveWorkDays: number; // default 6 (CLT 6x1) or 5 (5x2)
   prioritizeOffRequests: boolean; // default true
   balanceDDDCoverage: boolean; // default true
   randomSeed?: number;
@@ -255,7 +257,9 @@ export interface AppUser {
   name: string;
   role: UserRole;
   pin: string; // default '1234'
-  isFirstLogin: boolean;
+  primeiro_acesso?: boolean;
+  isFirstLogin?: boolean;
   technicianId?: string;
   ddd?: DDDNumber;
 }
+

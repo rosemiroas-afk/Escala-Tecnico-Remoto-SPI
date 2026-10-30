@@ -325,18 +325,44 @@ export default function App() {
     return offRequests.filter(r => r.status === 'pendente');
   }, [offRequests]);
 
+  // Normalize folga records from Supabase (supporting both snake_case and camelCase columns)
+  const normalizeFolga = useCallback((row: any): OffRequest => ({
+    id: String(row.id || `req-${Date.now()}`),
+    technicianId: String(row.id_usuario || row.technicianId || row.technician_id || ''),
+    date: String(row.data_desejada || row.date || ''),
+    reasonCategory: (row.motivo || row.reasonCategory || 'pessoal') as any,
+    notes: Array.isArray(row.notes)
+      ? row.notes
+      : typeof row.observacoes === 'string'
+      ? row.observacoes.split(' | ').filter(Boolean)
+      : Array.isArray(row.observacoes)
+      ? row.observacoes
+      : [row.observacoes || row.notes || 'Solicitação de folga'],
+    priority: (row.priority || 'alta') as any,
+    createdAt: row.created_at || row.createdAt || new Date().toISOString(),
+    status: (row.status === 'aprovado' || row.status === 'atendido')
+      ? 'aprovado'
+      : row.status === 'recusado'
+      ? 'recusado'
+      : 'pendente'
+  }), []);
+
   // Real-time synchronization using Supabase for 100% real-time data sync across devices
   useEffect(() => {
     // 1. Fetch initial state
     const fetchData = async () => {
       try {
         // Fetch Off Requests
-        const { data: folgas } = await supabase.from('solicitacoes_folga').select('*');
-        if (folgas) setOffRequests(folgas);
+        const { data: folgas, error: folgasError } = await supabase.from('solicitacoes_folga').select('*');
+        if (folgas && Array.isArray(folgas) && !folgasError) {
+          setOffRequests(folgas.map(normalizeFolga));
+        }
         
         // Fetch Users
-        const { data: usersData } = await supabase.from('usuarios').select('*');
-        if (usersData) setUsers(usersData);
+        const { data: usersData, error: usersError } = await supabase.from('usuarios').select('*');
+        if (usersData && Array.isArray(usersData) && usersData.length > 0 && !usersError) {
+          setUsers(usersData);
+        }
 
         // Fetch Global App Data (Schedules, Techs, Period)
         const { data: appData, error: appDataError } = await supabase
@@ -356,26 +382,77 @@ export default function App() {
     };
     fetchData();
 
-    // 2. Real-time subscription
+    // 2. Real-time subscriptions
     const channel = supabase.channel('realtime_sync')
+      // Listener 1: solicitacoes_folga (INSERT, UPDATE, DELETE) -> reflects immediately on Admin & Tech
       .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitacoes_folga' }, payload => {
-        console.log('Folgas updated:', payload);
-        fetchData();
+        if (payload.eventType === 'INSERT' && payload.new) {
+          const newReq = normalizeFolga(payload.new);
+          setOffRequests(prev => [...prev.filter(r => r.id !== newReq.id), newReq]);
+        } else if (payload.eventType === 'UPDATE' && payload.new) {
+          const updatedReq = normalizeFolga(payload.new);
+          setOffRequests(prev => prev.map(r => r.id === updatedReq.id ? updatedReq : r));
+        } else if (payload.eventType === 'DELETE' && payload.old) {
+          const deletedId = (payload.old as any).id;
+          if (deletedId) setOffRequests(prev => prev.filter(r => r.id !== deletedId));
+        } else {
+          fetchData();
+        }
       })
+      // Listener 2: escalas_usuarios (Shift updates from Admin -> updates Tech calendar immediately)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'escalas_usuarios' }, payload => {
+        const newRecord: any = payload.new;
+        if (newRecord) {
+          const techId = newRecord.id_usuario || newRecord.technicianId;
+          const date = newRecord.data || newRecord.date;
+          const rawShift = newRecord.turno || newRecord.shift;
+          const shift = (rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift || 'TB') as ShiftType;
+          const notes = newRecord.observacoes || newRecord.notes;
+
+          if (techId && date) {
+            setSchedules(prev => {
+              const currentTech = prev[techId] || { technicianId: techId, days: {} };
+              return {
+                ...prev,
+                [techId]: {
+                  ...currentTech,
+                  days: {
+                    ...currentTech.days,
+                    [date]: {
+                      date,
+                      shift,
+                      manualOverride: true,
+                      notes: notes || currentTech.days[date]?.notes
+                    }
+                  }
+                }
+              };
+            });
+          }
+        }
+      })
+      // Listener 3: usuarios (PIN changes, first access flags)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios' }, payload => {
-        console.log('Users updated:', payload);
-        fetchData();
+        if (payload.new) {
+          const updatedUser = payload.new as AppUser;
+          setUsers(prev => prev.map(u => u.id === updatedUser.id ? { ...u, ...updatedUser } : u));
+        }
       })
+      // Listener 4: appData (full state backup)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'appData' }, payload => {
-        console.log('App Data updated:', payload);
-        fetchData();
+        const data: any = payload.new;
+        if (data) {
+          if (data.technicians) setTechnicians(data.technicians);
+          if (data.schedules) setSchedules(data.schedules);
+          if (data.period) setPeriod(data.period);
+        }
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [normalizeFolga]);
 
   // Save to Supabase helper
   const saveToSupabase = useCallback(async (table: string, data: any, id?: string) => {
@@ -389,7 +466,6 @@ export default function App() {
       console.error('Supabase error:', error);
     }
   }, []);
-
 
   // Admin Pending Requests Alert Modal
   const [isAdminAlertOpen, setIsAdminAlertOpen] = useState<boolean>(false);
@@ -425,26 +501,44 @@ export default function App() {
     setIsAdminAlertOpen(false);
   }, []);
 
-  // Handler: Update User PIN
+  // Handler: Update User PIN and clear first access (no looping!)
   const handleUpdateUserPin = useCallback((userId: string, newPin: string) => {
     setUsers(prev => {
-      const updated = prev.map(u => (u.id === userId ? { ...u, pin: newPin, isFirstLogin: false } : u));
-      saveToSupabase('usuarios', { pin: newPin, isFirstLogin: false }, userId);
+      const updated = prev.map(u => (u.id === userId ? { ...u, pin: newPin, primeiro_acesso: false, isFirstLogin: false } : u));
+      saveToSupabase('usuarios', { pin: newPin, primeiro_acesso: false, isFirstLogin: false }, userId);
       return updated;
+    });
+
+    // Update currentUser immediately to break any prompt looping
+    setCurrentUser(curr => {
+      if (curr && curr.id === userId) {
+        const updated = { ...curr, pin: newPin, primeiro_acesso: false, isFirstLogin: false };
+        try {
+          localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(updated));
+        } catch (e) {
+          console.error(e);
+        }
+        return updated;
+      }
+      return curr;
     });
   }, [saveToSupabase]);
 
-  // Handler: Admin Reset Technician PIN back to 1234
+  // Handler: Admin Reset Technician PIN back to 1234 (Restricted strictly to role: admin)
   const handleResetUserPin = useCallback((techId: string) => {
+    if (currentUser?.role !== 'admin') {
+      alert('Acesso negado: Apenas administradores podem resetar senhas de usuários.');
+      return;
+    }
     setUsers(prev => {
-      const updated = prev.map(u => (u.id === techId ? { ...u, pin: '1234', isFirstLogin: true } : u));
-      saveToSupabase('usuarios', { pin: '1234', isFirstLogin: true }, techId);
+      const updated = prev.map(u => (u.id === techId ? { ...u, pin: '1234', primeiro_acesso: true, isFirstLogin: true } : u));
+      saveToSupabase('usuarios', { pin: '1234', primeiro_acesso: true, isFirstLogin: true }, techId);
       return updated;
     });
-    alert('Senha resetada com sucesso para o padrão inicial: 1234');
-  }, [saveToSupabase]);
+    alert('Senha resetada com sucesso para o padrão inicial: 1234 (Primeiro Acesso reativado).');
+  }, [currentUser, saveToSupabase]);
 
-  // Handler: Update a single shift cell
+  // Handler: Update a single shift cell (matrix or individual calendar)
   const handleUpdateShift = useCallback((techId: string, date: string, shift: ShiftType, notes?: string) => {
     setSchedules(prev => {
       const currentTechSched = prev[techId] || { technicianId: techId, days: {} };
@@ -464,12 +558,38 @@ export default function App() {
           days: updatedDays
         }
       };
+
+      // 1. Update/Upsert into Supabase table 'escalas_usuarios'
+      supabase
+        .from('escalas_usuarios')
+        .update({ turno: shift, observacoes: notes || '' })
+        .match({ id_usuario: techId, data: date })
+        .select()
+        .then(async ({ error, data }: any) => {
+          if (error || !data || (Array.isArray(data) && data.length === 0)) {
+            await supabase.from('escalas_usuarios').upsert([
+              {
+                id: `${techId}_${date}`,
+                id_usuario: techId,
+                technicianId: techId,
+                data: date,
+                date: date,
+                turno: shift,
+                shift: shift,
+                observacoes: notes || ''
+              }
+            ]);
+          }
+        });
+
+
+      // 2. Also save to global 'appData' state
       saveToSupabase('appData', { schedules: updatedSchedules }, 'state');
       return updatedSchedules;
     });
   }, [saveToSupabase]);
 
-  // Handler: Add Off Request
+  // Handler: Add Off Request (Technician -> Supabase solicitacoes_folga)
   const handleAddRequest = useCallback((req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => {
     const newReq: OffRequest = {
       ...req,
@@ -477,56 +597,91 @@ export default function App() {
       createdAt: new Date().toISOString(),
       status: 'pendente'
     };
-    setOffRequests(prev => {
-      const updated = [...prev, newReq];
-      saveToSupabase('solicitacoes_folga', newReq);
-      return updated;
-    });
+
+    // Immediate local update
+    setOffRequests(prev => [...prev.filter(r => r.id !== newReq.id), newReq]);
+
+    // Insert into Supabase table 'solicitacoes_folga'
+    const payload = {
+      id: newReq.id,
+      id_usuario: newReq.technicianId,
+      data_desejada: newReq.date,
+      motivo: newReq.reasonCategory,
+      observacoes: Array.isArray(newReq.notes) ? newReq.notes.join(' | ') : newReq.notes,
+      status: 'pendente'
+    };
+
+    supabase
+      .from('solicitacoes_folga')
+      .insert([payload])
+      .then(({ error }) => {
+        if (error) {
+          console.warn('Fallback insert on solicitacoes_folga:', error);
+          supabase.from('solicitacoes_folga').insert([{
+            id: newReq.id,
+            technicianId: newReq.technicianId,
+            date: newReq.date,
+            reasonCategory: newReq.reasonCategory,
+            notes: newReq.notes,
+            priority: newReq.priority,
+            status: 'pendente'
+          }]).then();
+        }
+      });
+
     // Notify admin if logged in
     if (currentUser?.role === 'admin') {
       setIsAdminAlertOpen(true);
     }
-  }, [currentUser, saveToSupabase]);
+  }, [currentUser]);
 
-  // Handler: Admin Approves Off Request
+  // Handler: Admin Approves Off Request (Status -> 'aprovado')
   const handleApproveRequest = useCallback((id: string) => {
     setOffRequests(prevRequests => {
       const req = prevRequests.find(r => r.id === id);
       if (!req) return prevRequests;
 
-      const updatedRequests: OffRequest[] = prevRequests.map(r => r.id === id ? { ...r, status: 'atendido' as const } : r);
+      const updatedRequests: OffRequest[] = prevRequests.map(r => r.id === id ? { ...r, status: 'aprovado' as const } : r);
       
       // Determine shift type based on day of week:
       const dObj = new Date(req.date + 'T12:00:00');
       const dow = dObj.getDay();
       const targetShift: ShiftType = (dow === 0 || dow === 6) ? 'FG' : 'FC';
 
-      // Grant off on requested date
+      // Grant off on requested date in calendar
       handleUpdateShift(req.technicianId, req.date, targetShift, `Folga Aprovada: ${req.notes.join(' | ')}`);
 
-      // Trigger save after state update
-      saveToSupabase('solicitacoes_folga', { status: 'atendido' }, id);
+      // Update status in Supabase table 'solicitacoes_folga' to 'aprovado'
+      supabase
+        .from('solicitacoes_folga')
+        .update({ status: 'aprovado' })
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) console.error('Failed to approve request in Supabase:', error);
+        });
+
       return updatedRequests;
     });
-  }, [handleUpdateShift, saveToSupabase]);
+  }, [handleUpdateShift]);
 
   // Handler: Admin Rejects Off Request
   const handleRejectRequest = useCallback((id: string) => {
     setOffRequests(prev => {
       const updated: OffRequest[] = prev.map(r => r.id === id ? { ...r, status: 'recusado' as const } : r);
-      saveToSupabase('solicitacoes_folga', { status: 'recusado' }, id);
+      supabase.from('solicitacoes_folga').update({ status: 'recusado' }).eq('id', id).then();
       return updated;
     });
-  }, [saveToSupabase]);
+  }, []);
 
   // Handler: Delete Off Request
   const handleDeleteRequest = useCallback((id: string) => {
     setOffRequests(prev => {
       const updated: OffRequest[] = prev.filter(r => r.id !== id);
-      supabase.from('solicitacoes_folga').delete().eq('id', id);
+      supabase.from('solicitacoes_folga').delete().eq('id', id).then();
       return updated;
     });
   }, []);
+
 
 
   // Handler: Open Off Requests modal focused on a technician
@@ -554,21 +709,22 @@ export default function App() {
     exportScheduleToExcel(technicians, schedules, dates, period, offRequests);
   };
 
-  // Handler: Generate Schedule
+  // Handler: Generate Schedule (Supporting 6x1 vs 5x2)
   const handleGenerate = useCallback((options: GeneratorOptions, periodConfig: { startYear: number; startMonth: number }) => {
     // Generate new dates for the new period
     const newDates = generateDateRange(periodConfig.startYear, periodConfig.startMonth, period.durationMonths);
     
     // Update period state
-    const newPeriod = {
+    const newPeriod: SchedulePeriod = {
       ...period,
       startYear: periodConfig.startYear,
       startMonth: periodConfig.startMonth,
+      regime: options.regime || '6x1',
       updatedAt: new Date().toISOString()
     };
     setPeriod(newPeriod);
 
-    // Generate new schedule
+    // Generate new schedule with regime logic
     const newSchedule = generateSchedule(technicians, newDates, offRequests, options);
     setSchedules(newSchedule);
     
@@ -579,8 +735,9 @@ export default function App() {
     }, 'state');
     
     setIsGeneratorOpen(false);
-    alert('Escala gerada com sucesso para o novo período!');
+    alert(`Escala ${options.regime === '5x2' ? '5x2' : '6x1'} gerada com sucesso para o novo período!`);
   }, [technicians, offRequests, period, saveToSupabase]);
+
 
   const isAdmin = currentUser?.role === 'admin';
 

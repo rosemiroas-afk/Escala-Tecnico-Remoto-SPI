@@ -21,10 +21,11 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
 }) => {
   const [startMonth, setStartMonth] = useState<number>(currentPeriod.startMonth);
   const [startYear, setStartYear] = useState<number>(currentPeriod.startYear);
+  const [regime, setRegime] = useState<'6x1' | '5x2'>(currentPeriod.regime || '6x1');
   const [ensureDoubleWeekend, setEnsureDoubleWeekend] = useState<boolean>(true);
   const [targetDoubleWeekends, setTargetDoubleWeekends] = useState<number>(1);
   const [targetInversions, setTargetInversions] = useState<number>(2);
-  const [maxConsecutiveDays, setMaxConsecutiveDays] = useState<number>(6);
+  const [maxConsecutiveDays, setMaxConsecutiveDays] = useState<number>(regime === '5x2' ? 5 : 6);
   const [prioritizeRequests, setPrioritizeRequests] = useState<boolean>(true);
   const [balanceDDD, setBalanceDDD] = useState<boolean>(true);
 
@@ -35,10 +36,11 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
 
   const handleRunGenerator = () => {
     const options: GeneratorOptions = {
+      regime,
       ensureDoubleWeekend,
       targetDoubleWeekendsPerTech: targetDoubleWeekends,
       targetInversionsPerTech: targetInversions,
-      maxConsecutiveWorkDays: maxConsecutiveDays,
+      maxConsecutiveWorkDays: regime === '5x2' ? 5 : maxConsecutiveDays,
       prioritizeOffRequests: prioritizeRequests,
       balanceDDDCoverage: balanceDDD,
       randomSeed: Date.now()
@@ -58,6 +60,7 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
 
     onClose();
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
@@ -131,12 +134,71 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
             </div>
           </div>
 
+          {/* Regime Selector: 6x1 vs 5x2 */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Regime de Trabalho e Folgas:
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setRegime('6x1');
+                  setMaxConsecutiveDays(6);
+                }}
+                className={`p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  regime === '6x1'
+                    ? 'border-indigo-600 bg-indigo-50/70 shadow-xs'
+                    : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-sm text-slate-900">Escala 6x1</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    regime === '6x1' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {regime === '6x1' ? 'Selecionado' : '6 trab. / 1 folga'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600">
+                  Padrão CLT: 6 dias trabalhados para 1 folga semanal regular, com rodízio e garantia de fim de semana duplado.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setRegime('5x2');
+                  setMaxConsecutiveDays(5);
+                }}
+                className={`p-3.5 rounded-xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  regime === '5x2'
+                    ? 'border-emerald-600 bg-emerald-50/70 shadow-xs'
+                    : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-sm text-slate-900">Escala 5x2</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    regime === '5x2' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {regime === '5x2' ? 'Selecionado' : '5 trab. / 2 folgas'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600">
+                  5 dias trabalhados com 2 folgas consecutivas por semana (Sáb/Dom ou Sex/Sáb e Dom/Seg) garantindo cobertura.
+                </p>
+              </button>
+            </div>
+          </div>
+
           {/* Rules and Constraints */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
               <Settings className="w-4 h-4 text-slate-500" />
               Regras e Parâmetros Solicitados
             </h3>
+
 
             {/* Double weekend toggle */}
             <div className="flex items-start gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
