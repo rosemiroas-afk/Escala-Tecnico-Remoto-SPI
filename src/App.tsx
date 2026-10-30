@@ -325,7 +325,7 @@ export default function App() {
     return offRequests.filter(r => r.status === 'pendente');
   }, [offRequests]);
 
-  // Normalize folga records from Supabase (supporting both snake_case and camelCase columns)
+  // Normalize folga records from Supabase
   const normalizeFolga = useCallback((row: any): OffRequest => ({
     id: String(row.id || `req-${Date.now()}`),
     technicianId: String(row.id_usuario || row.technicianId || row.technician_id || ''),
@@ -337,7 +337,7 @@ export default function App() {
       ? row.observacoes.split(' | ').filter(Boolean)
       : Array.isArray(row.observacoes)
       ? row.observacoes
-      : [row.observacoes || row.notes || 'Solicitação de folga'],
+      : [row.motivo || row.observacoes || row.notes || 'Solicitação de folga'],
     priority: (row.priority || 'alta') as any,
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
     status: (row.status === 'aprovado' || row.status === 'atendido')
@@ -347,34 +347,94 @@ export default function App() {
       : 'pendente'
   }), []);
 
-  // Real-time synchronization using Supabase for 100% real-time data sync across devices
+  // Real-time synchronization using Supabase for 100% cloud sync across devices
   useEffect(() => {
     // 1. Fetch initial state
     const fetchData = async () => {
       try {
-        // Fetch Off Requests
+        // A. Fetch Off Requests from solicitacoes_folga
         const { data: folgas, error: folgasError } = await supabase.from('solicitacoes_folga').select('*');
         if (folgas && Array.isArray(folgas) && !folgasError) {
           setOffRequests(folgas.map(normalizeFolga));
         }
-        
-        // Fetch Users
+
+        // B. Fetch Users from usuarios & seed missing technicians
         const { data: usersData, error: usersError } = await supabase.from('usuarios').select('*');
-        if (usersData && Array.isArray(usersData) && usersData.length > 0 && !usersError) {
-          setUsers(usersData);
+        if (usersData && Array.isArray(usersData) && !usersError) {
+          const userMap = new Map<string, any>(usersData.map((u: any) => [u.id, u]));
+
+          // Check if default technicians exist in Supabase usuarios
+          const missingToSeed: any[] = [];
+          for (const tech of technicians) {
+            if (!userMap.has(tech.id)) {
+              missingToSeed.push({
+                id: tech.id,
+                nome: tech.name,
+                role: 'tecnico',
+                pin: '1234',
+                primeiro_acesso: true
+              });
+            }
+          }
+
+          if (missingToSeed.length > 0) {
+            supabase.from('usuarios').upsert(missingToSeed).then();
+          }
+
+          setUsers(prev => {
+            const combinedMap = new Map<string, AppUser>(prev.map(u => [u.id, u]));
+            usersData.forEach((row: any) => {
+              const existing = combinedMap.get(row.id);
+              combinedMap.set(row.id, {
+                id: row.id,
+                name: row.nome || row.name || existing?.name || 'Colaborador',
+                role: row.role === 'tecnico' ? 'technician' : (row.role || 'technician'),
+                pin: String(row.pin || '1234'),
+                primeiro_acesso: row.primeiro_acesso ?? true,
+                isFirstLogin: row.primeiro_acesso ?? true,
+                technicianId: row.id !== 'admin' ? row.id : undefined,
+                ddd: existing?.ddd
+              });
+            });
+            return Array.from(combinedMap.values());
+          });
         }
 
-        // Fetch Global App Data (Schedules, Techs, Period)
-        const { data: appData, error: appDataError } = await supabase
-          .from('appData')
-          .select('*')
-          .eq('id', 'state')
-          .maybeSingle();
+        // C. Fetch Schedule Shifts from escalas
+        const { data: escalasData, error: escalasError } = await supabase.from('escalas').select('*');
+        if (escalasData && Array.isArray(escalasData) && escalasData.length > 0 && !escalasError) {
+          setSchedules(prev => {
+            const next: Record<string, TechnicianSchedule> = { ...prev };
+            let detectedRegime: '6x1' | '5x2' | undefined;
 
-        if (appData && !appDataError) {
-          if (appData.technicians) setTechnicians(appData.technicians);
-          if (appData.schedules) setSchedules(appData.schedules);
-          if (appData.period) setPeriod(appData.period);
+            escalasData.forEach((row: any) => {
+              const techId = row.id_usuario;
+              const date = row.data;
+              const rawShift = row.legenda_dia || 'TB';
+              const shift: ShiftType = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
+
+              if (row.tipo_escala === '6x1' || row.tipo_escala === '5x2') {
+                detectedRegime = row.tipo_escala;
+              }
+
+              if (techId && date) {
+                if (!next[techId]) {
+                  next[techId] = { technicianId: techId, days: {} };
+                }
+                next[techId].days[date] = {
+                  date,
+                  shift,
+                  manualOverride: true,
+                  notes: row.horario || undefined
+                };
+              }
+            });
+
+            if (detectedRegime) {
+              setPeriod(p => ({ ...p, regime: detectedRegime }));
+            }
+            return next;
+          });
         }
       } catch (err) {
         console.error('Error fetching initial data from Supabase:', err);
@@ -399,15 +459,15 @@ export default function App() {
           fetchData();
         }
       })
-      // Listener 2: escalas_usuarios (Shift updates from Admin -> updates Tech calendar immediately)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'escalas_usuarios' }, payload => {
+      // Listener 2: escalas (Shift updates from Admin -> updates Tech calendar immediately)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'escalas' }, payload => {
         const newRecord: any = payload.new;
         if (newRecord) {
-          const techId = newRecord.id_usuario || newRecord.technicianId;
-          const date = newRecord.data || newRecord.date;
-          const rawShift = newRecord.turno || newRecord.shift;
+          const techId = newRecord.id_usuario;
+          const date = newRecord.data;
+          const rawShift = newRecord.legenda_dia;
           const shift = (rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift || 'TB') as ShiftType;
-          const notes = newRecord.observacoes || newRecord.notes;
+          const notes = newRecord.horario;
 
           if (techId && date) {
             setSchedules(prev => {
@@ -434,17 +494,15 @@ export default function App() {
       // Listener 3: usuarios (PIN changes, first access flags)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios' }, payload => {
         if (payload.new) {
-          const updatedUser = payload.new as AppUser;
-          setUsers(prev => prev.map(u => u.id === updatedUser.id ? { ...u, ...updatedUser } : u));
-        }
-      })
-      // Listener 4: appData (full state backup)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'appData' }, payload => {
-        const data: any = payload.new;
-        if (data) {
-          if (data.technicians) setTechnicians(data.technicians);
-          if (data.schedules) setSchedules(data.schedules);
-          if (data.period) setPeriod(data.period);
+          const row: any = payload.new;
+          setUsers(prev => prev.map(u => u.id === row.id ? {
+            ...u,
+            name: row.nome || row.name || u.name,
+            role: row.role === 'tecnico' ? 'technician' : (row.role || u.role),
+            pin: String(row.pin || u.pin),
+            primeiro_acesso: row.primeiro_acesso ?? false,
+            isFirstLogin: row.primeiro_acesso ?? false
+          } : u));
         }
       })
       .subscribe();
@@ -452,20 +510,7 @@ export default function App() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [normalizeFolga]);
-
-  // Save to Supabase helper
-  const saveToSupabase = useCallback(async (table: string, data: any, id?: string) => {
-    try {
-      if (id) {
-        await supabase.from(table).update(data).eq('id', id);
-      } else {
-        await supabase.from(table).upsert(data);
-      }
-    } catch (error) {
-      console.error('Supabase error:', error);
-    }
-  }, []);
+  }, [normalizeFolga, technicians]);
 
   // Admin Pending Requests Alert Modal
   const [isAdminAlertOpen, setIsAdminAlertOpen] = useState<boolean>(false);
@@ -505,9 +550,16 @@ export default function App() {
   const handleUpdateUserPin = useCallback((userId: string, newPin: string) => {
     setUsers(prev => {
       const updated = prev.map(u => (u.id === userId ? { ...u, pin: newPin, primeiro_acesso: false, isFirstLogin: false } : u));
-      saveToSupabase('usuarios', { pin: newPin, primeiro_acesso: false, isFirstLogin: false }, userId);
       return updated;
     });
+
+    supabase
+      .from('usuarios')
+      .update({ pin: newPin, primeiro_acesso: false })
+      .eq('id', userId)
+      .then(({ error }) => {
+        if (error) console.error('Failed to update PIN in Supabase:', error);
+      });
 
     // Update currentUser immediately to break any prompt looping
     setCurrentUser(curr => {
@@ -522,7 +574,7 @@ export default function App() {
       }
       return curr;
     });
-  }, [saveToSupabase]);
+  }, []);
 
   // Handler: Admin Reset Technician PIN back to 1234 (Restricted strictly to role: admin)
   const handleResetUserPin = useCallback((techId: string) => {
@@ -532,11 +584,19 @@ export default function App() {
     }
     setUsers(prev => {
       const updated = prev.map(u => (u.id === techId ? { ...u, pin: '1234', primeiro_acesso: true, isFirstLogin: true } : u));
-      saveToSupabase('usuarios', { pin: '1234', primeiro_acesso: true, isFirstLogin: true }, techId);
       return updated;
     });
+
+    supabase
+      .from('usuarios')
+      .update({ pin: '1234', primeiro_acesso: true })
+      .eq('id', techId)
+      .then(({ error }) => {
+        if (error) console.error('Failed resetting PIN in Supabase:', error);
+      });
+
     alert('Senha resetada com sucesso para o padrão inicial: 1234 (Primeiro Acesso reativado).');
-  }, [currentUser, saveToSupabase]);
+  }, [currentUser]);
 
   // Handler: Update a single shift cell (matrix or individual calendar)
   const handleUpdateShift = useCallback((techId: string, date: string, shift: ShiftType, notes?: string) => {
@@ -551,43 +611,41 @@ export default function App() {
           notes: notes !== undefined ? notes : currentTechSched.days[date]?.notes
         }
       };
-      const updatedSchedules = {
+      return {
         ...prev,
         [techId]: {
           ...currentTechSched,
           days: updatedDays
         }
       };
-
-      // 1. Update/Upsert into Supabase table 'escalas_usuarios'
-      supabase
-        .from('escalas_usuarios')
-        .update({ turno: shift, observacoes: notes || '' })
-        .match({ id_usuario: techId, data: date })
-        .select()
-        .then(async ({ error, data }: any) => {
-          if (error || !data || (Array.isArray(data) && data.length === 0)) {
-            await supabase.from('escalas_usuarios').upsert([
-              {
-                id: `${techId}_${date}`,
-                id_usuario: techId,
-                technicianId: techId,
-                data: date,
-                date: date,
-                turno: shift,
-                shift: shift,
-                observacoes: notes || ''
-              }
-            ]);
-          }
-        });
-
-
-      // 2. Also save to global 'appData' state
-      saveToSupabase('appData', { schedules: updatedSchedules }, 'state');
-      return updatedSchedules;
     });
-  }, [saveToSupabase]);
+
+    // Update or Insert directly in Supabase table 'escalas'
+    (async () => {
+      try {
+        const tech = technicians.find(t => t.id === techId);
+        const sel = await supabase.from('escalas').select('id').match({ id_usuario: techId, data: date });
+        if (sel.data && sel.data.length > 0) {
+          await supabase.from('escalas').update({
+            legenda_dia: shift,
+            tipo_escala: period.regime || '6x1',
+            horario: notes || tech?.shiftHours || null,
+            updated_at: new Date().toISOString()
+          }).eq('id', sel.data[0].id);
+        } else {
+          await supabase.from('escalas').insert([{
+            id_usuario: techId,
+            data: date,
+            tipo_escala: period.regime || '6x1',
+            legenda_dia: shift,
+            horario: notes || tech?.shiftHours || null
+          }]);
+        }
+      } catch (err) {
+        console.warn('Failed updating shift in Supabase', err);
+      }
+    })();
+  }, [technicians, period.regime]);
 
   // Handler: Add Off Request (Technician -> Supabase solicitacoes_folga)
   const handleAddRequest = useCallback((req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => {
@@ -602,12 +660,13 @@ export default function App() {
     setOffRequests(prev => [...prev.filter(r => r.id !== newReq.id), newReq]);
 
     // Insert into Supabase table 'solicitacoes_folga'
+    const tech = technicians.find(t => t.id === newReq.technicianId);
+    const motivoText = newReq.reasonCategory + (newReq.notes && newReq.notes.length > 0 ? ` (${newReq.notes.join(' | ')})` : '');
     const payload = {
-      id: newReq.id,
       id_usuario: newReq.technicianId,
+      nome_colaborador: tech?.name || 'Colaborador',
       data_desejada: newReq.date,
-      motivo: newReq.reasonCategory,
-      observacoes: Array.isArray(newReq.notes) ? newReq.notes.join(' | ') : newReq.notes,
+      motivo: motivoText,
       status: 'pendente'
     };
 
@@ -615,25 +674,14 @@ export default function App() {
       .from('solicitacoes_folga')
       .insert([payload])
       .then(({ error }) => {
-        if (error) {
-          console.warn('Fallback insert on solicitacoes_folga:', error);
-          supabase.from('solicitacoes_folga').insert([{
-            id: newReq.id,
-            technicianId: newReq.technicianId,
-            date: newReq.date,
-            reasonCategory: newReq.reasonCategory,
-            notes: newReq.notes,
-            priority: newReq.priority,
-            status: 'pendente'
-          }]).then();
-        }
+        if (error) console.error('Erro ao cadastrar folga:', error);
       });
 
     // Notify admin if logged in
     if (currentUser?.role === 'admin') {
       setIsAdminAlertOpen(true);
     }
-  }, [currentUser]);
+  }, [technicians, currentUser]);
 
   // Handler: Admin Approves Off Request (Status -> 'aprovado')
   const handleApproveRequest = useCallback((id: string) => {
@@ -682,8 +730,6 @@ export default function App() {
     });
   }, []);
 
-
-
   // Handler: Open Off Requests modal focused on a technician
   const handleOpenRequestsModal = (techId?: string) => {
     setSelectedTechForRequests(techId);
@@ -692,34 +738,33 @@ export default function App() {
 
   // Handler: Clear Schedule
   const handleClearSchedule = useCallback(async () => {
-    if (window.confirm('Deseja realmente apagar 100% da escala atual?')) {
+    if (window.confirm('Deseja realmente apagar 100% da escala atual no banco de dados e na tela?')) {
       setSchedules({});
-      await saveToSupabase('appData', { schedules: {} }, 'state');
+      await supabase.from('escalas').delete().neq('id', '00000000-0000-0000-0000-000000000000');
       try {
         localStorage.removeItem(STORAGE_KEY_SCHEDULE);
       } catch (e) {
         console.error('Failed to clear schedule storage', e);
       }
-      alert('Escala apagada 100% com sucesso!');
+      alert('Escala apagada 100% com sucesso no Supabase!');
     }
-  }, [saveToSupabase]);
+  }, []);
 
   // Handler: Export Excel
   const handleExportExcel = () => {
     exportScheduleToExcel(technicians, schedules, dates, period, offRequests);
   };
 
-  // Handler: Generate Schedule (Supporting 6x1 vs 5x2)
-  const handleGenerate = useCallback((options: GeneratorOptions, periodConfig: { startYear: number; startMonth: number }) => {
-    // Generate new dates for the new period
+  // Handler: Generate Schedule (Supporting 6x1 vs 5x2) & Save to Supabase
+  const handleGenerate = useCallback(async (options: GeneratorOptions, periodConfig: { startYear: number; startMonth: number }) => {
     const newDates = generateDateRange(periodConfig.startYear, periodConfig.startMonth, period.durationMonths);
-    
-    // Update period state
+    const currentRegime = options.regime || '6x1';
+
     const newPeriod: SchedulePeriod = {
       ...period,
       startYear: periodConfig.startYear,
       startMonth: periodConfig.startMonth,
-      regime: options.regime || '6x1',
+      regime: currentRegime,
       updatedAt: new Date().toISOString()
     };
     setPeriod(newPeriod);
@@ -727,37 +772,88 @@ export default function App() {
     // Generate new schedule with regime logic
     const newSchedule = generateSchedule(technicians, newDates, offRequests, options);
     setSchedules(newSchedule);
-    
-    // Save everything to Supabase
-    saveToSupabase('appData', { 
-      schedules: newSchedule,
-      period: newPeriod
-    }, 'state');
-    
-    setIsGeneratorOpen(false);
-    alert(`Escala ${options.regime === '5x2' ? '5x2' : '6x1'} gerada com sucesso para o novo período!`);
-  }, [technicians, offRequests, period, saveToSupabase]);
 
+    // Save batch to Supabase table 'escalas'
+    const rows: any[] = [];
+    for (const tech of technicians) {
+      const techSched = newSchedule[tech.id];
+      if (!techSched || !techSched.days) continue;
+      for (const d of newDates) {
+        const day = techSched.days[d];
+        rows.push({
+          id_usuario: tech.id,
+          data: d,
+          tipo_escala: currentRegime,
+          legenda_dia: day?.shift || 'TB',
+          horario: tech.shiftHours || null
+        });
+      }
+    }
+
+    try {
+      await supabase.from('escalas').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      for (let i = 0; i < rows.length; i += 100) {
+        await supabase.from('escalas').insert(rows.slice(i, i + 100));
+      }
+    } catch (e) {
+      console.warn('Failed saving generated schedule to Supabase:', e);
+    }
+
+    setIsGeneratorOpen(false);
+    alert(`Escala ${currentRegime} gerada e salva com sucesso na nuvem Supabase!`);
+  }, [technicians, offRequests, period]);
 
   const isAdmin = currentUser?.role === 'admin';
 
-  // Handler: Save all changes to Supabase
-  const handleSave = useCallback(() => {
-    saveToSupabase('appData', {
-      technicians,
-      users,
-      offRequests,
-      schedules,
-      period
-    }, 'state');
-    alert('Escala e solicitações salvas com sucesso no Supabase!');
-  }, [technicians, users, offRequests, schedules, period, saveToSupabase]);
+  // Handler: Save all changes to Supabase cloud
+  const handleSave = useCallback(async () => {
+    try {
+      const currentRegime = period.regime || '6x1';
+      const rows: any[] = [];
+      for (const tech of technicians) {
+        const techSched = schedules[tech.id];
+        if (!techSched || !techSched.days) continue;
+        for (const d of dates) {
+          const day = techSched.days[d];
+          rows.push({
+            id_usuario: tech.id,
+            data: d,
+            tipo_escala: currentRegime,
+            legenda_dia: day?.shift || 'TB',
+            horario: tech.shiftHours || null
+          });
+        }
+      }
+
+      // Delete old and save batch in chunks of 100
+      await supabase.from('escalas').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      for (let i = 0; i < rows.length; i += 100) {
+        const { error } = await supabase.from('escalas').insert(rows.slice(i, i + 100));
+        if (error) console.error('Error inserting chunk into escalas:', error);
+      }
+
+      // Save all users to 'usuarios'
+      const userRows = users.map(u => ({
+        id: u.id,
+        nome: u.name,
+        role: u.role === 'technician' ? 'tecnico' : u.role,
+        pin: u.pin,
+        primeiro_acesso: u.primeiro_acesso ?? u.isFirstLogin ?? false
+      }));
+      await supabase.from('usuarios').upsert(userRows);
+
+      alert('✅ Escala salva com 100% de sucesso na nuvem Supabase!');
+    } catch (err) {
+      console.error('Error saving to Supabase:', err);
+      alert('Erro ao salvar na nuvem Supabase. Verifique a conexão.');
+    }
+  }, [technicians, schedules, dates, period.regime, users]);
 
   // Handler: Update Technicians List
   const handleUpdateTechnicians = useCallback((updated: Technician[]) => {
     setTechnicians(updated);
-    saveToSupabase('appData', { technicians: updated }, 'state');
-  }, [saveToSupabase]);
+  }, []);
+
 
   return (
     <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
