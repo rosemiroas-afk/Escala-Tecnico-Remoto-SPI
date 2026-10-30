@@ -3,7 +3,7 @@ import { Technician, TechnicianSchedule, ShiftType, SHIFT_TYPES, OffRequest, Sch
 import { formatDisplayDate, parseDateKey, isSaturday, isSunday, MONTHS_PT } from '../utils/dateUtils';
 import { AuditResult, isOffShift, isWorkingShift } from '../utils/validator';
 import { DDD_INFO } from '../data/defaultTechnicians';
-import { Filter, Search, AlertTriangle, Star, Clock, Trash2 } from 'lucide-react';
+import { Filter, Search, AlertTriangle, Star, Clock, Trash2, Check } from 'lucide-react';
 
 interface RosterTableProps {
   technicians: Technician[];
@@ -15,6 +15,7 @@ interface RosterTableProps {
   onUpdateShift: (techId: string, date: string, shift: ShiftType, notes?: string) => void;
   onOpenRequests: (techId?: string) => void;
   onClearSchedule?: () => void;
+  onSave?: () => void;
 }
 
 export const RosterTable: React.FC<RosterTableProps> = ({
@@ -26,7 +27,8 @@ export const RosterTable: React.FC<RosterTableProps> = ({
   offRequests,
   onUpdateShift,
   onOpenRequests,
-  onClearSchedule
+  onClearSchedule,
+  onSave
 }) => {
   const [selectedDDD, setSelectedDDD] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -156,7 +158,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
           })}
         </div>
 
-        {/* Search & Clear Roster */}
+        {/* Search, Clear & Save Roster */}
         <div className="flex items-center gap-2">
           {onClearSchedule && (
             <button
@@ -168,6 +170,19 @@ export const RosterTable: React.FC<RosterTableProps> = ({
               <span>Limpar Escala</span>
             </button>
           )}
+
+          <button
+            onClick={() => {
+              if (window.confirm('Deseja salvar todas as alterações na escala?')) {
+                onSave?.();
+              }
+            }}
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+            title="Salvar alterações no Firebase"
+          >
+            <Check className="w-3.5 h-3.5 text-white" />
+            <span>Salvar Escala</span>
+          </button>
 
           <div className="relative min-w-[220px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />

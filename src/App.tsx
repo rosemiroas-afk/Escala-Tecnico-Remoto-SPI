@@ -423,11 +423,11 @@ export default function App() {
     setIsAdminAlertOpen(false);
   }, []);
 
-  // Handler: Update a single shift cell
+  // Handler: Update a single shift cell (Manual edit, doesn't auto-save)
   const handleUpdateShift = useCallback((techId: string, date: string, shift: ShiftType, notes?: string) => {
     setSchedules(prev => {
       const currentTechSched = prev[techId] || { technicianId: techId, days: {} };
-      const updated = {
+      return {
         ...prev,
         [techId]: {
           ...currentTechSched,
@@ -442,10 +442,8 @@ export default function App() {
           }
         }
       };
-      saveToFirestore({ schedules: updated });
-      return updated;
     });
-  }, [saveToFirestore]);
+  }, []); // Removed [saveToFirestore] dependency
 
   // Handler: Run Generator
   const handleGenerate = useCallback((options: GeneratorOptions, periodConfig: { startYear: number; startMonth: number }) => {
@@ -552,6 +550,18 @@ export default function App() {
 
   const isAdmin = currentUser?.role === 'admin';
 
+  // Handler: Save all changes to Firebase
+  const handleSave = useCallback(() => {
+    saveToFirestore({
+      technicians,
+      users,
+      offRequests,
+      schedules,
+      period
+    });
+    alert('Escala e solicitações salvas com sucesso no sistema!');
+  }, [technicians, users, offRequests, schedules, period, saveToFirestore]);
+
   // Handler: Update Technicians List
   const handleUpdateTechnicians = useCallback((updated: Technician[]) => {
     setTechnicians(updated);
@@ -657,6 +667,7 @@ export default function App() {
                 onUpdateShift={handleUpdateShift}
                 onOpenRequests={handleOpenRequestsModal}
                 onClearSchedule={handleClearSchedule}
+                onSave={handleSave}
               />
             )}
 
