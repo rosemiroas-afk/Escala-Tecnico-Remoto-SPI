@@ -204,32 +204,42 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
 
                 if (isEditing) {
                   return (
-                    <div key={tech.id} className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center gap-2">
+                    <div key={tech.id} className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center gap-2 flex-wrap">
                       <input
                         type="text"
                         value={editName}
                         onChange={e => setEditName(e.target.value)}
-                        className="flex-1 text-xs bg-white border border-slate-300 rounded px-2 py-1 font-semibold"
+                        placeholder="Nome completo"
+                        className="flex-1 min-w-[160px] text-xs bg-white border border-slate-300 rounded px-2 py-1.5 font-semibold"
                       />
                       <select
                         value={editDDD}
                         onChange={e => setEditDDD(Number(e.target.value) as DDDNumber)}
-                        className="text-xs bg-white border border-slate-300 rounded px-2 py-1"
+                        className="text-xs bg-white border border-slate-300 rounded px-2 py-1.5"
                       >
                         <option value={13}>DDD 13</option>
                         <option value={14}>DDD 14</option>
                         <option value={15}>DDD 15</option>
                         <option value={19}>DDD 19</option>
                       </select>
+                      <input
+                        type="text"
+                        value={editPhone}
+                        onChange={e => setEditPhone(e.target.value)}
+                        placeholder="Celular / WhatsApp"
+                        className="w-[140px] text-xs bg-white border border-slate-300 rounded px-2 py-1.5"
+                      />
                       <button
                         onClick={() => handleSaveEdit(tech.id)}
-                        className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700"
+                        className="p-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700"
+                        title="Salvar"
                       >
                         <Check className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => setEditingId(null)}
-                        className="p-1 bg-slate-300 text-slate-700 rounded hover:bg-slate-400"
+                        className="p-1.5 bg-slate-300 text-slate-700 rounded hover:bg-slate-400"
+                        title="Cancelar"
                       >
                         <X className="w-4 h-4" />
                       </button>
