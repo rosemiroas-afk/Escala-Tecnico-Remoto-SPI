@@ -20,7 +20,6 @@ import {
   Moon,
   Sun
 } from 'lucide-react';
-import { PWAInstallButton } from './PWAInstallButton';
 
 interface HeaderProps {
   period: SchedulePeriod;
@@ -266,9 +265,6 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </>
           )}
-
-          {/* PWA INSTALL BUTTON */}
-          <PWAInstallButton />
 
           {/* DARK MODE TOGGLE BUTTON */}
           <button
