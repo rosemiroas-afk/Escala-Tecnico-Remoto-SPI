@@ -14,6 +14,7 @@ import { generateDateRange, MONTHS_PT } from './utils/dateUtils';
 import { generateSchedule } from './utils/scheduler';
 import { validateSchedule } from './utils/validator';
 import { exportScheduleToExcel } from './utils/exportUtils';
+import { parseScheduleLongCsv, normalizeName } from './utils/csvScheduleParser';
 import { Header } from './components/Header';
 import { RosterTable } from './components/RosterTable';
 import { DDDView } from './components/DDDView';
@@ -762,15 +763,125 @@ export default function App() {
     }
   }, []);
 
-  // Handler: Load Official Schedule from Spreadsheet (Novembro e Dezembro)
+  // Handler: Upload and parse structured long CSV/Text schedule
+  const handleUploadScheduleFile = useCallback(async (file: File) => {
+    try {
+      const text = await file.text();
+      const result = parseScheduleLongCsv(text);
+
+      if (result.validRowsCount === 0) {
+        alert(
+          `Não foi possível carregar a escala do arquivo:\n` +
+          (result.errors.length > 0 ? result.errors.slice(0, 3).join('\n') : 'Nenhuma linha válida no padrão: Data, Nome, DDD, Escala, Status.')
+        );
+        return;
+      }
+
+      // 3. Clear completely the existing schedule on screen
+      const newSchedules: Record<string, TechnicianSchedule> = {};
+      let updatedTechs = [...technicians];
+      const techMapByName = new Map<string, Technician>();
+
+      // Index existing technicians by normalized name
+      for (const t of updatedTechs) {
+        techMapByName.set(normalizeName(t.name), t);
+      }
+
+      const findTech = (name: string): Technician | undefined => {
+        const norm = normalizeName(name);
+        if (techMapByName.has(norm)) return techMapByName.get(norm);
+
+        // Substring / partial tolerance (e.g. OLIVEIRA vs OLIVETRA)
+        for (const [existingNorm, t] of techMapByName.entries()) {
+          if (existingNorm === norm) return t;
+          if (existingNorm.includes(norm) || norm.includes(existingNorm)) return t;
+          const pA = existingNorm.split(' ');
+          const pB = norm.split(' ');
+          if (pA.length >= 2 && pB.length >= 2 && pA[0] === pB[0] && pA[pA.length - 1] === pB[pB.length - 1]) {
+            return t;
+          }
+        }
+        return undefined;
+      };
+
+      // Wipe out all days for every technician
+      for (const t of updatedTechs) {
+        newSchedules[t.id] = { technicianId: t.id, days: {} };
+      }
+
+      let newTechsCount = 0;
+
+      // 4. Fill blocks for each collaborator and each day with exact status from file
+      for (const row of result.rows) {
+        let tech = findTech(row.name);
+        if (!tech) {
+          const newTechId = `tech-${row.ddd || 13}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          tech = {
+            id: newTechId,
+            name: row.name,
+            ddd: (row.ddd || 13) as any,
+            active: true,
+            shiftHours: row.shiftHours || '08:00 AS 16:20'
+          };
+          updatedTechs.push(tech);
+          techMapByName.set(normalizeName(tech.name), tech);
+          newSchedules[tech.id] = { technicianId: tech.id, days: {} };
+          newTechsCount++;
+        } else {
+          if (row.ddd && tech.ddd !== row.ddd) {
+            tech.ddd = row.ddd;
+          }
+          if (row.shiftHours && tech.shiftHours !== row.shiftHours) {
+            tech.shiftHours = row.shiftHours;
+          }
+        }
+
+        newSchedules[tech.id].days[row.date] = {
+          date: row.date,
+          shift: row.status,
+          manualOverride: true,
+          notes: row.shiftHours || tech.shiftHours
+        };
+      }
+
+      // Always keep technicians sorted alphabetically
+      updatedTechs = [...updatedTechs].sort((a, b) => a.name.localeCompare(b.name));
+
+      // Update visual state immediately before saving
+      setTechnicians(updatedTechs);
+      setSchedules(newSchedules);
+
+      // Local storage persistence
+      try {
+        localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(newSchedules));
+        localStorage.setItem(STORAGE_KEY_TECHS, JSON.stringify(updatedTechs));
+      } catch (e) {
+        console.warn('Storage save warning:', e);
+      }
+
+      alert(
+        `✅ Escala da Planilha carregada com sucesso!\n\n` +
+        `• Arquivo: ${file.name}\n` +
+        `• Linhas válidas processadas: ${result.validRowsCount}\n` +
+        `• Colaboradores identificados: ${result.uniqueNames.length}\n` +
+        (newTechsCount > 0 ? `• Novos colaboradores adicionados: ${newTechsCount}\n` : '') +
+        `\nA escala anterior foi limpa e os blocos foram preenchidos com os dados da sua planilha.\n` +
+        `Revise os dias na tela e clique no botão verde "Salvar Escala" para gravar definitivamente na nuvem.`
+      );
+    } catch (err) {
+      console.error('Erro ao ler arquivo da escala:', err);
+      alert('Erro inesperado ao processar o arquivo. Certifique-se de que é um arquivo CSV ou texto com colunas: Data, Nome, DDD, Escala, Status.');
+    }
+  }, [technicians]);
+
+  // Handler: Load Official Schedule from Spreadsheet (Restaurar Padrão Oficial)
   const handleLoadOfficialSchedule = useCallback(async () => {
-    if (!window.confirm('Deseja carregar a Escala Oficial da Planilha (Novembro e Dezembro de 2026)?')) {
+    if (!window.confirm('Deseja restaurar a Escala Oficial Padrão (Novembro e Dezembro de 2026)?')) {
       return;
     }
     const sortedTechs = [...OFFICIAL_TECHNICIANS].sort((a, b) => a.name.localeCompare(b.name));
     setTechnicians(sortedTechs);
     const newSchedules: Record<string, TechnicianSchedule> = {};
-    const escalaRows: any[] = [];
 
     for (const tech of sortedTechs) {
       const techShifts = OFFICIAL_SHIFTS_BY_TECH_NAME[tech.name] || {};
@@ -783,31 +894,11 @@ export default function App() {
           manualOverride: true,
           notes: tech.shiftHours
         };
-
-        escalaRows.push({
-          id_usuario: tech.id,
-          data: dateStr,
-          tipo_escala: '6x1',
-          legenda_dia: shiftCode,
-          horario: tech.shiftHours,
-          updated_at: new Date().toISOString()
-        });
       }
     }
 
     setSchedules(newSchedules);
-
-    try {
-      await supabase.from('escalas').delete().gte('data', '2026-11-01').lte('data', '2026-12-31');
-      for (let i = 0; i < escalaRows.length; i += 100) {
-        const chunk = escalaRows.slice(i, i + 100);
-        await supabase.from('escalas').insert(chunk);
-      }
-      alert('Escala Oficial de Novembro e Dezembro carregada e salva com sucesso no Supabase!');
-    } catch (err) {
-      console.error('Error saving official schedule to Supabase:', err);
-      alert('Escala oficial aplicada na tela com sucesso!');
-    }
+    alert('Escala Oficial Padrão restaurada na tela! Revise e clique em "Salvar Escala" para gravar na nuvem.');
   }, []);
 
   // Handler: Export Excel
@@ -1038,6 +1129,7 @@ export default function App() {
                 onClearSchedule={handleClearSchedule}
                 onSave={handleSave}
                 onLoadOfficialSchedule={handleLoadOfficialSchedule}
+                onUploadScheduleFile={handleUploadScheduleFile}
               />
             )}
 

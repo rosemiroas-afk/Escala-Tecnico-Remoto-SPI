@@ -3,7 +3,7 @@ import { Technician, TechnicianSchedule, ShiftType, SHIFT_TYPES, OFFICIAL_LEGEND
 import { formatDisplayDate, parseDateKey, isSaturday, isSunday, MONTHS_PT } from '../utils/dateUtils';
 import { AuditResult, isOffShift, isWorkingShift } from '../utils/validator';
 import { DDD_INFO } from '../data/defaultTechnicians';
-import { Filter, Search, AlertTriangle, Star, Trash2, Check, FileSpreadsheet, X, HelpCircle } from 'lucide-react';
+import { Filter, Search, AlertTriangle, Star, Trash2, Check, FileSpreadsheet, X, HelpCircle, Upload, RotateCcw } from 'lucide-react';
 
 interface RosterTableProps {
   technicians: Technician[];
@@ -17,6 +17,7 @@ interface RosterTableProps {
   onClearSchedule?: () => void;
   onSave?: () => void;
   onLoadOfficialSchedule?: () => void;
+  onUploadScheduleFile?: (file: File) => void;
 }
 
 interface ActiveCellPicker {
@@ -39,12 +40,24 @@ export const RosterTable: React.FC<RosterTableProps> = ({
   onOpenRequests,
   onClearSchedule,
   onSave,
-  onLoadOfficialSchedule
+  onLoadOfficialSchedule,
+  onUploadScheduleFile
 }) => {
   const [selectedDDD, setSelectedDDD] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activePicker, setActivePicker] = useState<ActiveCellPicker | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onUploadScheduleFile) {
+      onUploadScheduleFile(file);
+    }
+    if (e.target) {
+      e.target.value = '';
+    }
+  };
 
   // Close picker on outside click or escape
   useEffect(() => {
@@ -195,14 +208,32 @@ export const RosterTable: React.FC<RosterTableProps> = ({
 
         {/* Search, Clear & Save Roster */}
         <div className="flex items-center gap-2">
+          {/* Hidden File Input for CSV/Text Upload */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".csv,.txt,.tsv"
+            className="hidden"
+          />
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+            title="Importar Escala da Planilha (Selecione arquivo CSV ou Texto longo do seu computador)"
+          >
+            <Upload className="w-3.5 h-3.5 text-white" />
+            <span>Escala da Planilha</span>
+          </button>
+
           {onLoadOfficialSchedule && (
             <button
               onClick={onLoadOfficialSchedule}
-              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-              title="Carregar Escala Oficial da Planilha (Novembro e Dezembro 2026)"
+              className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs"
+              title="Restaurar a Escala Padrão Oficial caso tenha limpado sem querer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span>Escala da Planilha</span>
+              <RotateCcw className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+              <span className="hidden sm:inline">Restaurar Padrão</span>
             </button>
           )}
 
