@@ -360,10 +360,10 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                   className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[85px] relative hover:shadow-md hover:scale-[1.01] bg-white dark:bg-slate-800`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`text-xs font-semibold ${isSun ? 'text-amber-700 font-bold' : isSat ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
+                    <span className={`text-xs font-semibold ${isSun ? 'text-amber-700 dark:text-amber-400 font-bold' : isSat ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-600 dark:text-slate-400'}`}>
                       {isSun ? 'Dom' : isSat ? 'Sáb' : ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'][dObj.getDay() - 1]}
                     </span>
-                    <span className="text-base font-extrabold text-slate-900 dark:text-slate-100">{dayNum}</span>
+                    <span className="text-base font-extrabold text-black dark:text-white">{dayNum}</span>
                   </div>
 
                   <div className="mt-2 flex items-center justify-between gap-1">
@@ -373,12 +373,12 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                         color: shiftDef.textColor,
                         borderColor: shiftDef.borderColor
                       }}
-                      className="text-[10px] px-2 py-0.5 rounded-sm uppercase tracking-wider font-extrabold border shadow-2xs"
+                      className="text-[10px] px-2 py-0.5 rounded-sm uppercase tracking-wider font-extrabold border shadow-2xs shrink-0"
                     >
                       {shiftDef.shortLabel}
                     </span>
 
-                    <span style={{ color: shiftDef.textColor }} className="text-[10px] font-bold truncate">
+                    <span className="text-[10px] font-bold truncate text-black dark:text-white">
                       {shiftDef.label}
                     </span>
 
@@ -402,22 +402,23 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         {/* Right Column: Quick Add Off Request & Registered Requests (4 cols) */}
         <div className="lg:col-span-4 space-y-6">
           {/* Quick Request Box */}
-          <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200">
-            <h4 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
-              <Plus className="w-4 h-4 text-indigo-600" />
+          {/* Quick Request Box */}
+          <div className="bg-slate-50 dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 transition-colors">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
+              <Plus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               Solicitar Folga (Compromisso / Casamento)
             </h4>
-            <p className="text-xs text-slate-500 mb-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
               Informe a data e adicione observações para avaliação pelo gestor.
             </p>
 
             <form onSubmit={handleQuickAddRequest} className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Data Desejada:</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Data Desejada:</label>
                 <select
                   value={reqDate}
                   onChange={e => setReqDate(e.target.value)}
-                  className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800"
+                  className="w-full text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100"
                 >
                   {dates.map(d => (
                     <option key={d} value={d}>
@@ -428,11 +429,11 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Motivo:</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Motivo:</label>
                 <select
                   value={reqCategory}
                   onChange={e => setReqCategory(e.target.value as any)}
-                  className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800"
+                  className="w-full text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100"
                 >
                   <option value="casamento">Casamento</option>
                   <option value="medico">Consulta Médica</option>
@@ -443,20 +444,20 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Observações do compromisso:</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Observações do compromisso:</label>
                 <input
                   type="text"
                   value={reqNote}
                   onChange={e => setReqNote(e.target.value)}
                   placeholder="Ex: Casamento de familiar em Santos"
-                  className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800"
+                  className="w-full text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100"
                   required
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Cadastrar Pedido
@@ -465,10 +466,10 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           </div>
 
           {/* List of technician's requests */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200">
-            <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 transition-colors">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-3 flex items-center justify-between">
               <span>Meus Pedidos Cadastrados</span>
-              <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-full">
+              <span className="text-xs bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
                 {techRequests.length}
               </span>
             </h4>
