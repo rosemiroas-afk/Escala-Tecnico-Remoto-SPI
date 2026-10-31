@@ -265,7 +265,7 @@ export default function App() {
   });
 
   // Active View Tab: For technicians, always 'individual'
-  const [activeTab, setActiveTab] = useState<'matrix' | 'by_ddd' | 'individual' | 'audit'>('matrix');
+  const [activeTab, setActiveTab] = useState<'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push'>('matrix');
 
   // Modals
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
@@ -1087,16 +1087,6 @@ export default function App() {
           />
         )}
 
-        {isAdmin && (
-          <WhatsAppPushAlertWidget
-            technicians={technicians}
-            schedules={schedules}
-            dates={dates}
-            period={period}
-            darkMode={darkMode}
-          />
-        )}
-
         {/* If user is a technician, they strictly see only their individual view! */}
         {!isAdmin && (
           <TechnicianView
@@ -1164,6 +1154,16 @@ export default function App() {
                 auditResult={auditResult}
                 technicians={technicians}
                 onOpenGenerator={() => setIsGeneratorOpen(true)}
+              />
+            )}
+
+            {activeTab === 'whatsapp_push' && (
+              <WhatsAppPushAlertWidget
+                technicians={technicians}
+                schedules={schedules}
+                dates={dates}
+                period={period}
+                darkMode={darkMode}
               />
             )}
           </>

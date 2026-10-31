@@ -370,10 +370,9 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                     <span
                       style={{
                         backgroundColor: shiftDef.bgColor,
-                        color: shiftDef.textColor,
                         borderColor: shiftDef.borderColor
                       }}
-                      className="text-[10px] px-2 py-0.5 rounded-sm uppercase tracking-wider font-extrabold border shadow-2xs shrink-0"
+                      className="text-[10px] px-2 py-0.5 rounded-sm uppercase tracking-wider font-black border shadow-2xs shrink-0 text-black"
                     >
                       {shiftDef.shortLabel}
                     </span>
@@ -551,11 +550,11 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                   }}
                   className="flex items-center gap-2 p-2 rounded-xl border text-left cursor-pointer hover:brightness-95 hover:scale-[1.02] transition-all shadow-2xs"
                 >
-                  <span className="w-8 h-6 flex items-center justify-center text-xs font-black rounded-sm bg-white/80 border shadow-2xs shrink-0">
+                  <span className="w-8 h-6 flex items-center justify-center text-xs font-black rounded-sm bg-white border border-slate-300 shadow-2xs shrink-0 text-black">
                     {item.shortLabel}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-xs font-bold truncate leading-tight">
+                    <div className="text-xs font-bold truncate leading-tight text-black">
                       {item.label}
                     </div>
                   </div>

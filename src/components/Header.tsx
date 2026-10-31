@@ -18,7 +18,8 @@ import {
   User as UserIcon,
   Shield,
   Moon,
-  Sun
+  Sun,
+  Bell
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -27,11 +28,11 @@ interface HeaderProps {
   auditResult: AuditResult;
   offRequestsCount: number;
   pendingRequestsCount?: number;
-  activeTab: 'matrix' | 'by_ddd' | 'individual' | 'audit';
+  activeTab: 'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push';
   currentUser: AppUser | null;
   darkMode: boolean;
   onToggleDarkMode: () => void;
-  onSelectTab: (tab: 'matrix' | 'by_ddd' | 'individual' | 'audit') => void;
+  onSelectTab: (tab: 'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push') => void;
   onOpenGenerator: () => void;
   onOpenRequests: () => void;
   onOpenTeam: () => void;
@@ -378,6 +379,22 @@ export const Header: React.FC<HeaderProps> = ({
             {hasIssues && (
               <span className="w-2 h-2 rounded-full bg-rose-500" />
             )}
+          </button>
+
+          <button
+            onClick={() => onSelectTab('whatsapp_push')}
+            className={`py-2.5 px-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer shrink-0 ${
+              activeTab === 'whatsapp_push'
+                ? darkMode
+                  ? 'border-emerald-400 text-emerald-400'
+                  : 'border-emerald-600 text-emerald-700'
+                : darkMode
+                  ? 'border-transparent text-slate-400 hover:text-slate-200'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Bell className="w-4 h-4 text-emerald-500" />
+            <span>Notificações WhatsApp (24h)</span>
           </button>
         </div>
       )}

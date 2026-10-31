@@ -568,11 +568,11 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                   }`}
                   title={`${item.shortLabel}: ${item.label}`}
                 >
-                  <span className="w-7 h-5 flex items-center justify-center text-[10px] font-extrabold rounded-xs bg-white/70 shadow-2xs shrink-0">
+                  <span className="w-7 h-5 flex items-center justify-center text-[10px] font-black rounded-xs bg-white border border-slate-300 shadow-2xs shrink-0 text-black">
                     {item.shortLabel}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[11px] font-bold truncate leading-tight">
+                    <div className="text-[11px] font-bold truncate leading-tight text-black">
                       {item.label}
                     </div>
                   </div>
@@ -616,16 +616,12 @@ export const RosterTable: React.FC<RosterTableProps> = ({
               className="flex items-center gap-2 p-2 rounded-lg border shadow-2xs transition-transform hover:scale-[1.01]"
             >
               <span
-                style={{
-                  color: item.textColor,
-                  borderColor: item.borderColor
-                }}
-                className="w-9 h-6 flex items-center justify-center font-black text-xs rounded-xs bg-white/80 border shadow-2xs shrink-0"
+                className="w-9 h-6 flex items-center justify-center font-black text-xs rounded-xs bg-white border border-slate-300 shadow-2xs shrink-0 text-black"
               >
                 {item.shortLabel}
               </span>
               <div className="min-w-0 flex-1">
-                <div style={{ color: item.textColor }} className="font-extrabold text-xs truncate">
+                <div className="font-extrabold text-xs truncate text-black">
                   {item.label}
                 </div>
               </div>
