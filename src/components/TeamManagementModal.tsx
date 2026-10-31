@@ -204,45 +204,59 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
 
                 if (isEditing) {
                   return (
-                    <div key={tech.id} className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center gap-2 flex-wrap">
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={e => setEditName(e.target.value)}
-                        placeholder="Nome completo"
-                        className="flex-1 min-w-[160px] text-xs bg-white border border-slate-300 rounded px-2 py-1.5 font-semibold"
-                      />
-                      <select
-                        value={editDDD}
-                        onChange={e => setEditDDD(Number(e.target.value) as DDDNumber)}
-                        className="text-xs bg-white border border-slate-300 rounded px-2 py-1.5"
-                      >
-                        <option value={13}>DDD 13</option>
-                        <option value={14}>DDD 14</option>
-                        <option value={15}>DDD 15</option>
-                        <option value={19}>DDD 19</option>
-                      </select>
-                      <input
-                        type="text"
-                        value={editPhone}
-                        onChange={e => setEditPhone(e.target.value)}
-                        placeholder="Celular / WhatsApp"
-                        className="w-[140px] text-xs bg-white border border-slate-300 rounded px-2 py-1.5"
-                      />
-                      <button
-                        onClick={() => handleSaveEdit(tech.id)}
-                        className="p-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-700"
-                        title="Salvar"
-                      >
-                        <Check className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setEditingId(null)}
-                        className="p-1.5 bg-slate-300 text-slate-700 rounded hover:bg-slate-400"
-                        title="Cancelar"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                    <div key={tech.id} className="p-4 bg-indigo-50 border-2 border-indigo-200 rounded-xl flex flex-col gap-3 shadow-md">
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                        <div className="sm:col-span-6">
+                          <label className="block text-[10px] font-bold text-indigo-700 uppercase mb-1">Nome:</label>
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                            placeholder="Nome completo"
+                            className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1.5 font-bold uppercase"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-[10px] font-bold text-indigo-700 uppercase mb-1">DDD:</label>
+                          <select
+                            value={editDDD}
+                            onChange={e => setEditDDD(Number(e.target.value) as DDDNumber)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1.5 font-semibold"
+                          >
+                            <option value={13}>13</option>
+                            <option value={14}>14</option>
+                            <option value={15}>15</option>
+                            <option value={19}>19</option>
+                          </select>
+                        </div>
+                        <div className="sm:col-span-4">
+                          <label className="block text-[10px] font-bold text-indigo-700 uppercase mb-1">WhatsApp (DDD+Número):</label>
+                          <input
+                            type="text"
+                            value={editPhone}
+                            onChange={e => setEditPhone(e.target.value)}
+                            placeholder="Ex: 14991234567"
+                            className="w-full text-xs bg-white border border-slate-300 rounded px-2 py-1.5 font-semibold"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-end gap-2 pt-1 border-t border-indigo-100">
+                        <button
+                          onClick={() => setEditingId(null)}
+                          className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold hover:bg-slate-300 transition-colors flex items-center gap-1"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => handleSaveEdit(tech.id)}
+                          className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-[11px] font-bold hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-1"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          Salvar Alterações
+                        </button>
+                      </div>
                     </div>
                   );
                 }
