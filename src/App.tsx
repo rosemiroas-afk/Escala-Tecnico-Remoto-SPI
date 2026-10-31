@@ -25,6 +25,8 @@ import { TeamManagementModal } from './components/TeamManagementModal';
 import { WhatsAppModal } from './components/WhatsAppModal';
 import { LoginModal } from './components/LoginModal';
 import { AdminPendingAlert } from './components/AdminPendingAlert';
+import { PendingRequestsNotificationWidget } from './components/PendingRequestsNotificationWidget';
+import { WhatsAppPushAlertWidget } from './components/WhatsAppPushAlertWidget';
 import { supabase } from './supabase';
 
 const STORAGE_KEY_TECHS = 'escalamaster_techs_v2';
@@ -86,11 +88,16 @@ export default function App() {
   const [technicians, setTechnicians] = useState<Technician[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_TECHS);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return [...parsed].sort((a: Technician, b: Technician) => a.name.localeCompare(b.name));
+        }
+      }
     } catch (e) {
       console.error('Failed reading techs from localStorage', e);
     }
-    return INITIAL_TECHNICIANS;
+    return [...OFFICIAL_TECHNICIANS].sort((a, b) => a.name.localeCompare(b.name));
   });
 
   // 3. User Accounts with PIN (Default 1234)
@@ -748,10 +755,12 @@ export default function App() {
     if (!window.confirm('Deseja carregar a Escala Oficial da Planilha (Novembro e Dezembro de 2026)?')) {
       return;
     }
+    const sortedTechs = [...OFFICIAL_TECHNICIANS].sort((a, b) => a.name.localeCompare(b.name));
+    setTechnicians(sortedTechs);
     const newSchedules: Record<string, TechnicianSchedule> = {};
     const escalaRows: any[] = [];
 
-    for (const tech of OFFICIAL_TECHNICIANS) {
+    for (const tech of sortedTechs) {
       const techShifts = OFFICIAL_SHIFTS_BY_TECH_NAME[tech.name] || {};
       newSchedules[tech.id] = { technicianId: tech.id, days: {} };
 
@@ -890,7 +899,8 @@ export default function App() {
 
   // Handler: Update Technicians List
   const handleUpdateTechnicians = useCallback((updated: Technician[]) => {
-    setTechnicians(updated);
+    const sorted = [...updated].sort((a, b) => a.name.localeCompare(b.name));
+    setTechnicians(sorted);
   }, []);
 
 
@@ -962,6 +972,26 @@ export default function App() {
               </button>
             </div>
           </div>
+        )}
+
+        {isAdmin && pendingRequests.length > 0 && (
+          <PendingRequestsNotificationWidget
+            pendingRequests={pendingRequests}
+            technicians={technicians}
+            onApprove={handleApproveRequest}
+            onReject={handleRejectRequest}
+            darkMode={darkMode}
+          />
+        )}
+
+        {isAdmin && (
+          <WhatsAppPushAlertWidget
+            technicians={technicians}
+            schedules={schedules}
+            dates={dates}
+            period={period}
+            darkMode={darkMode}
+          />
         )}
 
         {/* If user is a technician, they strictly see only their individual view! */}

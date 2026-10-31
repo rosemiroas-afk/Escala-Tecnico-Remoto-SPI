@@ -535,7 +535,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                   className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-left transition-all cursor-pointer hover:brightness-95 hover:scale-[1.02] shadow-2xs ${
                     isSelected ? 'ring-2 ring-indigo-600 font-black' : ''
                   }`}
-                  title={`${item.shortLabel}: ${item.label} (${item.isWork ? 'Trabalho' : 'Quebra 7 dias'})`}
+                  title={`${item.shortLabel}: ${item.label}`}
                 >
                   <span className="w-7 h-5 flex items-center justify-center text-[10px] font-extrabold rounded-xs bg-white/70 shadow-2xs shrink-0">
                     {item.shortLabel}
@@ -543,9 +543,6 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                   <div className="min-w-0 flex-1">
                     <div className="text-[11px] font-bold truncate leading-tight">
                       {item.label}
-                    </div>
-                    <div className="text-[9px] opacity-80 truncate leading-tight">
-                      {item.isWork ? 'Dia Trabalhado' : 'Quebra 7 dias'}
                     </div>
                   </div>
                 </button>
@@ -572,7 +569,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
             </span>
           </div>
           <div className="text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 px-2.5 py-1 rounded-lg">
-            ⚠️ Regra: Todas as nomenclaturas quebram os 7 dias seguidos, exceto <strong>TB</strong> (Dia Trabalhado).
+            ⚠️ Regra: Todas as nomenclaturas interrompem a contagem de dias seguidos, exceto <strong>TB</strong> (Dia Trabalhado).
           </div>
         </div>
 
@@ -599,9 +596,6 @@ export const RosterTable: React.FC<RosterTableProps> = ({
               <div className="min-w-0 flex-1">
                 <div style={{ color: item.textColor }} className="font-extrabold text-xs truncate">
                   {item.label}
-                </div>
-                <div style={{ color: item.textColor }} className="text-[10px] opacity-80 truncate">
-                  {item.isWork ? 'Dia Trabalhado' : 'Quebra 7 dias'}
                 </div>
               </div>
             </div>
