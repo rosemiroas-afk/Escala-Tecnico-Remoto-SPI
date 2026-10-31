@@ -557,16 +557,13 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                     <div className="text-xs font-bold truncate leading-tight">
                       {item.label}
                     </div>
-                    <div className="text-[10px] opacity-80 truncate leading-tight">
-                      {item.isWork ? 'Trabalho' : 'Quebra 7 dias'}
-                    </div>
                   </div>
                 </button>
               ))}
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400">
-              <span>⚠️ Todas quebram 7 dias exceto TB</span>
+              <span>⚠️ Todas interrompem a contagem de dias exceto TB</span>
               <button
                 onClick={() => setAdminPickerDate(null)}
                 className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200"
