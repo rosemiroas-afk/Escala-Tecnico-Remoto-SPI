@@ -217,24 +217,8 @@ export default function App() {
     ];
   });
 
-  // 5. Generate Date Array for 2 Months
-  const dates = useMemo(() => {
-    return generateDateRange(period.startYear, period.startMonth, period.durationMonths);
-  }, [period.startYear, period.startMonth, period.durationMonths]);
-
-  // 6. Schedules State
-  const [schedules, setSchedules] = useState<Record<string, TechnicianSchedule>>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_SCHEDULE);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Object.keys(parsed).length > 0) return parsed;
-      }
-    } catch (e) {
-      console.error('Failed reading schedules from localStorage', e);
-    }
-
-    // Default initial generation from Official Spreadsheet
+  // Helper to generate complete official schedule for all 19 technicians
+  const getOfficialScheduleMap = (): Record<string, TechnicianSchedule> => {
     const officialSched: Record<string, TechnicianSchedule> = {};
     for (const tech of OFFICIAL_TECHNICIANS) {
       const techShifts = OFFICIAL_SHIFTS_BY_TECH_NAME[tech.name] || {};
@@ -247,6 +231,34 @@ export default function App() {
           notes: tech.shiftHours
         };
       }
+    }
+    return officialSched;
+  };
+
+  // 5. Generate Date Array for 2 Months
+  const dates = useMemo(() => {
+    return generateDateRange(period.startYear, period.startMonth, period.durationMonths);
+  }, [period.startYear, period.startMonth, period.durationMonths]);
+
+  // 6. Schedules State
+  const [schedules, setSchedules] = useState<Record<string, TechnicianSchedule>>(() => {
+    const officialSched = getOfficialScheduleMap();
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_SCHEDULE);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Object.keys(parsed).length > 0) {
+          const merged = { ...officialSched };
+          for (const [techId, techSched] of Object.entries(parsed)) {
+            if (techSched && (techSched as any).days && Object.keys((techSched as any).days).length > 0) {
+              merged[techId] = techSched as any;
+            }
+          }
+          return merged;
+        }
+      }
+    } catch (e) {
+      console.error('Failed reading schedules from localStorage', e);
     }
     return officialSched;
   });
@@ -402,11 +414,11 @@ export default function App() {
 
         // C. Fetch Schedule Shifts from escalas
         const { data: escalasData, error: escalasError } = await supabase.from('escalas').select('*');
-        if (escalasData && Array.isArray(escalasData) && escalasData.length > 0 && !escalasError) {
-          setSchedules(() => {
-            const next: Record<string, TechnicianSchedule> = {};
-            let detectedRegime: '6x1' | '5x2' | undefined;
+        setSchedules(() => {
+          const next = getOfficialScheduleMap();
+          let detectedRegime: '6x1' | '5x2' | undefined;
 
+          if (escalasData && Array.isArray(escalasData) && escalasData.length > 0 && !escalasError) {
             escalasData.forEach((row: any) => {
               const techId = row.id_usuario;
               const date = row.data;
@@ -429,13 +441,13 @@ export default function App() {
                 };
               }
             });
+          }
 
-            if (detectedRegime) {
-              setPeriod(p => ({ ...p, regime: detectedRegime }));
-            }
-            return next;
-          });
-        }
+          if (detectedRegime) {
+            setPeriod(p => ({ ...p, regime: detectedRegime }));
+          }
+          return next;
+        });
       } catch (err) {
         console.error('Error fetching initial data from Supabase:', err);
       }
