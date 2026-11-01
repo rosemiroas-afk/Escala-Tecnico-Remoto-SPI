@@ -787,13 +787,19 @@ export default function App() {
 
       const updatedRequests: OffRequest[] = prevRequests.map(r => r.id === id ? { ...r, status: 'aprovado' as const } : r);
       
-      // Determine shift type based on day of week:
-      const dObj = new Date(req.date + 'T12:00:00');
-      const dow = dObj.getDay();
-      const targetShift: ShiftType = (dow === 0 || dow === 6) ? 'FG' : 'FC';
+      // Regra de Aprovação:
+      // - Motivo médico ou consulta -> 'FP' (Folga Parcial)
+      // - Qualquer outro motivo solicitado -> 'FB' (Folga Banco)
+      const isMedical =
+        req.reasonCategory === 'medico' ||
+        (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de|doutor|dentist/i.test(n))) ||
+        /m[eé]dic|consult|exame|sa[uú]de/i.test(req.reasonCategory || '');
+
+      const targetShift: ShiftType = isMedical ? 'FP' : 'FB';
+      const labelText = isMedical ? 'Folga Parcial (FP)' : 'Folga Banco (FB)';
 
       // Grant off on requested date in calendar
-      handleUpdateShift(req.technicianId, req.date, targetShift, `Folga Aprovada: ${req.notes.join(' | ')}`);
+      handleUpdateShift(req.technicianId, req.date, targetShift, `${labelText}: ${req.notes.join(' | ')}`);
 
       // Update status in Supabase table 'solicitacoes_folga' to 'aprovado'
       supabase

@@ -13,6 +13,7 @@ export type ShiftType =
   | 'TR' // Treinamento
   | 'FM' // Folga Municipal
   | 'FG' // Folga Regular (Sábado ou Domingo)
+  | 'FP' // Folga Parcial (Médico / Consulta)
   // Backward compatibility:
   | 'T'
   | 'F'
@@ -177,6 +178,18 @@ export const OFFICIAL_LEGEND_ITEMS: ShiftInfo[] = [
     badgeClass: 'bg-[#fff2cc] text-black border-[#ffe599] font-black shadow-xs',
     description: 'Folga semanal regular (Sábado ou Domingo)',
     isWork: false
+  },
+  {
+    type: 'FP',
+    label: 'Folga Parcial',
+    shortLabel: 'FP',
+    color: '#000000',
+    bgColor: '#d9e1f2',
+    textColor: '#000000',
+    borderColor: '#b4c6e7',
+    badgeClass: 'bg-[#d9e1f2] text-black border-[#b4c6e7] font-black shadow-xs',
+    description: 'Folga Parcial (Médico / Consulta)',
+    isWork: false
   }
 ];
 
@@ -194,6 +207,7 @@ export const SHIFT_TYPES: Record<string, ShiftInfo> = {
   TR: OFFICIAL_LEGEND_ITEMS[9],
   FM: OFFICIAL_LEGEND_ITEMS[10],
   FG: OFFICIAL_LEGEND_ITEMS[11],
+  FP: OFFICIAL_LEGEND_ITEMS[12],
 
   // Compatibility aliases
   T: OFFICIAL_LEGEND_ITEMS[5],

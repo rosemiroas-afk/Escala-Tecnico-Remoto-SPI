@@ -99,10 +99,18 @@ export const PendingRequestsNotificationWidget: React.FC<PendingRequestsNotifica
                 <button
                   onClick={() => onApprove(req.id)}
                   className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                  title="Aprovar folga e atualizar escala"
+                  title={
+                    req.reasonCategory === 'medico' || (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de/i.test(n)))
+                      ? 'Aprovar e lançar na escala como Folga Parcial (FP)'
+                      : 'Aprovar e lançar na escala como Folga Banco (FB)'
+                  }
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>Aprovar</span>
+                  <span>
+                    {req.reasonCategory === 'medico' || (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de/i.test(n)))
+                      ? 'Aprovar (FP)'
+                      : 'Aprovar (FB)'}
+                  </span>
                 </button>
 
                 <button

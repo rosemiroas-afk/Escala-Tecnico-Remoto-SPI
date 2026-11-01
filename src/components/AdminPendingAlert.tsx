@@ -130,10 +130,18 @@ export const AdminPendingAlert: React.FC<AdminPendingAlertProps> = ({
                     <button
                       onClick={() => onApprove(req.id)}
                       className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
-                      title="Aprovar esta solicitação de folga"
+                      title={
+                        req.reasonCategory === 'medico' || (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de/i.test(n)))
+                          ? 'Aprovar e lançar na escala como Folga Parcial (FP)'
+                          : 'Aprovar e lançar na escala como Folga Banco (FB)'
+                      }
                     >
                       <Check className="w-4 h-4" />
-                      <span>Aprovar</span>
+                      <span>
+                        {req.reasonCategory === 'medico' || (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de/i.test(n)))
+                          ? 'Aprovar (FP)'
+                          : 'Aprovar (FB)'}
+                      </span>
                     </button>
                     <button
                       onClick={() => onReject(req.id)}

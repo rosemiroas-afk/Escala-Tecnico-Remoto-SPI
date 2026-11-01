@@ -88,7 +88,7 @@ export function validateSchedule(
             maxConsecutive = currentConsecutive;
           }
 
-          // Check if exceeded legal limit of 6 consecutive work days (CLT 6x1 limit)
+          // Check if reached 7 or more consecutive work days (CLT 6x1 violation)
           if (currentConsecutive > 6) {
             issues.push({
               id: `consecutive-${tech.id}-${dateKey}`,
@@ -98,14 +98,13 @@ export function validateSchedule(
               technicianName: tech.name,
               date: dateKey,
               ddd: tech.ddd,
-              message: `${tech.name} atingiu ${currentConsecutive} dias seguidos de trabalho em ${dateKey}.`,
-              suggestion: `Inserir uma folga compensatória (FC) de segunda a quinta-feira.`
+              message: `${tech.name} atingiu ${currentConsecutive} dias seguidos de trabalho em ${dateKey} (limite máximo: 6 dias).`
             });
           }
         }
       }
 
-      // Check double weekends (strictly Sábado + Domingo)
+      // Check double weekends for stats only
       for (const wk of weekends) {
         const satShift = techSched.days[wk.saturday]?.shift;
         const sunShift = techSched.days[wk.sunday]?.shift;
@@ -116,65 +115,9 @@ export function validateSchedule(
           doubleWeekendsCount++;
         }
 
-        // Count inversions: strictly Saturday off (FG) and Sunday working (TB)
         if ((satShift === 'FG' || satShift === 'F') && (sunShift === 'TB' || sunShift === 'T')) {
           inversionsCount++;
         }
-      }
-
-      // Enforce user rule: at most 2 inversions in 60 days
-      if (inversionsCount > 2) {
-        issues.push({
-          id: `excess-inversions-${tech.id}`,
-          type: 'excessive_offs',
-          severity: 'warning',
-          technicianId: tech.id,
-          technicianName: tech.name,
-          ddd: tech.ddd,
-          message: `${tech.name} possui ${inversionsCount} inversões no bimestre (máximo permitido: 2).`,
-          suggestion: `Ajustar a escala para no máximo 2 inversões de escala no período de 60 dias.`
-        });
-      }
-
-      // Check unwanted Friday + Saturday double off
-      for (let i = 0; i < dates.length - 1; i++) {
-        const d1 = dates[i];
-        const d2 = dates[i + 1];
-        const dow1 = parseDateKey(d1).getDay();
-        const dow2 = parseDateKey(d2).getDay();
-
-        if (dow1 === 5 && dow2 === 6) { // Friday and Saturday
-          const s1 = techSched.days[d1]?.shift;
-          const s2 = techSched.days[d2]?.shift;
-          if (isOffShift(s1) && isOffShift(s2)) {
-            issues.push({
-              id: `unwanted-fri-sat-${tech.id}-${d1}`,
-              type: 'excessive_offs',
-              severity: 'warning',
-              technicianId: tech.id,
-              technicianName: tech.name,
-              date: d1,
-              ddd: tech.ddd,
-              message: `${tech.name} possui folga dupla em Sexta (${d1}) e Sábado (${d2}).`,
-              suggestion: `Folgas duplas devem ser exclusivamente Sábado e Domingo.`
-            });
-          }
-        }
-      }
-
-      // Check excess of offs (User feedback: "os colaboradores ainda estão com excesso de folga")
-      // In 60 days, 6x1 standard is ~8-10 offs total. If > 11 offs, flag warning!
-      if (offDaysCount > 11) {
-        issues.push({
-          id: `excess-offs-${tech.id}`,
-          type: 'excessive_offs',
-          severity: 'warning',
-          technicianId: tech.id,
-          technicianName: tech.name,
-          ddd: tech.ddd,
-          message: `${tech.name} está com ${offDaysCount} folgas no bimestre (Padrão 6x1 é de 8 a 10 folgas).`,
-          suggestion: `Ajustar a escala para 1 folga por semana mais a folga duplada.`
-        });
       }
     }
 
@@ -182,21 +125,7 @@ export function validateSchedule(
     totalWorkDaysAll += workDaysCount;
     totalOffsAll += offDaysCount;
 
-    // Check mandatory rule: at least 1 double weekend in 2 months
-    if (doubleWeekendsCount === 0) {
-      issues.push({
-        id: `missing-dw-${tech.id}`,
-        type: 'missing_double_weekend',
-        severity: 'error',
-        technicianId: tech.id,
-        technicianName: tech.name,
-        ddd: tech.ddd,
-        message: `${tech.name} não possui nenhum final de semana duplado (Sáb + Dom) no período.`,
-        suggestion: `Garantir ao menos 1 fim de semana completo de folga (FD) para ${tech.name}.`
-      });
-    }
-
-    // Check off requests for this tech
+    // Check off requests for this tech: report strictly unresolved conflicts
     const techRequests = offRequests.filter(r => r.technicianId === tech.id);
     let fulfilled = 0;
     for (const req of techRequests) {
@@ -204,16 +133,16 @@ export function validateSchedule(
       if (isOffShift(shift)) {
         fulfilled++;
       } else {
+        // Active unresolved conflict: technician has requested off but is scheduled to work TB
         issues.push({
           id: `unfulfilled-req-${req.id}`,
           type: 'unfulfilled_request',
-          severity: req.priority === 'alta' ? 'error' : 'warning',
+          severity: 'error',
           technicianId: tech.id,
           technicianName: tech.name,
           date: req.date,
           ddd: tech.ddd,
-          message: `Pedido de folga de ${tech.name} em ${req.date} (${req.reasonCategory}: ${req.notes.join(', ')}) não foi atendido.`,
-          suggestion: `Conceder folga compensada (FC) na data solicitada.`
+          message: `Conflito de folga: ${tech.name} em ${req.date} (${req.reasonCategory}${req.notes.length > 0 ? `: ${req.notes.join(', ')}` : ''}) está escalado para trabalhar.`
         });
       }
     }
@@ -231,56 +160,9 @@ export function validateSchedule(
     };
   }
 
-  // 2. Validate Daily Coverage per DDD (ensure team is not short-staffed or excessive offs)
-  const ddds = [13, 14, 15, 19];
-  for (const ddd of ddds) {
-    const dddTechs = activeTechs.filter(t => t.ddd === ddd);
-    const minRequired = DDD_INFO[ddd]?.minStaff ?? Math.max(1, Math.ceil(dddTechs.length * 0.6));
-
-    for (const dateKey of dates) {
-      let workingInDDD = 0;
-      let offInDDD = 0;
-
-      for (const tech of dddTechs) {
-        const shift = schedules[tech.id]?.days[dateKey]?.shift;
-        if (isWorkingShift(shift)) {
-          workingInDDD++;
-        } else {
-          offInDDD++;
-        }
-      }
-
-      if (workingInDDD < minRequired) {
-        issues.push({
-          id: `understaffed-${ddd}-${dateKey}`,
-          type: 'ddd_understaffed',
-          severity: 'warning',
-          ddd: ddd,
-          date: dateKey,
-          message: `DDD ${ddd} com cobertura reduzida em ${dateKey}: ${workingInDDD} técnico(s) ativo(s) (Mínimo recomendado: ${minRequired}).`,
-          suggestion: `Revezar a folga de um técnico do DDD ${ddd} para outro dia.`
-        });
-      }
-
-      if ((isSaturday(dateKey) || isSunday(dateKey)) && offInDDD >= 4) {
-        issues.push({
-          id: `excessive-offs-${ddd}-${dateKey}`,
-          type: 'excessive_offs',
-          severity: 'error',
-          ddd: ddd,
-          date: dateKey,
-          message: `DDD ${ddd} possui ${offInDDD} técnicos de folga simultaneamente no fim de semana em ${dateKey}.`,
-          suggestion: `Redistribuir as folgas de fim de semana entre as semanas do bimestre.`
-        });
-      }
-    }
-  }
-
-  // Global score calculation
-  const errorCount = issues.filter(i => i.severity === 'error').length;
-  const warningCount = issues.filter(i => i.severity === 'warning').length;
-
-  let score = 100 - (errorCount * 15) - (warningCount * 3);
+  // Calculate score strictly based on active violations (7 days failure and off conflicts)
+  const errorCount = issues.length;
+  let score = 100 - (errorCount * 25);
   if (score < 0) score = 0;
 
   const totalReqs = offRequests.length;

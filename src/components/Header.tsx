@@ -330,147 +330,139 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Navigation Tabs - ONLY for Admin! Technicians have individual view strictly */}
+      {/* Navigation Tabs - Abbreviated & formatted for clean fit without cutoffs */}
       {isAdmin && (
-        <div className={`max-w-7xl mx-auto px-4 sm:px-6 flex items-center gap-2 border-t overflow-x-auto ${
+        <div className={`max-w-7xl mx-auto px-4 sm:px-6 py-2 border-t overflow-x-auto ${
           darkMode ? 'border-slate-800' : 'border-slate-100'
         }`}>
-          <button
-            onClick={() => onSelectTab('matrix')}
-            className={`py-2.5 px-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer shrink-0 ${
-              activeTab === 'matrix'
-                ? darkMode
-                  ? 'border-indigo-400 text-indigo-400'
-                  : 'border-indigo-600 text-indigo-700'
-                : darkMode
-                  ? 'border-transparent text-slate-400 hover:text-slate-200'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>Visão Geral (Matriz Completa)</span>
-          </button>
+          <div className="flex items-center gap-1.5 flex-nowrap min-w-max sm:min-w-0">
+            <button
+              onClick={() => onSelectTab('matrix')}
+              className={`py-1.5 px-3 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'matrix'
+                  ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
+                  : darkMode
+                  ? 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+              title="Visão Geral - Matriz Completa da Escala"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Matriz Completa</span>
+            </button>
 
-          <button
-            onClick={() => onSelectTab('by_ddd')}
-            className={`py-2.5 px-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer shrink-0 ${
-              activeTab === 'by_ddd'
-                ? darkMode
-                  ? 'border-indigo-400 text-indigo-400'
-                  : 'border-indigo-600 text-indigo-700'
-                : darkMode
-                  ? 'border-transparent text-slate-400 hover:text-slate-200'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <MapPin className="w-4 h-4" />
-            <span>Visão por Região DDD</span>
-          </button>
+            <button
+              onClick={() => onSelectTab('by_ddd')}
+              className={`py-1.5 px-3 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'by_ddd'
+                  ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
+                  : darkMode
+                  ? 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+              title="Escala dividida por Região DDD (13, 14, 15 e 19)"
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Região DDD</span>
+            </button>
 
-          <button
-            onClick={() => onSelectTab('individual')}
-            className={`py-2.5 px-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer shrink-0 ${
-              activeTab === 'individual'
-                ? darkMode
-                  ? 'border-indigo-400 text-indigo-400'
-                  : 'border-indigo-600 text-indigo-700'
-                : darkMode
-                  ? 'border-transparent text-slate-400 hover:text-slate-200'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <UserCheck className="w-4 h-4" />
-            <span>Visão Individual do Técnico</span>
-          </button>
+            <button
+              onClick={() => onSelectTab('individual')}
+              className={`py-1.5 px-3 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'individual'
+                  ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
+                  : darkMode
+                  ? 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+              title="Visão e calendário individual do técnico"
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>Individual Técnico</span>
+            </button>
 
-          <button
-            onClick={() => onSelectTab('audit')}
-            className={`py-2.5 px-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer shrink-0 ${
-              activeTab === 'audit'
-                ? darkMode
-                  ? 'border-indigo-400 text-indigo-400'
-                  : 'border-indigo-600 text-indigo-700'
-                : darkMode
-                  ? 'border-transparent text-slate-400 hover:text-slate-200'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <ShieldCheck className="w-4 h-4" />
-            <span>Auditoria & Conflitos</span>
-            {hasIssues && (
-              <span className="w-2 h-2 rounded-full bg-rose-500" />
-            )}
-          </button>
+            <button
+              onClick={() => onSelectTab('audit')}
+              className={`py-1.5 px-3 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'audit'
+                  ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
+                  : darkMode
+                  ? 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+              title="Auditoria de conformidade: falhas de 7 dias e conflitos de folga"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Auditoria</span>
+              {hasIssues && (
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              )}
+            </button>
 
-          <button
-            onClick={() => onSelectTab('whatsapp_push')}
-            className={`py-2.5 px-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer shrink-0 ${
-              activeTab === 'whatsapp_push'
-                ? darkMode
-                  ? 'border-emerald-400 text-emerald-400'
-                  : 'border-emerald-600 text-emerald-700'
-                : darkMode
-                  ? 'border-transparent text-slate-400 hover:text-slate-200'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Bell className="w-4 h-4 text-emerald-500" />
-            <span>Notificações WhatsApp (24h)</span>
-          </button>
+            <button
+              onClick={() => onSelectTab('whatsapp_push')}
+              className={`py-1.5 px-3 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'whatsapp_push'
+                  ? 'bg-emerald-600 text-white shadow-xs font-extrabold'
+                  : darkMode
+                  ? 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+              title="Notificações WhatsApp enviadas 24h antes da folga"
+            >
+              <Bell className="w-3.5 h-3.5 text-emerald-500" />
+              <span>WhatsApp (24h)</span>
+            </button>
 
-          <button
-            onClick={() => onSelectTab('analytics')}
-            className={`py-2.5 px-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer shrink-0 ${
-              activeTab === 'analytics'
-                ? darkMode
-                  ? 'border-indigo-400 text-indigo-400'
-                  : 'border-indigo-600 text-indigo-700'
-                : darkMode
-                  ? 'border-transparent text-slate-400 hover:text-slate-200'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4 text-indigo-500" />
-            <span>Dashboard & Análises</span>
-          </button>
+            <button
+              onClick={() => onSelectTab('analytics')}
+              className={`py-1.5 px-3 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'analytics'
+                  ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
+                  : darkMode
+                  ? 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+              title="Painel e Dashboard com gráficos e análises"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Dashboard & Análises</span>
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Navigation Tabs - STRICTLY for Viewer (William Rosalini Laiate): Dashboard & Análises and Matriz Completa ONLY */}
+      {/* Navigation Tabs - STRICTLY for Viewer (William Rosalini Laiate) */}
       {isViewer && (
-        <div className={`max-w-7xl mx-auto px-4 sm:px-6 flex items-center gap-2 border-t overflow-x-auto ${
+        <div className={`max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center gap-2 border-t overflow-x-auto ${
           darkMode ? 'border-slate-800' : 'border-slate-100'
         }`}>
           <button
             onClick={() => onSelectTab('analytics')}
-            className={`py-2.5 px-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer shrink-0 ${
+            className={`py-1.5 px-3 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'analytics'
-                ? darkMode
-                  ? 'border-indigo-400 text-indigo-400'
-                  : 'border-indigo-600 text-indigo-700'
+                ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
                 : darkMode
-                  ? 'border-transparent text-slate-400 hover:text-slate-200'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'text-slate-300 hover:bg-slate-800'
+                : 'text-slate-700 hover:bg-slate-100'
             }`}
           >
-            <BarChart3 className="w-4 h-4 text-indigo-500" />
+            <BarChart3 className="w-3.5 h-3.5 text-indigo-400" />
             <span>Dashboard & Análises</span>
           </button>
 
           <button
             onClick={() => onSelectTab('matrix')}
-            className={`py-2.5 px-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer shrink-0 ${
+            className={`py-1.5 px-3 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'matrix'
-                ? darkMode
-                  ? 'border-indigo-400 text-indigo-400'
-                  : 'border-indigo-600 text-indigo-700'
+                ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
                 : darkMode
-                  ? 'border-transparent text-slate-400 hover:text-slate-200'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'text-slate-300 hover:bg-slate-800'
+                : 'text-slate-700 hover:bg-slate-100'
             }`}
           >
-            <Layers className="w-4 h-4" />
-            <span>Visão Geral (Matriz Completa)</span>
+            <Layers className="w-3.5 h-3.5" />
+            <span>Matriz Completa</span>
           </button>
         </div>
       )}
