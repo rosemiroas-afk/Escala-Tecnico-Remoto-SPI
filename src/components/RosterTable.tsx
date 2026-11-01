@@ -414,7 +414,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                   <td className="sticky left-0 z-20 bg-white dark:bg-slate-900 group-hover:bg-indigo-50/30 dark:group-hover:bg-slate-800 px-3 py-1.5 border-r border-slate-200 dark:border-slate-800 shadow-xs">
                     <div className="flex items-center justify-between gap-1">
                       <div className="truncate max-w-[165px]">
-                        <span className="font-bold text-slate-800 dark:text-slate-100 block text-xs truncate">
+                        <span className="font-normal text-slate-800 dark:text-slate-100 block text-xs truncate">
                           {tech.name}
                         </span>
                         <span className={`inline-block text-[9px] px-1.5 py-0.1 rounded-md font-bold border ${dddConfig?.badge || 'bg-slate-100'}`}>
@@ -572,7 +572,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                     {item.shortLabel}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[11px] font-bold truncate leading-tight text-black">
+                    <div className="text-[11px] font-normal truncate leading-tight text-black">
                       {item.label}
                     </div>
                   </div>
@@ -621,7 +621,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                 {item.shortLabel}
               </span>
               <div className="min-w-0 flex-1">
-                <div className="font-extrabold text-xs truncate text-black">
+                <div className="font-normal text-xs truncate text-black">
                   {item.label}
                 </div>
               </div>

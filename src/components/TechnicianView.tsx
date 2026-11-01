@@ -138,7 +138,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                   <select
                     value={selectedTechId}
                     onChange={e => setSelectedTechId(e.target.value)}
-                    className="text-base font-bold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 min-w-[280px]"
+                    className="text-base font-normal text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 min-w-[280px]"
                   >
                     {[...activeTechs]
                       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
@@ -316,8 +316,8 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div>
-              <h3 className="text-base font-bold text-slate-800 dark:text-white">
-                Calendário da Escala - {currentTech.name}
+              <h3 className="text-base font-semibold text-slate-800 dark:text-white">
+                Calendário da Escala - <span className="font-normal">{currentTech.name}</span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {isAdmin
@@ -378,7 +378,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                       {shiftDef.shortLabel}
                     </span>
 
-                    <span className="text-[10px] font-bold truncate text-black dark:text-white">
+                    <span className="text-[10px] font-normal truncate text-black dark:text-white">
                       {shiftDef.label}
                     </span>
 

@@ -32,7 +32,7 @@ import { supabase } from './supabase';
 
 const STORAGE_KEY_TECHS = 'escalamaster_techs_v4';
 const STORAGE_KEY_PERIOD = 'escalamaster_period_v2';
-const STORAGE_KEY_SCHEDULE = 'escalamaster_schedule_v5';
+const STORAGE_KEY_SCHEDULE = 'escalamaster_schedule_v6';
 const STORAGE_KEY_REQUESTS = 'escalamaster_requests_v2';
 const STORAGE_KEY_USERS = 'escalamaster_users_v2';
 const STORAGE_KEY_AUTH_USER = 'escalamaster_auth_user_v2';
@@ -918,12 +918,15 @@ export default function App() {
     if (!window.confirm('Deseja restaurar a Escala Oficial Padrão (Novembro e Dezembro de 2026)?')) {
       return;
     }
-    const sortedTechs = [...OFFICIAL_TECHNICIANS].sort((a, b) => a.name.localeCompare(b.name));
+    const sortedTechs = [...OFFICIAL_TECHNICIANS].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     setTechnicians(sortedTechs);
     const newSchedules: Record<string, TechnicianSchedule> = {};
 
     for (const tech of sortedTechs) {
-      const techShifts = OFFICIAL_SHIFTS_BY_TECH_NAME[tech.name] || {};
+      const techShifts = OFFICIAL_SHIFTS_BY_TECH_NAME[tech.id] ||
+                         OFFICIAL_SHIFTS_BY_TECH_NAME[tech.name] ||
+                         OFFICIAL_SHIFTS_BY_TECH_NAME[tech.name.toUpperCase()] ||
+                         {};
       newSchedules[tech.id] = { technicianId: tech.id, days: {} };
 
       for (const [dateStr, shiftCode] of Object.entries(techShifts)) {
