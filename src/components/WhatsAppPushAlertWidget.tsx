@@ -25,11 +25,21 @@ export const WhatsAppPushAlertWidget: React.FC<WhatsAppPushAlertWidgetProps> = (
 
   const impendingOffs = findImpendingOffs(technicians, schedules, selectedDate);
 
+  const getFullPhoneNumber = (tech: Technician): string => {
+    if (!tech.phone) return '';
+    const raw = tech.phone.replace(/\D/g, '');
+    if (!raw) return '';
+    if (raw.length <= 9) {
+      return `${tech.ddd}${raw}`;
+    }
+    return raw;
+  };
+
   const handleSendWhatsApp = (tech: Technician, date: string, label: string) => {
     const msg = generateWhatsAppReminderMessage(tech, date, label);
-    const cleanPhone = tech.phone ? tech.phone.replace(/\D/g, '') : '';
-    const url = cleanPhone
-      ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(msg)}`
+    const fullPhone = getFullPhoneNumber(tech);
+    const url = fullPhone
+      ? `https://wa.me/55${fullPhone}?text=${encodeURIComponent(msg)}`
       : `https://wa.me/?text=${encodeURIComponent(msg)}`;
 
     window.open(url, '_blank');
@@ -39,9 +49,9 @@ export const WhatsAppPushAlertWidget: React.FC<WhatsAppPushAlertWidgetProps> = (
   const handleSendAll = () => {
     impendingOffs.forEach(item => {
       const msg = generateWhatsAppReminderMessage(item.technician, item.date, item.shiftLabel);
-      const cleanPhone = item.technician.phone ? item.technician.phone.replace(/\D/g, '') : '';
-      if (cleanPhone) {
-        window.open(`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+      const fullPhone = getFullPhoneNumber(item.technician);
+      if (fullPhone) {
+        window.open(`https://wa.me/55${fullPhone}?text=${encodeURIComponent(msg)}`, '_blank');
       }
     });
     const updated: Record<string, boolean> = {};

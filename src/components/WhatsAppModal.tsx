@@ -48,12 +48,15 @@ export const WhatsAppModal: React.FC<WhatsAppModalProps> = ({
   };
 
   const handleOpenWhatsApp = () => {
-    let cleanPhone = '';
+    let fullPhone = '';
     if (tab === 'individual' && currentTech?.phone) {
-      cleanPhone = currentTech.phone.replace(/\D/g, '');
+      const cleanPhone = currentTech.phone.replace(/\D/g, '');
+      if (cleanPhone) {
+        fullPhone = cleanPhone.length <= 9 ? `${currentTech.ddd}${cleanPhone}` : cleanPhone;
+      }
     }
-    const url = cleanPhone
-      ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(messageText)}`
+    const url = fullPhone
+      ? `https://wa.me/55${fullPhone}?text=${encodeURIComponent(messageText)}`
       : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
     window.open(url, '_blank');
   };

@@ -99,8 +99,9 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   const handleOpenWhatsApp = () => {
     const text = generateIndividualWhatsAppMessage(currentTech, currentSched, dates, period, offRequests);
     const cleanPhone = currentTech.phone ? currentTech.phone.replace(/\D/g, '') : '';
-    const url = cleanPhone
-      ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(text)}`
+    const fullPhone = cleanPhone ? (cleanPhone.length <= 9 ? `${currentTech.ddd}${cleanPhone}` : cleanPhone) : '';
+    const url = fullPhone
+      ? `https://wa.me/55${fullPhone}?text=${encodeURIComponent(text)}`
       : `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };

@@ -30,7 +30,7 @@ import { PendingRequestsNotificationWidget } from './components/PendingRequestsN
 import { WhatsAppPushAlertWidget } from './components/WhatsAppPushAlertWidget';
 import { supabase } from './supabase';
 
-const STORAGE_KEY_TECHS = 'escalamaster_techs_v2';
+const STORAGE_KEY_TECHS = 'escalamaster_techs_v4';
 const STORAGE_KEY_PERIOD = 'escalamaster_period_v2';
 const STORAGE_KEY_SCHEDULE = 'escalamaster_schedule_v5';
 const STORAGE_KEY_REQUESTS = 'escalamaster_requests_v2';
@@ -85,20 +85,34 @@ export default function App() {
     };
   });
 
-  // 2. Technicians State
+  // 2. Technicians State: Loaded and synchronized with official list
   const [technicians, setTechnicians] = useState<Technician[]>(() => {
+    const officialMapById = new Map<string, Technician>(OFFICIAL_TECHNICIANS.map(t => [t.id, t]));
     try {
       const saved = localStorage.getItem(STORAGE_KEY_TECHS);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return [...parsed].sort((a: Technician, b: Technician) => a.name.localeCompare(b.name));
+          const updated = parsed.map((t: Technician) => {
+            const official = officialMapById.get(t.id);
+            if (official) {
+              return {
+                ...t,
+                name: official.name,
+                ddd: official.ddd,
+                phone: official.phone,
+                shiftHours: official.shiftHours
+              };
+            }
+            return t;
+          });
+          return [...updated].sort((a: Technician, b: Technician) => a.name.localeCompare(b.name, 'pt-BR'));
         }
       }
     } catch (e) {
       console.error('Failed reading techs from localStorage', e);
     }
-    return [...OFFICIAL_TECHNICIANS].sort((a, b) => a.name.localeCompare(b.name));
+    return [...OFFICIAL_TECHNICIANS].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   });
 
   // 3. User Accounts with PIN (Default 1234)
@@ -222,7 +236,10 @@ export default function App() {
   const getOfficialScheduleMap = (): Record<string, TechnicianSchedule> => {
     const officialSched: Record<string, TechnicianSchedule> = {};
     for (const tech of OFFICIAL_TECHNICIANS) {
-      const techShifts = OFFICIAL_SHIFTS_BY_TECH_NAME[tech.name] || {};
+      const techShifts = OFFICIAL_SHIFTS_BY_TECH_NAME[tech.id] ||
+                         OFFICIAL_SHIFTS_BY_TECH_NAME[tech.name] ||
+                         OFFICIAL_SHIFTS_BY_TECH_NAME[tech.name.toUpperCase()] ||
+                         {};
       officialSched[tech.id] = { technicianId: tech.id, days: {} };
       for (const [dateStr, shiftCode] of Object.entries(techShifts)) {
         officialSched[tech.id].days[dateStr] = {
@@ -785,6 +802,28 @@ export default function App() {
       // Index existing technicians by normalized name
       for (const t of updatedTechs) {
         techMapByName.set(normalizeName(t.name), t);
+      }
+
+      // Also register known official aliases
+      const aliasPairs: [string, string][] = [
+        ['AYRTON CESAR DOS SANTOS PEREIRA', 'Ayrton Cesar S. Pereira'],
+        ['CARLOS SERGIO DE OLIVETRA', 'Carlos Sergio de Oliveira'],
+        ['EWANDER DA SILVA CARVALHO', 'Ewander da S. Carvalho'],
+        ['EWANDRO MOURA FE', 'Ewandro Moura Fé'],
+        ['GERSAM BERNARDO DE OLIVEIRA', 'Gersam B. de Oliveira'],
+        ['GUSTAVO DONIZETI CARETTE', 'Gustavo D. Carette'],
+        ['GUSTAVO HENRIQUE MENDES DE ALMEIDA', 'Gustavo H. M. de Almeida'],
+        ['HENRIQUE SODRE DE ALMEIDA', 'Henrique Sodré de Almeida'],
+        ['LEONARDO TEIXEIRA DO NASCIMENTO', 'Leonardo T. do Nascimento'],
+        ['ODIRLEI SILVEIRA DE CAMPOS', 'Odirlei S. de Campos'],
+        ['RODRIGO FERREIRA ALBUQUERQUE', 'Rodrigo F. Albuquerque'],
+        ['ROGERIO SOUZA DE SANTOS', 'Rogerio Souza dos Santos']
+      ];
+      for (const [alias, realName] of aliasPairs) {
+        const found = updatedTechs.find(t => t.name === realName);
+        if (found) {
+          techMapByName.set(normalizeName(alias), found);
+        }
       }
 
       const findTech = (name: string): Technician | undefined => {

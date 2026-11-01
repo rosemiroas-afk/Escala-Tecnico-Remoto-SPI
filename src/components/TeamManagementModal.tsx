@@ -35,7 +35,7 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
 
     const newTech: Technician = {
       id: `tech-${newDDD}-${Date.now()}`,
-      name: newName.trim().toUpperCase(),
+      name: newName.trim(),
       ddd: newDDD,
       active: true,
       phone: newPhone.trim() || undefined
@@ -57,7 +57,7 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
     onUpdateTechnicians(
       technicians.map(t =>
         t.id === id
-          ? { ...t, name: editName.trim().toUpperCase(), ddd: editDDD, phone: editPhone.trim() || undefined }
+          ? { ...t, name: editName.trim(), ddd: editDDD, phone: editPhone.trim() || undefined }
           : t
       )
     );
@@ -262,8 +262,12 @@ export const TeamManagementModal: React.FC<TeamManagementModalProps> = ({
                         <span className="font-semibold text-slate-800 text-xs block">
                           {tech.name}
                         </span>
-                        {tech.phone && (
-                          <span className="text-[11px] text-slate-500">{tech.phone}</span>
+                        {tech.phone ? (
+                          <span className="text-[11px] text-slate-500 font-mono">
+                            {tech.phone.startsWith('(') ? tech.phone : `(${tech.ddd}) ${tech.phone}`}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 italic">Sem telefone</span>
                         )}
                       </div>
                     </div>
