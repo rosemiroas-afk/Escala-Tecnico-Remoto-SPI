@@ -22,12 +22,28 @@ export function findImpendingOffs(
     if (!techSched || !techSched.days) continue;
 
     const dayInfo = techSched.days[targetDateStr];
+    // Rule: Exclude technicians on vacation (FR) from 24h WhatsApp notification list
     if (dayInfo && isOffShift(dayInfo.shift)) {
+      if (dayInfo.shift === 'FR' || dayInfo.shift === 'FE') {
+        continue;
+      }
+      let label = 'Folga Regular';
+      if (dayInfo.shift === 'FD') label = 'Folga Duplada';
+      else if (dayInfo.shift === 'FN') label = 'Feriado Nacional';
+      else if (dayInfo.shift === 'FB') label = 'Folga Banco';
+      else if (dayInfo.shift === 'FP') label = 'Folga Parcial';
+      else if (dayInfo.shift === 'FC') label = 'Folga Compensada';
+      else if (dayInfo.shift === 'FM') label = 'Folga Municipal';
+      else if (dayInfo.shift === 'LIC' || dayInfo.shift === 'LI') label = 'Licença / Afastado';
+      else if (dayInfo.shift === 'A') label = 'Afastado';
+      else if (dayInfo.shift === 'LP') label = 'Licença';
+      else if (dayInfo.shift === 'TR') label = 'Treinamento';
+
       result.push({
         technician: tech,
         date: targetDateStr,
         shiftType: dayInfo.shift,
-        shiftLabel: dayInfo.shift === 'FD' ? 'Folga Duplada' : dayInfo.shift === 'FR' ? 'Férias' : dayInfo.shift === 'FN' ? 'Feriado Nacional' : dayInfo.shift === 'FB' ? 'Folga Banco' : 'Folga Regular'
+        shiftLabel: label
       });
     }
   }

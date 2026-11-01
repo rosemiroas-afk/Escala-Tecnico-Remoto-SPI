@@ -82,6 +82,9 @@ export const WhatsAppPushAlertWidget: React.FC<WhatsAppPushAlertWidgetProps> = (
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Envie lembretes automáticos via WhatsApp para os técnicos que folgam na data selecionada.
+              <span className="ml-1 text-emerald-600 dark:text-emerald-400 font-semibold">
+                (Colaboradores com status FR / Férias não recebem aviso e são ocultados automaticamente).
+              </span>
             </p>
           </div>
         </div>
