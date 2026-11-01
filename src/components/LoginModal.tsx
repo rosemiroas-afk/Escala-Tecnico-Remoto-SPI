@@ -142,15 +142,26 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   }}
                   className="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-3 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-800 transition-all"
                 >
-                  <option value="admin">Administrador Geral</option>
-                  {[...technicians]
-                    .filter(t => t.active)
-                    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
-                    .map(t => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
+                  <optgroup label="Administração e Gestão">
+                    <option value="admin">Administrador Geral</option>
+                    {users
+                      .filter(u => u.role === 'viewer')
+                      .map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} (Visualizador - Dashboard & Matriz)
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="Técnicos de Campo (Escala SPI)">
+                    {[...technicians]
+                      .filter(t => t.active)
+                      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+                      .map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} (DDD {t.ddd})
+                        </option>
+                      ))}
+                  </optgroup>
                 </select>
               </div>
 

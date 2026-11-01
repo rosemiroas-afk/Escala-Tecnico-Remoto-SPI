@@ -19,7 +19,9 @@ import {
   Shield,
   Moon,
   Sun,
-  Bell
+  Bell,
+  BarChart3,
+  Eye
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -28,11 +30,11 @@ interface HeaderProps {
   auditResult: AuditResult;
   offRequestsCount: number;
   pendingRequestsCount?: number;
-  activeTab: 'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push';
+  activeTab: 'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics';
   currentUser: AppUser | null;
   darkMode: boolean;
   onToggleDarkMode: () => void;
-  onSelectTab: (tab: 'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push') => void;
+  onSelectTab: (tab: 'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics') => void;
   onOpenGenerator: () => void;
   onOpenRequests: () => void;
   onOpenTeam: () => void;
@@ -64,6 +66,8 @@ export const Header: React.FC<HeaderProps> = ({
 
   const periodLabel = `${MONTHS_PT[period.startMonth]} e ${MONTHS_PT[nextMonth]} de ${startYear === nextYear ? startYear : `${startYear}/${nextYear}`}`;
   const isAdmin = currentUser?.role === 'admin';
+  const isViewer = currentUser?.role === 'viewer';
+  const isTechnician = currentUser?.role === 'technician';
   const hasIssues = auditResult.issues.length > 0;
 
   return (
@@ -124,14 +128,31 @@ export const Header: React.FC<HeaderProps> = ({
               ? darkMode
                 ? 'bg-purple-950/60 text-purple-200 border-purple-800'
                 : 'bg-purple-50 text-purple-900 border-purple-200'
+              : isViewer
+              ? darkMode
+                ? 'bg-blue-950/60 text-blue-200 border-blue-800'
+                : 'bg-blue-50 text-blue-900 border-blue-200'
               : darkMode
                 ? 'bg-indigo-950/60 text-indigo-200 border-indigo-800'
                 : 'bg-indigo-50 text-indigo-900 border-indigo-200'
           }`}>
-            {isAdmin ? <Shield className="w-3.5 h-3.5 text-purple-400" /> : <UserIcon className="w-3.5 h-3.5 text-indigo-400" />}
-            <span className="truncate max-w-[160px]">
+            {isAdmin ? (
+              <Shield className="w-3.5 h-3.5 text-purple-400" />
+            ) : isViewer ? (
+              <Eye className="w-3.5 h-3.5 text-blue-500" />
+            ) : (
+              <UserIcon className="w-3.5 h-3.5 text-indigo-400" />
+            )}
+            <span className="truncate max-w-[170px]">
               {isAdmin ? 'Administrador' : currentUser?.name}
             </span>
+            {isViewer && (
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                darkMode ? 'bg-blue-900 text-blue-200' : 'bg-blue-200 text-blue-900'
+              }`}>
+                Visualizador
+              </span>
+            )}
             {currentUser?.ddd && (
               <span className={`text-[10px] px-1.5 rounded-full font-bold ${
                 darkMode ? 'bg-indigo-800 text-indigo-100' : 'bg-indigo-200 text-indigo-900'
@@ -243,8 +264,8 @@ export const Header: React.FC<HeaderProps> = ({
             </>
           )}
 
-          {/* Technician Controls */}
-          {!isAdmin && (
+          {/* Technician Controls (Strictly for Technicians) */}
+          {isTechnician && (
             <>
               <button
                 onClick={onOpenRequests}
@@ -395,6 +416,61 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Bell className="w-4 h-4 text-emerald-500" />
             <span>Notificações WhatsApp (24h)</span>
+          </button>
+
+          <button
+            onClick={() => onSelectTab('analytics')}
+            className={`py-2.5 px-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer shrink-0 ${
+              activeTab === 'analytics'
+                ? darkMode
+                  ? 'border-indigo-400 text-indigo-400'
+                  : 'border-indigo-600 text-indigo-700'
+                : darkMode
+                  ? 'border-transparent text-slate-400 hover:text-slate-200'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 text-indigo-500" />
+            <span>Dashboard & Análises</span>
+          </button>
+        </div>
+      )}
+
+      {/* Navigation Tabs - STRICTLY for Viewer (William Rosalini Laiate): Dashboard & Análises and Matriz Completa ONLY */}
+      {isViewer && (
+        <div className={`max-w-7xl mx-auto px-4 sm:px-6 flex items-center gap-2 border-t overflow-x-auto ${
+          darkMode ? 'border-slate-800' : 'border-slate-100'
+        }`}>
+          <button
+            onClick={() => onSelectTab('analytics')}
+            className={`py-2.5 px-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer shrink-0 ${
+              activeTab === 'analytics'
+                ? darkMode
+                  ? 'border-indigo-400 text-indigo-400'
+                  : 'border-indigo-600 text-indigo-700'
+                : darkMode
+                  ? 'border-transparent text-slate-400 hover:text-slate-200'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 text-indigo-500" />
+            <span>Dashboard & Análises</span>
+          </button>
+
+          <button
+            onClick={() => onSelectTab('matrix')}
+            className={`py-2.5 px-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer shrink-0 ${
+              activeTab === 'matrix'
+                ? darkMode
+                  ? 'border-indigo-400 text-indigo-400'
+                  : 'border-indigo-600 text-indigo-700'
+                : darkMode
+                  ? 'border-transparent text-slate-400 hover:text-slate-200'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            <span>Visão Geral (Matriz Completa)</span>
           </button>
         </div>
       )}

@@ -294,7 +294,7 @@ export interface GeneratorOptions {
   randomSeed?: number;
 }
 
-export type UserRole = 'admin' | 'technician';
+export type UserRole = 'admin' | 'technician' | 'viewer';
 
 export interface AppUser {
   id: string; // 'admin' or technicianId

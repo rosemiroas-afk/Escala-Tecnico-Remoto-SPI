@@ -3,7 +3,7 @@ import { Technician, TechnicianSchedule, ShiftType, SHIFT_TYPES, OFFICIAL_LEGEND
 import { formatDisplayDate, parseDateKey, isSaturday, isSunday, MONTHS_PT } from '../utils/dateUtils';
 import { AuditResult, isOffShift, isWorkingShift } from '../utils/validator';
 import { DDD_INFO } from '../data/defaultTechnicians';
-import { Filter, Search, AlertTriangle, Star, Trash2, Check, FileSpreadsheet, X, HelpCircle, Upload, RotateCcw } from 'lucide-react';
+import { Filter, Search, AlertTriangle, Star, Trash2, Check, FileSpreadsheet, X, HelpCircle, Upload, RotateCcw, Eye } from 'lucide-react';
 
 interface RosterTableProps {
   technicians: Technician[];
@@ -18,6 +18,7 @@ interface RosterTableProps {
   onSave?: () => void;
   onLoadOfficialSchedule?: () => void;
   onUploadScheduleFile?: (file: File) => void;
+  readOnly?: boolean;
 }
 
 interface ActiveCellPicker {
@@ -41,7 +42,8 @@ export const RosterTable: React.FC<RosterTableProps> = ({
   onClearSchedule,
   onSave,
   onLoadOfficialSchedule,
-  onUploadScheduleFile
+  onUploadScheduleFile,
+  readOnly = false
 }) => {
   const [selectedDDD, setSelectedDDD] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -121,6 +123,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
   }
 
   const handleCellClick = (e: React.MouseEvent, tech: Technician, date: string, currentShift: ShiftType) => {
+    if (readOnly) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
@@ -208,58 +211,67 @@ export const RosterTable: React.FC<RosterTableProps> = ({
 
         {/* Search, Clear & Save Roster */}
         <div className="flex items-center gap-2">
-          {/* Hidden File Input for CSV/Text Upload */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept=".csv,.txt,.tsv"
-            className="hidden"
-          />
+          {readOnly ? (
+            <div className="px-3 py-1.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+              <Eye className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Modo Somente Leitura (Sem edição)</span>
+            </div>
+          ) : (
+            <>
+              {/* Hidden File Input for CSV/Text Upload */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".csv,.txt,.tsv"
+                className="hidden"
+              />
 
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-            title="Importar Escala da Planilha (Selecione arquivo CSV ou Texto longo do seu computador)"
-          >
-            <Upload className="w-3.5 h-3.5 text-white" />
-            <span>Escala da Planilha</span>
-          </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                title="Importar Escala da Planilha (Selecione arquivo CSV ou Texto longo do seu computador)"
+              >
+                <Upload className="w-3.5 h-3.5 text-white" />
+                <span>Escala da Planilha</span>
+              </button>
 
-          {onLoadOfficialSchedule && (
-            <button
-              onClick={onLoadOfficialSchedule}
-              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-              title="Restaurar a Escala Oficial caso tenha limpado ou alterado por engano"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span>Restaurar Escala Oficial</span>
-            </button>
+              {onLoadOfficialSchedule && (
+                <button
+                  onClick={onLoadOfficialSchedule}
+                  className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  title="Restaurar a Escala Oficial caso tenha limpado ou alterado por engano"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Restaurar Escala Oficial</span>
+                </button>
+              )}
+
+              {onClearSchedule && (
+                <button
+                  onClick={onClearSchedule}
+                  className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Limpar toda a escala gerada"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                  <span>Limpar Escala</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  if (window.confirm('Deseja salvar todas as alterações na escala?')) {
+                    onSave?.();
+                  }
+                }}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                title="Salvar alterações no Supabase"
+              >
+                <Check className="w-3.5 h-3.5 text-white" />
+                <span>Salvar Escala</span>
+              </button>
+            </>
           )}
-
-          {onClearSchedule && (
-            <button
-              onClick={onClearSchedule}
-              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-              title="Limpar toda a escala gerada"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-              <span>Limpar Escala</span>
-            </button>
-          )}
-
-          <button
-            onClick={() => {
-              if (window.confirm('Deseja salvar todas as alterações na escala?')) {
-                onSave?.();
-              }
-            }}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-            title="Salvar alterações no Supabase"
-          >
-            <Check className="w-3.5 h-3.5 text-white" />
-            <span>Salvar Escala</span>
-          </button>
 
           <div className="relative min-w-[220px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -484,9 +496,15 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                       return (
                       <td
                         key={dateKey}
-                        onClick={(e) => handleCellClick(e, tech, dateKey, (shift === '-' ? 'TB' : shift) as ShiftType)}
-                        className={`p-0.5 text-center border-r border-slate-100 dark:border-slate-800 cursor-pointer transition-all relative hover:ring-2 hover:ring-indigo-500 hover:z-10 ${cellBg}`}
-                        title={`${tech.name} - ${formatDisplayDate(dateKey)}: ${shift} - Clique para alterar a escala`}
+                        onClick={readOnly ? undefined : (e) => handleCellClick(e, tech, dateKey, (shift === '-' ? 'TB' : shift) as ShiftType)}
+                        className={`p-0.5 text-center border-r border-slate-100 dark:border-slate-800 transition-all relative ${
+                          readOnly ? 'cursor-default' : 'cursor-pointer hover:ring-2 hover:ring-indigo-500 hover:z-10'
+                        } ${cellBg}`}
+                        title={
+                          readOnly
+                            ? `${tech.name} - ${formatDisplayDate(dateKey)}: ${shift}`
+                            : `${tech.name} - ${formatDisplayDate(dateKey)}: ${shift} - Clique para alterar a escala`
+                        }
                       >
                         <div className="w-full h-7 flex items-center justify-center relative">
                           <span
@@ -498,11 +516,13 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                           {/* Indicator for Off Request */}
                           {offReq && (
                             <div
-                              onClick={(e) => {
+                              onClick={readOnly ? undefined : (e) => {
                                 e.stopPropagation();
                                 onOpenRequests(tech.id);
                               }}
-                              className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-white dark:border-slate-900 cursor-pointer ${
+                              className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-white dark:border-slate-900 ${
+                                readOnly ? 'cursor-default' : 'cursor-pointer'
+                              } ${
                                 offReq.status === 'atendido' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
                               }`}
                               title={
@@ -630,7 +650,11 @@ export const RosterTable: React.FC<RosterTableProps> = ({
         </div>
 
         <div className="text-[11px] text-slate-500 dark:text-slate-400 text-center sm:text-left">
-          💡 Para alterar a escala de qualquer colaborador em qualquer dia, basta <strong>clicar sobre a célula do dia</strong> na tabela e escolher a opção desejada.
+          {readOnly ? (
+            <span>🔒 <strong>Modo Somente Leitura:</strong> Esta conta possui acesso exclusivo de visualização da matriz e do dashboard de análises. Nenhuma alteração na escala é permitida.</span>
+          ) : (
+            <span>💡 Para alterar a escala de qualquer colaborador em qualquer dia, basta <strong>clicar sobre a célula do dia</strong> na tabela e escolher a opção desejada.</span>
+          )}
         </div>
       </div>
     </div>

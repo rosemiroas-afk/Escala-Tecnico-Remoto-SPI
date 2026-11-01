@@ -28,6 +28,7 @@ import { LoginModal } from './components/LoginModal';
 import { AdminPendingAlert } from './components/AdminPendingAlert';
 import { PendingRequestsNotificationWidget } from './components/PendingRequestsNotificationWidget';
 import { WhatsAppPushAlertWidget } from './components/WhatsAppPushAlertWidget';
+import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { supabase } from './supabase';
 
 const STORAGE_KEY_TECHS = 'escalamaster_techs_v4';
@@ -121,18 +122,40 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEY_USERS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const hasWilliam = parsed.some((u: any) => u.id === 'william-laiate');
+          if (!hasWilliam) {
+            parsed.push({
+              id: 'william-laiate',
+              name: 'William Rosalini Laiate',
+              role: 'viewer',
+              pin: '1234',
+              primeiro_acesso: true,
+              isFirstLogin: true
+            });
+          }
+          return parsed;
+        }
       }
     } catch (e) {
       console.error('Failed reading users from localStorage', e);
     }
 
-    // Default accounts: 1 Admin + 1 for each Technician
+    // Default accounts: 1 Admin + William Rosalini Laiate (Viewer) + 1 for each Technician
     const adminUser: AppUser = {
       id: 'admin',
       name: 'Administrador / Gestor Geral',
       role: 'admin',
       pin: '1234',
+      isFirstLogin: true
+    };
+
+    const williamUser: AppUser = {
+      id: 'william-laiate',
+      name: 'William Rosalini Laiate',
+      role: 'viewer',
+      pin: '1234',
+      primeiro_acesso: true,
       isFirstLogin: true
     };
 
@@ -146,7 +169,7 @@ export default function App() {
       ddd: t.ddd
     }));
 
-    return [adminUser, ...techUsers];
+    return [adminUser, williamUser, ...techUsers];
   });
 
   // Keep users list in sync with any technician additions or removals
@@ -159,6 +182,15 @@ export default function App() {
         name: 'Administrador / Gestor Geral',
         role: 'admin',
         pin: '1234',
+        isFirstLogin: true
+      };
+
+      const william = existingUserMap.get('william-laiate') || {
+        id: 'william-laiate',
+        name: 'William Rosalini Laiate',
+        role: 'viewer',
+        pin: '1234',
+        primeiro_acesso: true,
         isFirstLogin: true
       };
 
@@ -184,7 +216,7 @@ export default function App() {
         };
       });
 
-      return [admin, ...techUsers];
+      return [admin, william, ...techUsers];
     });
     // Note: Initial sync and real-time updates are handled by Supabase
   }, [technicians]); // Removed setUsers dependency to prevent loops, but keep technicians as dependency
@@ -282,7 +314,7 @@ export default function App() {
   });
 
   // Active View Tab: For technicians, always 'individual'
-  const [activeTab, setActiveTab] = useState<'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push'>('matrix');
+  const [activeTab, setActiveTab] = useState<'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics'>('matrix');
 
   // Modals
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
@@ -393,13 +425,22 @@ export default function App() {
         if (usersData && Array.isArray(usersData) && !usersError) {
           const userMap = new Map<string, any>(usersData.map((u: any) => [u.id, u]));
 
-          // Check if admin and default technicians exist in Supabase usuarios
+          // Check if admin, William (viewer), and default technicians exist in Supabase usuarios
           const missingToSeed: any[] = [];
           if (!userMap.has('admin')) {
             missingToSeed.push({
               id: 'admin',
               nome: 'Administrador / Gestor Geral',
               role: 'admin',
+              pin: '1234',
+              primeiro_acesso: true
+            });
+          }
+          if (!userMap.has('william-laiate')) {
+            missingToSeed.push({
+              id: 'william-laiate',
+              nome: 'William Rosalini Laiate',
+              role: 'viewer',
               pin: '1234',
               primeiro_acesso: true
             });
@@ -430,15 +471,25 @@ export default function App() {
 
               combinedMap.set(row.id, {
                 id: row.id,
-                name: row.nome || row.name || existing?.name || 'Colaborador',
-                role: row.role === 'tecnico' ? 'technician' : (row.role || 'admin'),
+                name: row.nome || row.name || existing?.name || (row.id === 'william-laiate' ? 'William Rosalini Laiate' : 'Colaborador'),
+                role: row.role === 'tecnico' ? 'technician' : row.role === 'viewer' ? 'viewer' : (row.role || 'technician'),
                 pin: pinVal,
                 primeiro_acesso: primeiroAcesso,
                 isFirstLogin: primeiroAcesso,
-                technicianId: row.id !== 'admin' ? row.id : undefined,
+                technicianId: (row.id !== 'admin' && row.id !== 'william-laiate') ? row.id : undefined,
                 ddd: existing?.ddd
               });
             });
+            if (!combinedMap.has('william-laiate')) {
+              combinedMap.set('william-laiate', {
+                id: 'william-laiate',
+                name: 'William Rosalini Laiate',
+                role: 'viewer',
+                pin: '1234',
+                primeiro_acesso: true,
+                isFirstLogin: true
+              });
+            }
             return Array.from(combinedMap.values());
           });
         }
@@ -541,7 +592,7 @@ export default function App() {
           setUsers(prev => prev.map(u => u.id === row.id ? {
             ...u,
             name: row.nome || row.name || u.name,
-            role: row.role === 'tecnico' ? 'technician' : (row.role || u.role),
+            role: row.role === 'tecnico' ? 'technician' : row.role === 'viewer' ? 'viewer' : (row.role || u.role),
             pin: String(row.pin || u.pin),
             primeiro_acesso: row.primeiro_acesso ?? false,
             isFirstLogin: row.primeiro_acesso ?? false
@@ -572,6 +623,8 @@ export default function App() {
     setCurrentUser(user);
     if (user.role === 'technician') {
       setActiveTab('individual');
+    } else if (user.role === 'viewer') {
+      setActiveTab('analytics');
     } else {
       setActiveTab('matrix');
       const pending = offRequests.filter(r => r.status === 'pendente');
@@ -1010,6 +1063,8 @@ export default function App() {
   }, [technicians, offRequests, period]);
 
   const isAdmin = currentUser?.role === 'admin';
+  const isViewer = currentUser?.role === 'viewer';
+  const isTechnician = currentUser?.role === 'technician';
 
   // Handler: Save all changes to Supabase cloud
   const handleSave = useCallback(async () => {
@@ -1042,7 +1097,7 @@ export default function App() {
       const userRows = users.map(u => ({
         id: u.id,
         nome: u.name,
-        role: u.role === 'technician' ? 'tecnico' : u.role,
+        role: u.role === 'technician' ? 'tecnico' : u.role === 'viewer' ? 'viewer' : u.role,
         pin: u.pin,
         primeiro_acesso: u.primeiro_acesso ?? u.isFirstLogin ?? false
       }));
@@ -1143,7 +1198,7 @@ export default function App() {
         )}
 
         {/* If user is a technician, they strictly see only their individual view! */}
-        {!isAdmin && (
+        {isTechnician && (
           <TechnicianView
             technicians={technicians}
             schedules={schedules}
@@ -1156,6 +1211,37 @@ export default function App() {
             onUpdateShift={handleUpdateShift}
             onOpenRequestsModal={handleOpenRequestsModal}
           />
+        )}
+
+        {/* If user is Viewer (William Rosalini Laiate): strictly Dashboard & Análises and Visão Geral (Matriz Completa - Read Only) */}
+        {isViewer && (
+          <>
+            {activeTab === 'matrix' && (
+              <RosterTable
+                technicians={technicians}
+                schedules={schedules}
+                dates={dates}
+                period={period}
+                auditResult={auditResult}
+                offRequests={offRequests}
+                onUpdateShift={() => {}}
+                onOpenRequests={() => {}}
+                readOnly={true}
+              />
+            )}
+
+            {activeTab === 'analytics' && (
+              <AnalyticsDashboard
+                technicians={technicians}
+                schedules={schedules}
+                dates={dates}
+                period={period}
+                auditResult={auditResult}
+                offRequests={offRequests}
+                darkMode={darkMode}
+              />
+            )}
+          </>
         )}
 
         {/* If user is Admin, they have access to the selected tab */}
@@ -1221,6 +1307,18 @@ export default function App() {
                 darkMode={darkMode}
               />
             )}
+
+            {activeTab === 'analytics' && (
+              <AnalyticsDashboard
+                technicians={technicians}
+                schedules={schedules}
+                dates={dates}
+                period={period}
+                auditResult={auditResult}
+                offRequests={offRequests}
+                darkMode={darkMode}
+              />
+            )}
           </>
         )}
       </main>
@@ -1258,7 +1356,7 @@ export default function App() {
       />
 
       <OffRequestsModal
-        isOpen={isRequestsOpen}
+        isOpen={isRequestsOpen && !isViewer}
         onClose={() => setIsRequestsOpen(false)}
         technicians={technicians}
         dates={dates}
@@ -1277,10 +1375,11 @@ export default function App() {
         technicians={technicians}
         onUpdateTechnicians={handleUpdateTechnicians}
         onResetUserPin={handleResetUserPin}
+        users={users}
       />
 
       <WhatsAppModal
-        isOpen={isWhatsAppOpen}
+        isOpen={isWhatsAppOpen && !isViewer}
         onClose={() => setIsWhatsAppOpen(false)}
         technicians={technicians}
         schedules={schedules}
