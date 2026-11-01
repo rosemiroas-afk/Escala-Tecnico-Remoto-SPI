@@ -48,12 +48,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    // Check if it's the first login with default PIN '1234'
-    const isFirstAccess = (currentUserData.primeiro_acesso !== undefined)
+    // Check if it's the first login with default PIN '1234' or primeiro_acesso
+    const pinVal = String(currentUserData.pin || '1234');
+    const isFirstAccess = pinVal === '1234' || (currentUserData.primeiro_acesso !== undefined
       ? currentUserData.primeiro_acesso
-      : (currentUserData.isFirstLogin ?? true);
+      : (currentUserData.isFirstLogin ?? true));
 
-    if (isFirstAccess && currentUserData.pin === '1234') {
+    if (isFirstAccess || pinVal === '1234') {
       setPendingUser(currentUserData);
       setIsChangingPassword(true);
       return;

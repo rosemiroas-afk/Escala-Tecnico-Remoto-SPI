@@ -388,13 +388,22 @@ export default function App() {
           setOffRequests(folgas.map(normalizeFolga));
         }
 
-        // B. Fetch Users from usuarios & seed missing technicians
+        // B. Fetch Users from usuarios & seed missing technicians and admin
         const { data: usersData, error: usersError } = await supabase.from('usuarios').select('*');
         if (usersData && Array.isArray(usersData) && !usersError) {
           const userMap = new Map<string, any>(usersData.map((u: any) => [u.id, u]));
 
-          // Check if default technicians exist in Supabase usuarios
+          // Check if admin and default technicians exist in Supabase usuarios
           const missingToSeed: any[] = [];
+          if (!userMap.has('admin')) {
+            missingToSeed.push({
+              id: 'admin',
+              nome: 'Administrador / Gestor Geral',
+              role: 'admin',
+              pin: '1234',
+              primeiro_acesso: true
+            });
+          }
           for (const tech of technicians) {
             if (!userMap.has(tech.id)) {
               missingToSeed.push({
@@ -415,13 +424,17 @@ export default function App() {
             const combinedMap = new Map<string, AppUser>(prev.map(u => [u.id, u]));
             usersData.forEach((row: any) => {
               const existing = combinedMap.get(row.id);
+              const pinVal = String(row.pin || '1234');
+              const isDefaultPin = pinVal === '1234';
+              const primeiroAcesso = row.primeiro_acesso !== undefined ? row.primeiro_acesso : isDefaultPin;
+
               combinedMap.set(row.id, {
                 id: row.id,
                 name: row.nome || row.name || existing?.name || 'Colaborador',
-                role: row.role === 'tecnico' ? 'technician' : (row.role || 'technician'),
-                pin: String(row.pin || '1234'),
-                primeiro_acesso: row.primeiro_acesso ?? true,
-                isFirstLogin: row.primeiro_acesso ?? true,
+                role: row.role === 'tecnico' ? 'technician' : (row.role || 'admin'),
+                pin: pinVal,
+                primeiro_acesso: primeiroAcesso,
+                isFirstLogin: primeiroAcesso,
                 technicianId: row.id !== 'admin' ? row.id : undefined,
                 ddd: existing?.ddd
               });

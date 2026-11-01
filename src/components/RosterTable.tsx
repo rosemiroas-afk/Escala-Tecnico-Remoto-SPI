@@ -229,11 +229,11 @@ export const RosterTable: React.FC<RosterTableProps> = ({
           {onLoadOfficialSchedule && (
             <button
               onClick={onLoadOfficialSchedule}
-              className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs"
-              title="Restaurar a Escala Padrão Oficial caso tenha limpado sem querer"
+              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+              title="Restaurar a Escala Oficial caso tenha limpado ou alterado por engano"
             >
-              <RotateCcw className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-              <span className="hidden sm:inline">Restaurar Padrão</span>
+              <RotateCcw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Restaurar Escala Oficial</span>
             </button>
           )}
 
