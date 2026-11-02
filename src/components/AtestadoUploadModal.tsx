@@ -38,6 +38,7 @@ export const AtestadoUploadModal: React.FC<AtestadoUploadModalProps> = ({
     dataUrl: string;
   } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -62,8 +63,6 @@ export const AtestadoUploadModal: React.FC<AtestadoUploadModalProps> = ({
     };
     reader.readAsDataURL(file);
   };
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
