@@ -520,15 +520,21 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                                 e.stopPropagation();
                                 onOpenRequests(tech.id);
                               }}
-                              className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-white dark:border-slate-900 ${
+                              className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border border-white dark:border-slate-900 shadow-2xs ${
                                 readOnly ? 'cursor-default' : 'cursor-pointer'
                               } ${
-                                offReq.status === 'atendido' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
+                                (offReq.status === 'aprovado' || offReq.status === 'atendido')
+                                  ? 'bg-emerald-500 ring-1 ring-emerald-300'
+                                  : (offReq.status === 'reprovado' || offReq.status === 'recusado')
+                                  ? 'bg-rose-500 ring-1 ring-rose-300'
+                                  : 'bg-amber-400 animate-pulse ring-1 ring-amber-200'
                               }`}
                               title={
-                                offReq.status === 'atendido'
-                                  ? `Folga Concedida: ${offReq.reasonCategory} - ${offReq.notes.join(', ')}`
-                                  : `Solicitação em Análise: ${offReq.reasonCategory} - ${offReq.notes.join(', ')}`
+                                (offReq.status === 'aprovado' || offReq.status === 'atendido')
+                                  ? `Folga Aprovada (Verde): ${offReq.reasonCategory} - ${offReq.notes.join(', ')}`
+                                  : (offReq.status === 'reprovado' || offReq.status === 'recusado')
+                                  ? `Folga Reprovada (Vermelha): ${offReq.reasonCategory} - ${offReq.notes.join(', ')}`
+                                  : `Solicitação em Análise (Amarela): ${offReq.reasonCategory} - ${offReq.notes.join(', ')}`
                               }
                             />
                           )}

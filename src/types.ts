@@ -236,7 +236,7 @@ export interface OffRequest {
   notes: string[]; // N observações para o mesmo dia
   priority: 'alta' | 'media' | 'baixa';
   createdAt: string;
-  status: 'pendente' | 'aprovado' | 'atendido' | 'recusado' | 'parcial' | 'conflito';
+  status: 'pendente' | 'aprovado' | 'atendido' | 'recusado' | 'reprovado' | 'parcial' | 'conflito';
 }
 
 export interface DaySchedule {

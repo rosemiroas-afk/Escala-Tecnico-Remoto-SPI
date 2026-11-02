@@ -10,7 +10,7 @@ import {
 } from './types';
 import { INITIAL_TECHNICIANS } from './data/defaultTechnicians';
 import { OFFICIAL_TECHNICIANS, OFFICIAL_SHIFTS_BY_TECH_NAME } from './data/officialScheduleNovDez';
-import { generateDateRange, MONTHS_PT } from './utils/dateUtils';
+import { generateDateRange, MONTHS_PT, isSaturday, isSunday, parseDateKey, formatDateKey } from './utils/dateUtils';
 import { generateSchedule } from './utils/scheduler';
 import { validateSchedule } from './utils/validator';
 import { exportScheduleToExcel } from './utils/exportUtils';
@@ -404,8 +404,8 @@ export default function App() {
     createdAt: row.created_at || row.createdAt || new Date().toISOString(),
     status: (row.status === 'aprovado' || row.status === 'atendido')
       ? 'aprovado'
-      : row.status === 'recusado'
-      ? 'recusado'
+      : (row.status === 'reprovado' || row.status === 'recusado')
+      ? 'reprovado'
       : 'pendente'
   }), []);
 
@@ -787,19 +787,45 @@ export default function App() {
 
       const updatedRequests: OffRequest[] = prevRequests.map(r => r.id === id ? { ...r, status: 'aprovado' as const } : r);
       
-      // Regra de Aprovação:
-      // - Motivo médico ou consulta -> 'FP' (Folga Parcial)
-      // - Qualquer outro motivo solicitado -> 'FB' (Folga Banco)
-      const isMedical =
-        req.reasonCategory === 'medico' ||
-        (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de|doutor|dentist/i.test(n))) ||
-        /m[eé]dic|consult|exame|sa[uú]de/i.test(req.reasonCategory || '');
+      const isReqSat = isSaturday(req.date);
+      const isReqSun = isSunday(req.date);
 
-      const targetShift: ShiftType = isMedical ? 'FP' : 'FB';
-      const labelText = isMedical ? 'Folga Parcial (FP)' : 'Folga Banco (FB)';
+      if (isReqSat || isReqSun) {
+        // Regra de Aprovação de Final de Semana:
+        // Todas as solicitações de folgas aprovadas aos finais de semana devem ser automaticamente mudadas para FG (Folga Regular)
+        // e o dia seguinte ou anterior devem ser mudadas para TB.
+        // EX: Solicitou no sábado -> sábado vira FG e domingo seguinte vira TB
+        // EX: Solicitou no domingo -> domingo vira FG e sábado anterior vira TB
+        if (isReqSat) {
+          const satDate = parseDateKey(req.date);
+          const sunDate = new Date(satDate.getTime() + 24 * 60 * 60 * 1000);
+          const sundayKey = formatDateKey(sunDate);
 
-      // Grant off on requested date in calendar
-      handleUpdateShift(req.technicianId, req.date, targetShift, `${labelText}: ${req.notes.join(' | ')}`);
+          handleUpdateShift(req.technicianId, req.date, 'FG', `Folga Regular (FG) - Troca Fim de Semana (Aprovada): ${req.notes.join(' | ')}`);
+          handleUpdateShift(req.technicianId, sundayKey, 'TB', 'Dia Trabalhado (TB) - Troca Fim de Semana (Folga no Sábado)');
+        } else {
+          const sunDate = parseDateKey(req.date);
+          const satDate = new Date(sunDate.getTime() - 24 * 60 * 60 * 1000);
+          const saturdayKey = formatDateKey(satDate);
+
+          handleUpdateShift(req.technicianId, req.date, 'FG', `Folga Regular (FG) - Troca Fim de Semana (Aprovada): ${req.notes.join(' | ')}`);
+          handleUpdateShift(req.technicianId, saturdayKey, 'TB', 'Dia Trabalhado (TB) - Troca Fim de Semana (Folga no Domingo)');
+        }
+      } else {
+        // Regra de Aprovação Dias Úteis:
+        // - Motivo médico ou consulta -> 'FP' (Folga Parcial)
+        // - Qualquer outro motivo solicitado -> 'FB' (Folga Banco)
+        const isMedical =
+          req.reasonCategory === 'medico' ||
+          (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de|doutor|dentist/i.test(n))) ||
+          /m[eé]dic|consult|exame|sa[uú]de/i.test(req.reasonCategory || '');
+
+        const targetShift: ShiftType = isMedical ? 'FP' : 'FB';
+        const labelText = isMedical ? 'Folga Parcial (FP)' : 'Folga Banco (FB)';
+
+        // Grant off on requested date in calendar
+        handleUpdateShift(req.technicianId, req.date, targetShift, `${labelText}: ${req.notes.join(' | ')}`);
+      }
 
       // Update status in Supabase table 'solicitacoes_folga' to 'aprovado'
       supabase
@@ -817,8 +843,10 @@ export default function App() {
   // Handler: Admin Rejects Off Request
   const handleRejectRequest = useCallback((id: string) => {
     setOffRequests(prev => {
-      const updated: OffRequest[] = prev.map(r => r.id === id ? { ...r, status: 'recusado' as const } : r);
-      supabase.from('solicitacoes_folga').update({ status: 'recusado' }).eq('id', id).then();
+      const updated: OffRequest[] = prev.map(r => r.id === id ? { ...r, status: 'reprovado' as const } : r);
+      supabase.from('solicitacoes_folga').update({ status: 'reprovado' }).eq('id', id).then(({ error }) => {
+        if (error) console.error('Failed to reject request in Supabase:', error);
+      });
       return updated;
     });
   }, []);

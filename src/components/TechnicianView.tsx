@@ -387,10 +387,20 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
 
                   {req && (
                     <div
-                      className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white ${
-                        (req.status === 'atendido' || req.status === 'aprovado') ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
+                      className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white dark:border-slate-900 shadow-2xs ${
+                        (req.status === 'atendido' || req.status === 'aprovado')
+                          ? 'bg-emerald-500 ring-1 ring-emerald-300'
+                          : (req.status === 'reprovado' || req.status === 'recusado')
+                          ? 'bg-rose-500 ring-1 ring-rose-300'
+                          : 'bg-amber-400 animate-pulse ring-1 ring-amber-200'
                       }`}
-                      title={(req.status === 'atendido' || req.status === 'aprovado') ? `Folga Concedida: ${req.notes.join(', ')}` : `Folga em Análise: ${req.notes.join(', ')}`}
+                      title={
+                        (req.status === 'atendido' || req.status === 'aprovado')
+                          ? `Folga Aprovada (Verde): ${req.notes.join(', ')}`
+                          : (req.status === 'reprovado' || req.status === 'recusado')
+                          ? `Folga Reprovada (Vermelha): ${req.notes.join(', ')}`
+                          : `Folga em Análise (Amarela): ${req.notes.join(', ')}`
+                      }
                     />
                   )}
                 </div>

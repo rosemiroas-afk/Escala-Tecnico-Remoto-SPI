@@ -1,6 +1,6 @@
 import React from 'react';
 import { OffRequest, Technician } from '../types';
-import { formatDisplayDate } from '../utils/dateUtils';
+import { formatDisplayDate, isWeekend } from '../utils/dateUtils';
 import { Check, X, Calendar, User, AlertCircle, Clock } from 'lucide-react';
 
 interface PendingRequestsNotificationWidgetProps {
@@ -100,14 +100,18 @@ export const PendingRequestsNotificationWidget: React.FC<PendingRequestsNotifica
                   onClick={() => onApprove(req.id)}
                   className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                   title={
-                    req.reasonCategory === 'medico' || (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de/i.test(n)))
+                    isWeekend(req.date)
+                      ? 'Aprovar no final de semana: data vira FG e o outro dia do fim de semana vira TB automaticamente.'
+                      : req.reasonCategory === 'medico' || (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de/i.test(n)))
                       ? 'Aprovar e lançar na escala como Folga Parcial (FP)'
                       : 'Aprovar e lançar na escala como Folga Banco (FB)'
                   }
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>
-                    {req.reasonCategory === 'medico' || (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de/i.test(n)))
+                    {isWeekend(req.date)
+                      ? 'Aprovar (FG / FDS)'
+                      : req.reasonCategory === 'medico' || (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de/i.test(n)))
                       ? 'Aprovar (FP)'
                       : 'Aprovar (FB)'}
                   </span>

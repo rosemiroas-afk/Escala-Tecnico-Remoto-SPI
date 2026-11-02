@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Technician, OffRequest, AppUser } from '../types';
-import { formatDisplayDate } from '../utils/dateUtils';
+import { formatDisplayDate, isWeekend } from '../utils/dateUtils';
 import { X, Plus, Trash2, Calendar, CheckCircle2, Clock, Check, Ban } from 'lucide-react';
 
 interface OffRequestsModalProps {
@@ -350,9 +350,14 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                                   type="button"
                                   onClick={() => onApproveRequest(req.id)}
                                   className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
+                                  title={
+                                    isWeekend(req.date)
+                                      ? 'Aprovar no fim de semana: vira FG e o outro dia do fim de semana vira TB'
+                                      : 'Aprovar folga'
+                                  }
                                 >
                                   <Check className="w-3.5 h-3.5" />
-                                  Aprovar Folga
+                                  <span>{isWeekend(req.date) ? 'Aprovar (FG / FDS)' : 'Aprovar Folga'}</span>
                                 </button>
                               )}
                               {onRejectRequest && (

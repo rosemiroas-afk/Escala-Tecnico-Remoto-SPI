@@ -1,6 +1,6 @@
 import React from 'react';
 import { OffRequest, Technician } from '../types';
-import { formatDisplayDate } from '../utils/dateUtils';
+import { formatDisplayDate, isWeekend } from '../utils/dateUtils';
 import { Bell, Check, X, ArrowRight, Calendar, User, FileText } from 'lucide-react';
 
 interface AdminPendingAlertProps {
@@ -131,14 +131,18 @@ export const AdminPendingAlert: React.FC<AdminPendingAlertProps> = ({
                       onClick={() => onApprove(req.id)}
                       className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
                       title={
-                        req.reasonCategory === 'medico' || (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de/i.test(n)))
+                        isWeekend(req.date)
+                          ? 'Aprovar no final de semana: data vira FG e o outro dia do fim de semana vira TB automaticamente.'
+                          : req.reasonCategory === 'medico' || (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de/i.test(n)))
                           ? 'Aprovar e lançar na escala como Folga Parcial (FP)'
                           : 'Aprovar e lançar na escala como Folga Banco (FB)'
                       }
                     >
                       <Check className="w-4 h-4" />
                       <span>
-                        {req.reasonCategory === 'medico' || (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de/i.test(n)))
+                        {isWeekend(req.date)
+                          ? 'Aprovar (FG / FDS)'
+                          : req.reasonCategory === 'medico' || (req.notes && req.notes.some(n => /m[eé]dic|consult|exame|sa[uú]de/i.test(n)))
                           ? 'Aprovar (FP)'
                           : 'Aprovar (FB)'}
                       </span>
