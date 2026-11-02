@@ -154,7 +154,14 @@ export function generateIndividualWhatsAppMessage(
     const rawShift = schedule?.days[d]?.shift;
     const shift = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
     if (isOffShift(shift)) {
-      const typeLabel = shift === 'FD' ? 'Folga Dupla' : shift === 'FC' ? 'Folga Compensada' : 'Folga Regular';
+      let typeLabel = 'Folga Regular';
+      if (shift === 'FD') typeLabel = 'Folga Dupla';
+      else if (shift === 'FC') typeLabel = 'Folga Compensada';
+      else if (shift === 'FR') typeLabel = 'Férias';
+      else if (shift === 'LIC' || shift === 'A') typeLabel = 'Afastado';
+      else if (shift === 'LP') typeLabel = 'Licença';
+      else if (shift === 'TR') typeLabel = 'Treinamento';
+
       offDays.push(`${formatDisplayDate(d)} (${typeLabel})`);
     }
   }
