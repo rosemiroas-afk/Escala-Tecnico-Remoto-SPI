@@ -63,8 +63,12 @@ export const AtestadoUploadModal: React.FC<AtestadoUploadModalProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!selectedFile) {
       setErrorMsg('Por favor, selecione e anexe o arquivo do atestado (PDF ou Foto).');
       return;
@@ -73,6 +77,8 @@ export const AtestadoUploadModal: React.FC<AtestadoUploadModalProps> = ({
       setErrorMsg('Por favor, informe a data do atestado.');
       return;
     }
+
+    setIsSubmitting(true);
 
     // Determine reference month (e.g. "Novembro/2026")
     const [y, m] = dataAtestado.split('-');
@@ -101,8 +107,18 @@ export const AtestadoUploadModal: React.FC<AtestadoUploadModalProps> = ({
       createdAt: new Date().toISOString()
     };
 
-    onSaveAtestado(newAtestado);
-    onClose();
+    try {
+      await onSaveAtestado(newAtestado);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+      setSelectedFile(null);
+      setMedicoOuClinica('');
+      setCid('');
+      setObservacoes('');
+      onClose();
+    }
   };
 
   const isImage = selectedFile?.type.startsWith('image/');
@@ -309,10 +325,11 @@ export const AtestadoUploadModal: React.FC<AtestadoUploadModalProps> = ({
 
             <button
               type="submit"
-              className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+              disabled={isSubmitting}
+              className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
             >
               <Check className="w-4 h-4" />
-              <span>Salvar e Enviar Atestado</span>
+              <span>{isSubmitting ? 'Enviando Atestado...' : 'Salvar e Enviar Atestado'}</span>
             </button>
           </div>
         </form>

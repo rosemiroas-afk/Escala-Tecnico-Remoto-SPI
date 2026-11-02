@@ -482,27 +482,18 @@ export default function App() {
 
           setOffRequests(normalRequests);
 
-          // Update atestados state with cloud records
-          setAtestados(prev => {
-            const map = new Map<string, Atestado>(cloudAtestados.map(a => [a.id, a]));
-            prev.forEach(localAtestado => {
-              if (!map.has(localAtestado.id)) {
-                // If it was only local, push it to Supabase so Admin immediately sees it!
-                map.set(localAtestado.id, localAtestado);
-                const payload = JSON.stringify({
-                  type: 'atestado_medico',
-                  ...localAtestado
-                });
-                supabase.from('solicitacoes_folga').insert([{
-                  id_usuario: localAtestado.technicianId,
-                  nome_colaborador: localAtestado.technicianName,
-                  data_desejada: localAtestado.dataAtestado,
-                  motivo: payload,
-                  status: 'atestado'
-                }]).then();
+          // Update atestados state cleanly with cloud records from Supabase (deduplicating if needed)
+          setAtestados(() => {
+            const uniqueMap = new Map<string, Atestado>();
+            cloudAtestados.forEach(att => {
+              const uniqueKey = `${att.technicianId}__${att.dataAtestado}__${att.fileName}`;
+              if (!uniqueMap.has(att.id) && !uniqueMap.has(uniqueKey)) {
+                uniqueMap.set(att.id, att);
+                uniqueMap.set(uniqueKey, att);
               }
             });
-            return Array.from(map.values()).sort((a, b) =>
+            const deduplicated = Array.from(new Set(uniqueMap.values()));
+            return deduplicated.sort((a, b) =>
               (b.createdAt || b.dataAtestado).localeCompare(a.createdAt || a.dataAtestado)
             );
           });
