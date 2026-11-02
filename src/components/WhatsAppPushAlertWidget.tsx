@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Technician, TechnicianSchedule, SchedulePeriod } from '../types';
 import { findImpendingOffs, generateWhatsAppReminderMessage } from '../utils/whatsappNotificationUtils';
 import { formatDisplayDate } from '../utils/dateUtils';
-import { MessageSquare, Send, Calendar, Bell, Phone, User, CheckCircle2 } from 'lucide-react';
+import { MessageSquare, Send, Calendar, Bell, Phone, User, CheckCircle2, Clock } from 'lucide-react';
 
 interface WhatsAppPushAlertWidgetProps {
   technicians: Technician[];
@@ -19,8 +19,34 @@ export const WhatsAppPushAlertWidget: React.FC<WhatsAppPushAlertWidgetProps> = (
   period,
   darkMode = false
 }) => {
-  // Default to first date or current active date in range
-  const [selectedDate, setSelectedDate] = useState<string>(dates[0] || '2026-11-01');
+  // Regra D+1: Exibir apenas a partir do dia seguinte (hoje + 1 dia pra frente)
+  // Ex: se hoje for 02/11/2026, mostra a partir de 03/11/2026
+  const dPlusOneStr = useMemo(() => {
+    const now = new Date();
+    now.setDate(now.getDate() + 1);
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
+  // Datas disponíveis a partir de D+1
+  const availableDates = useMemo(() => {
+    const forwardDates = dates.filter(d => d >= dPlusOneStr);
+    return forwardDates.length > 0 ? forwardDates : dates;
+  }, [dates, dPlusOneStr]);
+
+  // Default para D+1
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    return availableDates[0] || dates[0] || '2026-11-03';
+  });
+
+  useEffect(() => {
+    if (!availableDates.includes(selectedDate)) {
+      setSelectedDate(availableDates[0] || dates[0]);
+    }
+  }, [availableDates, selectedDate, dates]);
+
   const [sentMap, setSentMap] = useState<Record<string, boolean>>({});
 
   const impendingOffs = findImpendingOffs(technicians, schedules, selectedDate);
@@ -89,20 +115,20 @@ export const WhatsAppPushAlertWidget: React.FC<WhatsAppPushAlertWidgetProps> = (
           </div>
         </div>
 
-        {/* Date Selector */}
+        {/* Date Selector (D+1) */}
         <div className="flex items-center gap-2 self-start sm:self-center">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
             <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Data Alvo:</span>
+            <span>Data Alvo (D+1):</span>
           </div>
           <select
             value={selectedDate}
             onChange={e => setSelectedDate(e.target.value)}
             className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 font-bold text-slate-800 dark:text-slate-100"
           >
-            {dates.map(d => (
+            {availableDates.map(d => (
               <option key={d} value={d}>
-                {formatDisplayDate(d)} ({d})
+                {formatDisplayDate(d)} ({d}) {d === dPlusOneStr ? '★ D+1 (Amanhã)' : ''}
               </option>
             ))}
           </select>

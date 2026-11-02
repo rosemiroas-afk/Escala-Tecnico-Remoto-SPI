@@ -89,9 +89,11 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
     .filter(t => t.active)
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 
-  const filteredRequests = filterTech === 'all'
-    ? requests
-    : requests.filter(r => r.technicianId === filterTech);
+  // Sort filtered requests by date descending (most recent first)
+  const filteredRequests = (filterTech === 'all'
+    ? [...requests]
+    : requests.filter(r => r.technicianId === filterTech)
+  ).sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
@@ -374,13 +376,17 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => onDeleteRequest(req.id)}
-                        className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
-                        title="Remover solicitação"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {/* Exclusão exclusiva do Administrador */}
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteRequest(req.id)}
+                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/60 transition-colors cursor-pointer"
+                          title="Excluir solicitação (Ação exclusiva do Administrador)"
+                        >
+                          <Trash2 className="w-4 h-4 text-rose-500" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}

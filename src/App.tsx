@@ -6,7 +6,8 @@ import {
   OffRequest,
   ShiftType,
   GeneratorOptions,
-  AppUser
+  AppUser,
+  Atestado
 } from './types';
 import { INITIAL_TECHNICIANS } from './data/defaultTechnicians';
 import { OFFICIAL_TECHNICIANS, OFFICIAL_SHIFTS_BY_TECH_NAME } from './data/officialScheduleNovDez';
@@ -29,6 +30,7 @@ import { AdminPendingAlert } from './components/AdminPendingAlert';
 import { PendingRequestsNotificationWidget } from './components/PendingRequestsNotificationWidget';
 import { WhatsAppPushAlertWidget } from './components/WhatsAppPushAlertWidget';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
+import { AtestadoUploadModal } from './components/AtestadoUploadModal';
 import { supabase } from './supabase';
 
 const STORAGE_KEY_TECHS = 'escalamaster_techs_v4';
@@ -38,6 +40,7 @@ const STORAGE_KEY_REQUESTS = 'escalamaster_requests_v2';
 const STORAGE_KEY_USERS = 'escalamaster_users_v2';
 const STORAGE_KEY_AUTH_USER = 'escalamaster_auth_user_v2';
 const STORAGE_KEY_THEME = 'escalamaster_theme_v2';
+const STORAGE_KEY_ATESTADOS = 'escalamaster_atestados_v1';
 
 export default function App() {
   // Dark Mode State (persisted to localStorage)
@@ -322,8 +325,31 @@ export default function App() {
   const [isTeamOpen, setIsTeamOpen] = useState(false);
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
   const [selectedTechForRequests, setSelectedTechForRequests] = useState<string | undefined>(undefined);
+  const [isAtestadoModalOpen, setIsAtestadoModalOpen] = useState(false);
+  const [techForAtestado, setTechForAtestado] = useState<Technician | null>(null);
+
+  // Atestados State (Persisted locally and synced with Supabase)
+  const [atestados, setAtestados] = useState<Atestado[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_ATESTADOS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed reading atestados from localStorage', e);
+    }
+    return [];
+  });
 
   // Persistence Effects
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_ATESTADOS, JSON.stringify(atestados));
+    } catch (e) {
+      console.error('Failed to save atestados', e);
+    }
+  }, [atestados]);
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_TECHS, JSON.stringify(technicians));
@@ -866,6 +892,56 @@ export default function App() {
     setIsRequestsOpen(true);
   };
 
+  // Handler: Open Atestado Upload Modal
+  const handleOpenAtestadoModal = useCallback((tech?: Technician) => {
+    if (tech) {
+      setTechForAtestado(tech);
+    } else if (currentUser?.technicianId) {
+      const userTech = technicians.find(t => t.id === currentUser.technicianId);
+      setTechForAtestado(userTech || technicians[0]);
+    } else {
+      setTechForAtestado(technicians[0]);
+    }
+    setIsAtestadoModalOpen(true);
+  }, [currentUser, technicians]);
+
+  // Handler: Save Atestado (Local & Supabase)
+  const handleSaveAtestado = useCallback(async (newAtestado: Atestado) => {
+    setAtestados(prev => [newAtestado, ...prev]);
+
+    try {
+      await supabase.from('atestados').insert([{
+        id: newAtestado.id,
+        technician_id: newAtestado.technicianId,
+        technician_name: newAtestado.technicianName,
+        ddd: newAtestado.ddd,
+        data_atestado: newAtestado.dataAtestado,
+        mes_referencia: newAtestado.mesReferencia,
+        dias_afastamento: newAtestado.diasAfastamento,
+        medico_ou_clinica: newAtestado.medicoOuClinica,
+        cid: newAtestado.cid,
+        observacoes: newAtestado.observacoes,
+        file_name: newAtestado.fileName,
+        file_type: newAtestado.fileType,
+        file_data: newAtestado.fileData,
+        file_size: newAtestado.fileSize,
+        created_at: newAtestado.createdAt
+      }]);
+    } catch (e) {
+      console.warn('Supabase atestados insert info:', e);
+    }
+  }, []);
+
+  // Handler: Delete Atestado (Admin only)
+  const handleDeleteAtestado = useCallback(async (id: string) => {
+    setAtestados(prev => prev.filter(a => a.id !== id));
+    try {
+      await supabase.from('atestados').delete().eq('id', id);
+    } catch (e) {
+      console.warn('Supabase atestados delete info:', e);
+    }
+  }, []);
+
   // Handler: Clear Schedule
   const handleClearSchedule = useCallback(async () => {
     if (window.confirm('Deseja realmente apagar 100% da escala atual no banco de dados e na tela?')) {
@@ -1170,6 +1246,7 @@ export default function App() {
         onOpenRequests={() => handleOpenRequestsModal()}
         onOpenTeam={() => setIsTeamOpen(true)}
         onOpenWhatsApp={() => setIsWhatsAppOpen(true)}
+        onOpenAtestado={() => handleOpenAtestadoModal()}
         onExportExcel={handleExportExcel}
         onLogout={handleLogout}
       />
@@ -1241,9 +1318,13 @@ export default function App() {
             auditResult={auditResult}
             offRequests={offRequests}
             currentUser={currentUser}
+            atestados={atestados}
             onAddRequest={handleAddRequest}
             onUpdateShift={handleUpdateShift}
             onOpenRequestsModal={handleOpenRequestsModal}
+            onOpenAtestadoModal={handleOpenAtestadoModal}
+            onDeleteAtestado={handleDeleteAtestado}
+            darkMode={darkMode}
           />
         )}
 
@@ -1317,10 +1398,14 @@ export default function App() {
                 auditResult={auditResult}
                 offRequests={offRequests}
                 currentUser={currentUser}
+                atestados={atestados}
                 onAddRequest={handleAddRequest}
                 onUpdateShift={handleUpdateShift}
                 onOpenRequestsModal={handleOpenRequestsModal}
+                onOpenAtestadoModal={handleOpenAtestadoModal}
+                onDeleteAtestado={handleDeleteAtestado}
                 onSave={handleSave}
+                darkMode={darkMode}
               />
             )}
 
@@ -1421,6 +1506,18 @@ export default function App() {
         period={period}
         offRequests={offRequests}
         currentUser={currentUser}
+      />
+
+      <AtestadoUploadModal
+        isOpen={isAtestadoModalOpen}
+        onClose={() => setIsAtestadoModalOpen(false)}
+        technician={
+          techForAtestado ||
+          (currentUser?.technicianId ? technicians.find(t => t.id === currentUser.technicianId) : null) ||
+          technicians[0]
+        }
+        onSaveAtestado={handleSaveAtestado}
+        darkMode={darkMode}
       />
     </div>
   );

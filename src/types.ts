@@ -239,6 +239,24 @@ export interface OffRequest {
   status: 'pendente' | 'aprovado' | 'atendido' | 'recusado' | 'reprovado' | 'parcial' | 'conflito';
 }
 
+export interface Atestado {
+  id: string;
+  technicianId: string;
+  technicianName: string;
+  ddd: DDDNumber;
+  dataAtestado: string; // YYYY-MM-DD
+  mesReferencia: string; // YYYY-MM or display month
+  diasAfastamento: number;
+  medicoOuClinica?: string;
+  cid?: string;
+  observacoes?: string;
+  fileName: string;
+  fileType: string;
+  fileData?: string; // Base64 data URI
+  fileSize?: number;
+  createdAt: string;
+}
+
 export interface DaySchedule {
   date: string; // YYYY-MM-DD
   shift: ShiftType;

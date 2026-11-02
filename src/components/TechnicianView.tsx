@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType, AppUser, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType, AppUser, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS, Atestado } from '../types';
 import { formatDisplayDate, formatFullDate, parseDateKey, isSaturday, isSunday, extractWeekends, MONTHS_PT } from '../utils/dateUtils';
 import { AuditResult } from '../utils/validator';
 import { generateIndividualWhatsAppMessage } from '../utils/exportUtils';
 import { DDD_INFO } from '../data/defaultTechnicians';
+import { AtestadoViewerModal } from './AtestadoViewerModal';
 import {
   User,
   Calendar,
@@ -18,7 +19,12 @@ import {
   ShieldCheck,
   Briefcase,
   Lock,
-  X
+  X,
+  FileText,
+  Download,
+  Eye,
+  Trash2,
+  Stethoscope
 } from 'lucide-react';
 
 interface TechnicianViewProps {
@@ -29,10 +35,14 @@ interface TechnicianViewProps {
   auditResult: AuditResult;
   offRequests: OffRequest[];
   currentUser: AppUser | null;
+  atestados?: Atestado[];
   onAddRequest: (req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => void;
   onUpdateShift: (techId: string, date: string, shift: ShiftType) => void;
   onOpenRequestsModal?: (techId: string) => void;
+  onOpenAtestadoModal?: (tech: Technician) => void;
+  onDeleteAtestado?: (id: string) => void;
   onSave?: () => void;
+  darkMode?: boolean;
 }
 
 export const TechnicianView: React.FC<TechnicianViewProps> = ({
@@ -43,10 +53,14 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   auditResult,
   offRequests,
   currentUser,
+  atestados = [],
   onAddRequest,
   onUpdateShift,
   onOpenRequestsModal,
-  onSave
+  onOpenAtestadoModal,
+  onDeleteAtestado,
+  onSave,
+  darkMode = false
 }) => {
   const activeTechs = technicians.filter(t => t.active);
   const isAdmin = currentUser?.role === 'admin';
@@ -71,11 +85,33 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   const [reqCategory, setReqCategory] = useState<'casamento' | 'medico' | 'aniversario' | 'pessoal' | 'outro'>('casamento');
   const [reqNote, setReqNote] = useState<string>('');
   const [adminPickerDate, setAdminPickerDate] = useState<string | null>(null);
+  const [viewerAtestado, setViewerAtestado] = useState<Atestado | null>(null);
 
   const currentTech = technicians.find(t => t.id === selectedTechId) || activeTechs[0];
   const currentSched = currentTech ? schedules[currentTech.id] : null;
-  const currentStats = currentTech ? auditResult.techStats[currentTech.id] : null;
-  const techRequests = currentTech ? offRequests.filter(r => r.technicianId === currentTech.id) : [];
+  const techRequests = currentTech
+    ? offRequests
+        .filter(r => r.technicianId === currentTech.id)
+        .sort((a, b) => b.date.localeCompare(a.date))
+    : [];
+
+  // Atestados deste técnico específico, organizados por data mais recente primeiro
+  const techAtestados = useMemo(() => {
+    return atestados
+      .filter(a => a.technicianId === currentTech?.id)
+      .sort((a, b) => b.dataAtestado.localeCompare(a.dataAtestado));
+  }, [atestados, currentTech?.id]);
+
+  // Agrupamento de atestados por mês para análise organizada
+  const atestadosByMonth = useMemo(() => {
+    const groups: Record<string, Atestado[]> = {};
+    techAtestados.forEach(att => {
+      const monthKey = att.mesReferencia || att.dataAtestado.substring(0, 7);
+      if (!groups[monthKey]) groups[monthKey] = [];
+      groups[monthKey].push(att);
+    });
+    return groups;
+  }, [techAtestados]);
   const weekends = extractWeekends(dates);
 
   if (!currentTech || !currentSched) {
@@ -88,6 +124,8 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     const sun = currentSched.days[wk.sunday]?.shift;
     return (sat === 'FD' || sat === 'FG' || sat === 'F') && (sun === 'FD' || sun === 'FG' || sun === 'F');
   });
+
+  const currentStats = auditResult?.techStats?.[currentTech.id];
 
   const handleCopyWhatsApp = () => {
     const text = generateIndividualWhatsAppMessage(currentTech, currentSched, dates, period, offRequests);
@@ -520,6 +558,147 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
 
         </div>
       </div>
+
+      {/* NOVO: Atestados Médicos Anexados do Colaborador (Organizados por Mês e por Data) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-xs shrink-0">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                <span>Atestados Médicos de {currentTech.name}</span>
+                <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-800">
+                  {techAtestados.length} {techAtestados.length === 1 ? 'anexo' : 'anexos'}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Organizado por mês e data mais recente para conferência e auditoria.
+              </p>
+            </div>
+          </div>
+
+          {/* Botão de Anexar Atestado */}
+          {onOpenAtestadoModal && (
+            <button
+              onClick={() => onOpenAtestadoModal(currentTech)}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition-all shrink-0"
+              title="Anexar um novo atestado médico em PDF ou Foto"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Anexar Novo Atestado</span>
+            </button>
+          )}
+        </div>
+
+        {techAtestados.length === 0 ? (
+          <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+            <Stethoscope className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              Nenhum atestado médico registrado para {currentTech.name}.
+            </p>
+            <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
+              Os atestados anexados pelo colaborador aparecerão aqui agrupados por mês e ordenados por data para conferência.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(atestadosByMonth).map(([monthName, items]) => (
+              <div key={monthName} className="space-y-3">
+                <div className="flex items-center gap-2 pb-1 border-b border-slate-200 dark:border-slate-800">
+                  <span className="text-xs font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-900">
+                    {monthName}
+                  </span>
+                  <span className="text-xs text-slate-400 font-semibold">
+                    ({items.length} {items.length === 1 ? 'atestado' : 'atestados'})
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {items.map(att => (
+                    <div
+                      key={att.id}
+                      className={`p-4 rounded-2xl border flex flex-col justify-between gap-3 shadow-2xs transition-all ${
+                        darkMode ? 'bg-slate-800/80 border-slate-700 hover:border-rose-500/60' : 'bg-slate-50 border-slate-200 hover:border-rose-300'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-rose-500" />
+                            {formatDisplayDate(att.dataAtestado)}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                            {att.diasAfastamento} {att.diasAfastamento === 1 ? 'dia' : 'dias'} afastado
+                          </span>
+                        </div>
+
+                        {att.medicoOuClinica && (
+                          <div className="text-xs text-slate-700 dark:text-slate-300 font-semibold mb-1 truncate" title={att.medicoOuClinica}>
+                            🩺 {att.medicoOuClinica}
+                          </div>
+                        )}
+
+                        {att.cid && (
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                            CID: <strong className="text-slate-700 dark:text-slate-300">{att.cid}</strong>
+                          </div>
+                        )}
+
+                        {att.observacoes && (
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400 italic bg-white dark:bg-slate-900/60 p-2 rounded-lg border border-slate-200 dark:border-slate-800 mt-2 line-clamp-2">
+                            "{att.observacoes}"
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                        <div className="text-[10px] text-slate-400 truncate max-w-[140px]" title={att.fileName}>
+                          📎 {att.fileName}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => setViewerAtestado(att)}
+                            className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                            title="Visualizar atestado em tamanho real"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Visualizar</span>
+                          </button>
+
+                          {isAdmin && onDeleteAtestado && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Deseja realmente excluir este atestado médico?')) {
+                                  onDeleteAtestado(att.id);
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/60 transition-colors cursor-pointer"
+                              title="Excluir atestado (Ação de Administrador)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Modal de Visualização de Atestado */}
+      <AtestadoViewerModal
+        isOpen={!!viewerAtestado}
+        onClose={() => setViewerAtestado(null)}
+        atestado={viewerAtestado}
+        darkMode={darkMode}
+      />
 
       {/* Admin Shift Selection Modal */}
       {adminPickerDate && (

@@ -21,7 +21,8 @@ import {
   Sun,
   Bell,
   BarChart3,
-  Eye
+  Eye,
+  FileText
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -39,6 +40,7 @@ interface HeaderProps {
   onOpenRequests: () => void;
   onOpenTeam: () => void;
   onOpenWhatsApp: () => void;
+  onOpenAtestado?: () => void;
   onExportExcel: () => void;
   onLogout: () => void;
 }
@@ -57,6 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenRequests,
   onOpenTeam,
   onOpenWhatsApp,
+  onOpenAtestado,
   onExportExcel,
   onLogout
 }) => {
@@ -274,6 +277,21 @@ export const Header: React.FC<HeaderProps> = ({
                 <ClipboardList className="w-3.5 h-3.5 text-amber-300" />
                 <span>Solicitar Folga</span>
               </button>
+
+              {onOpenAtestado && (
+                <button
+                  onClick={onOpenAtestado}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                    darkMode
+                      ? 'bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border-rose-800'
+                      : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-200'
+                  }`}
+                  title="Anexar Atestado Médico para análise do Administrador"
+                >
+                  <FileText className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Anexo Atestado</span>
+                </button>
+              )}
 
               <button
                 onClick={onOpenWhatsApp}
