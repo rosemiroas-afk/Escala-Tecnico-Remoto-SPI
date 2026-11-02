@@ -440,10 +440,72 @@ export default function App() {
     // 1. Fetch initial state
     const fetchData = async () => {
       try {
-        // A. Fetch Off Requests from solicitacoes_folga
+        // A. Fetch Off Requests & Atestados from solicitacoes_folga
         const { data: folgas, error: folgasError } = await supabase.from('solicitacoes_folga').select('*');
         if (folgas && Array.isArray(folgas) && !folgasError) {
-          setOffRequests(folgas.map(normalizeFolga));
+          const normalRequests: OffRequest[] = [];
+          const cloudAtestados: Atestado[] = [];
+
+          folgas.forEach((row: any) => {
+            const isAtestado = row.status === 'atestado' ||
+              (typeof row.motivo === 'string' && row.motivo.includes('atestado_medico'));
+
+            if (isAtestado) {
+              try {
+                const parsed = JSON.parse(row.motivo);
+                if (parsed) {
+                  cloudAtestados.push({
+                    id: String(row.id),
+                    technicianId: String(parsed.technicianId || row.id_usuario),
+                    technicianName: String(parsed.technicianName || row.nome_colaborador || ''),
+                    ddd: (Number(parsed.ddd) || 13) as (13 | 14 | 15 | 19),
+                    dataAtestado: String(parsed.dataAtestado || row.data_desejada),
+                    mesReferencia: String(parsed.mesReferencia || (row.data_desejada ? row.data_desejada.substring(0, 7) : '')),
+                    diasAfastamento: Number(parsed.diasAfastamento || 1),
+                    medicoOuClinica: parsed.medicoOuClinica,
+                    cid: parsed.cid,
+                    observacoes: parsed.observacoes,
+                    fileName: parsed.fileName || 'atestado.pdf',
+                    fileType: parsed.fileType || 'application/pdf',
+                    fileData: parsed.fileData || '',
+                    fileSize: parsed.fileSize,
+                    createdAt: parsed.createdAt || row.created_at || new Date().toISOString()
+                  });
+                  return;
+                }
+              } catch (e) {
+                console.warn('Error parsing atestado from solicitacoes_folga:', e);
+              }
+            }
+            normalRequests.push(normalizeFolga(row));
+          });
+
+          setOffRequests(normalRequests);
+
+          // Update atestados state with cloud records
+          setAtestados(prev => {
+            const map = new Map<string, Atestado>(cloudAtestados.map(a => [a.id, a]));
+            prev.forEach(localAtestado => {
+              if (!map.has(localAtestado.id)) {
+                // If it was only local, push it to Supabase so Admin immediately sees it!
+                map.set(localAtestado.id, localAtestado);
+                const payload = JSON.stringify({
+                  type: 'atestado_medico',
+                  ...localAtestado
+                });
+                supabase.from('solicitacoes_folga').insert([{
+                  id_usuario: localAtestado.technicianId,
+                  nome_colaborador: localAtestado.technicianName,
+                  data_desejada: localAtestado.dataAtestado,
+                  motivo: payload,
+                  status: 'atestado'
+                }]).then();
+              }
+            });
+            return Array.from(map.values()).sort((a, b) =>
+              (b.createdAt || b.dataAtestado).localeCompare(a.createdAt || a.dataAtestado)
+            );
+          });
         }
 
         // B. Fetch Users from usuarios & seed missing technicians and admin
@@ -566,15 +628,73 @@ export default function App() {
     const channel = supabase.channel('realtime_sync')
       // Listener 1: solicitacoes_folga (INSERT, UPDATE, DELETE) -> reflects immediately on Admin & Tech
       .on('postgres_changes', { event: '*', schema: 'public', table: 'solicitacoes_folga' }, payload => {
-        if (payload.eventType === 'INSERT' && payload.new) {
-          const newReq = normalizeFolga(payload.new);
+        const row: any = payload.new;
+        const oldRow: any = payload.old;
+
+        if (payload.eventType === 'INSERT' && row) {
+          if (row.status === 'atestado' || (typeof row.motivo === 'string' && row.motivo.includes('atestado_medico'))) {
+            try {
+              const parsed = JSON.parse(row.motivo);
+              const newAtt: Atestado = {
+                id: String(row.id),
+                technicianId: String(parsed.technicianId || row.id_usuario),
+                technicianName: String(parsed.technicianName || row.nome_colaborador || ''),
+                ddd: (Number(parsed.ddd) || 13) as (13 | 14 | 15 | 19),
+                dataAtestado: String(parsed.dataAtestado || row.data_desejada),
+                mesReferencia: String(parsed.mesReferencia || (row.data_desejada ? row.data_desejada.substring(0, 7) : '')),
+                diasAfastamento: Number(parsed.diasAfastamento || 1),
+                medicoOuClinica: parsed.medicoOuClinica,
+                cid: parsed.cid,
+                observacoes: parsed.observacoes,
+                fileName: parsed.fileName || 'atestado.pdf',
+                fileType: parsed.fileType || 'application/pdf',
+                fileData: parsed.fileData || '',
+                fileSize: parsed.fileSize,
+                createdAt: parsed.createdAt || row.created_at || new Date().toISOString()
+              };
+              setAtestados(prev => [newAtt, ...prev.filter(a => a.id !== newAtt.id)]);
+              return;
+            } catch (e) {
+              console.warn('Realtime parse atestado error:', e);
+            }
+          }
+          const newReq = normalizeFolga(row);
           setOffRequests(prev => [...prev.filter(r => r.id !== newReq.id), newReq]);
-        } else if (payload.eventType === 'UPDATE' && payload.new) {
-          const updatedReq = normalizeFolga(payload.new);
+        } else if (payload.eventType === 'UPDATE' && row) {
+          if (row.status === 'atestado' || (typeof row.motivo === 'string' && row.motivo.includes('atestado_medico'))) {
+            try {
+              const parsed = JSON.parse(row.motivo);
+              const updatedAtt: Atestado = {
+                id: String(row.id),
+                technicianId: String(parsed.technicianId || row.id_usuario),
+                technicianName: String(parsed.technicianName || row.nome_colaborador || ''),
+                ddd: (Number(parsed.ddd) || 13) as (13 | 14 | 15 | 19),
+                dataAtestado: String(parsed.dataAtestado || row.data_desejada),
+                mesReferencia: String(parsed.mesReferencia || (row.data_desejada ? row.data_desejada.substring(0, 7) : '')),
+                diasAfastamento: Number(parsed.diasAfastamento || 1),
+                medicoOuClinica: parsed.medicoOuClinica,
+                cid: parsed.cid,
+                observacoes: parsed.observacoes,
+                fileName: parsed.fileName || 'atestado.pdf',
+                fileType: parsed.fileType || 'application/pdf',
+                fileData: parsed.fileData || '',
+                fileSize: parsed.fileSize,
+                createdAt: parsed.createdAt || row.created_at || new Date().toISOString()
+              };
+              setAtestados(prev => prev.map(a => a.id === updatedAtt.id ? updatedAtt : a));
+              return;
+            } catch (e) {
+              console.warn('Realtime update atestado error:', e);
+            }
+          }
+          const updatedReq = normalizeFolga(row);
           setOffRequests(prev => prev.map(r => r.id === updatedReq.id ? updatedReq : r));
-        } else if (payload.eventType === 'DELETE' && payload.old) {
-          const deletedId = (payload.old as any).id;
-          if (deletedId) setOffRequests(prev => prev.filter(r => r.id !== deletedId));
+        } else if (payload.eventType === 'DELETE' && oldRow) {
+          const deletedId = String(oldRow.id);
+          if (deletedId) {
+            setOffRequests(prev => prev.filter(r => r.id !== deletedId));
+            setAtestados(prev => prev.filter(a => a.id !== deletedId));
+          }
         } else {
           fetchData();
         }
@@ -905,28 +1025,45 @@ export default function App() {
     setIsAtestadoModalOpen(true);
   }, [currentUser, technicians]);
 
-  // Handler: Save Atestado (Local & Supabase)
+  // Handler: Save Atestado (Local & Supabase cloud sync)
   const handleSaveAtestado = useCallback(async (newAtestado: Atestado) => {
-    setAtestados(prev => [newAtestado, ...prev]);
+    // Add locally immediately
+    setAtestados(prev => [newAtestado, ...prev.filter(a => a.id !== newAtestado.id)]);
+
+    const payload = JSON.stringify({
+      type: 'atestado_medico',
+      technicianId: newAtestado.technicianId,
+      technicianName: newAtestado.technicianName,
+      ddd: newAtestado.ddd,
+      dataAtestado: newAtestado.dataAtestado,
+      mesReferencia: newAtestado.mesReferencia,
+      diasAfastamento: newAtestado.diasAfastamento,
+      medicoOuClinica: newAtestado.medicoOuClinica,
+      cid: newAtestado.cid,
+      observacoes: newAtestado.observacoes,
+      fileName: newAtestado.fileName,
+      fileType: newAtestado.fileType,
+      fileData: newAtestado.fileData,
+      fileSize: newAtestado.fileSize,
+      createdAt: newAtestado.createdAt
+    });
 
     try {
-      await supabase.from('atestados').insert([{
-        id: newAtestado.id,
-        technician_id: newAtestado.technicianId,
-        technician_name: newAtestado.technicianName,
-        ddd: newAtestado.ddd,
-        data_atestado: newAtestado.dataAtestado,
-        mes_referencia: newAtestado.mesReferencia,
-        dias_afastamento: newAtestado.diasAfastamento,
-        medico_ou_clinica: newAtestado.medicoOuClinica,
-        cid: newAtestado.cid,
-        observacoes: newAtestado.observacoes,
-        file_name: newAtestado.fileName,
-        file_type: newAtestado.fileType,
-        file_data: newAtestado.fileData,
-        file_size: newAtestado.fileSize,
-        created_at: newAtestado.createdAt
-      }]);
+      const { data, error } = await supabase.from('solicitacoes_folga').insert([{
+        id_usuario: newAtestado.technicianId,
+        nome_colaborador: newAtestado.technicianName,
+        data_desejada: newAtestado.dataAtestado,
+        motivo: payload,
+        status: 'atestado'
+      }]).select();
+
+      if (error) {
+        console.error('Erro ao salvar atestado no Supabase:', error);
+      } else if (data && data[0]?.id) {
+        const cloudId = String(data[0].id);
+        setAtestados(prev => prev.map(a => a.id === newAtestado.id ? { ...a, id: cloudId } : a));
+      }
+      alert(`✅ Atestado médico de ${newAtestado.technicianName} enviado com sucesso ao Administrador!`);
     } catch (e) {
       console.warn('Supabase atestados insert info:', e);
     }
@@ -936,7 +1073,7 @@ export default function App() {
   const handleDeleteAtestado = useCallback(async (id: string) => {
     setAtestados(prev => prev.filter(a => a.id !== id));
     try {
-      await supabase.from('atestados').delete().eq('id', id);
+      await supabase.from('solicitacoes_folga').delete().eq('id', id);
     } catch (e) {
       console.warn('Supabase atestados delete info:', e);
     }
