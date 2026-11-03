@@ -7,7 +7,7 @@ interface PendingRequestsNotificationWidgetProps {
   pendingRequests: OffRequest[];
   technicians: Technician[];
   onApprove: (id: string) => void;
-  onReject: (id: string) => void;
+  onReject: (id: string, reason?: string) => void;
   darkMode?: boolean;
 }
 
@@ -118,7 +118,12 @@ export const PendingRequestsNotificationWidget: React.FC<PendingRequestsNotifica
                 </button>
 
                 <button
-                  onClick={() => onReject(req.id)}
+                  onClick={() => {
+                    const reason = window.prompt('Informe o motivo da recusa (observação do administrador para o colaborador):');
+                    if (reason !== null) {
+                      onReject(req.id, reason.trim() || undefined);
+                    }
+                  }}
                   className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                   title="Recusar folga"
                 >

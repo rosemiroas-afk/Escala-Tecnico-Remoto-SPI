@@ -978,12 +978,27 @@ export default function App() {
   }, [handleUpdateShift]);
 
   // Handler: Admin Rejects Off Request
-  const handleRejectRequest = useCallback((id: string) => {
+  const handleRejectRequest = useCallback((id: string, reason?: string) => {
     setOffRequests(prev => {
-      const updated: OffRequest[] = prev.map(r => r.id === id ? { ...r, status: 'reprovado' as const } : r);
-      supabase.from('solicitacoes_folga').update({ status: 'reprovado' }).eq('id', id).then(({ error }) => {
+      const updated: OffRequest[] = prev.map(r => {
+        if (r.id === id) {
+          const recNote = reason ? `Recusado: ${reason}` : 'Recusado pelo administrador';
+          const newNotes = [...r.notes.filter(n => !n.startsWith('Recusado:')), recNote];
+          return { ...r, status: 'reprovado' as const, notes: newNotes };
+        }
+        return r;
+      });
+
+      const req = updated.find(r => r.id === id);
+      const motivoText = req ? `${req.reasonCategory} (${req.notes.join(' | ')})` : 'Recusado';
+
+      supabase.from('solicitacoes_folga').update({
+        status: 'reprovado',
+        motivo: motivoText
+      }).eq('id', id).then(({ error }) => {
         if (error) console.error('Failed to reject request in Supabase:', error);
       });
+
       return updated;
     });
   }, []);

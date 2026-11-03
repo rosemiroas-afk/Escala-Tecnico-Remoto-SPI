@@ -9,7 +9,7 @@ interface AdminPendingAlertProps {
   pendingRequests: OffRequest[];
   technicians: Technician[];
   onApprove: (id: string) => void;
-  onReject: (id: string) => void;
+  onReject: (id: string, reason?: string) => void;
   onOpenAllRequests: () => void;
   darkMode: boolean;
 }
@@ -148,7 +148,12 @@ export const AdminPendingAlert: React.FC<AdminPendingAlertProps> = ({
                       </span>
                     </button>
                     <button
-                      onClick={() => onReject(req.id)}
+                      onClick={() => {
+                        const reason = window.prompt('Informe o motivo da recusa (observação do administrador para o colaborador):');
+                        if (reason !== null) {
+                          onReject(req.id, reason.trim() || undefined);
+                        }
+                      }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-colors cursor-pointer ${
                         darkMode
                           ? 'border-rose-800/80 text-rose-300 hover:bg-rose-950/60'

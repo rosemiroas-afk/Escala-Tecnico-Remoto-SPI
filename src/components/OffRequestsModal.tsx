@@ -13,7 +13,7 @@ interface OffRequestsModalProps {
   onAddRequest: (req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => void;
   onDeleteRequest: (id: string) => void;
   onApproveRequest?: (id: string) => void;
-  onRejectRequest?: (id: string) => void;
+  onRejectRequest?: (id: string, reason?: string) => void;
   schedules: Record<string, { days: Record<string, { shift: string }> }>;
 }
 
@@ -39,6 +39,8 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
   const [priority, setPriority] = useState<'alta' | 'media' | 'baixa'>('alta');
   const [observations, setObservations] = useState<string[]>(['']);
   const [filterTech, setFilterTech] = useState<string>(!isAdmin ? myTechId : 'all');
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<string>('');
 
   useEffect(() => {
     if (!isAdmin && currentUser?.technicianId) {
@@ -337,10 +339,16 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                               </span>
                             )}
                             {isRejected && (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/70 px-2.5 py-1 rounded-md border border-rose-300 dark:border-rose-800">
-                                <Ban className="w-3.5 h-3.5 text-rose-700 dark:text-rose-400" />
-                                Solicitação Recusada
-                              </span>
+                              <div className="space-y-1.5 w-full mt-1">
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/70 px-2.5 py-1 rounded-md border border-rose-300 dark:border-rose-800">
+                                  <Ban className="w-3.5 h-3.5 text-rose-700 dark:text-rose-400" />
+                                  Solicitação Recusada
+                                </span>
+                                <div className="text-xs text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 p-2 rounded-lg border border-rose-200 dark:border-rose-800">
+                                  <span className="font-bold block mb-0.5">Motivo da Recusa (Administrador):</span>
+                                  <span>{req.notes.find(n => n.startsWith('Recusado:'))?.replace('Recusado: ', '') || 'Recusado pelo administrador.'}</span>
+                                </div>
+                              </div>
                             )}
                           </div>
 
@@ -365,7 +373,10 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                               {onRejectRequest && (
                                 <button
                                   type="button"
-                                  onClick={() => onRejectRequest(req.id)}
+                                  onClick={() => {
+                                    setRejectingId(req.id);
+                                    setRejectReason('');
+                                  }}
                                   className="px-2.5 py-1 bg-slate-200 hover:bg-rose-100 hover:text-rose-700 text-slate-700 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
                                 >
                                   Recusar
@@ -374,6 +385,52 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                             </div>
                           )}
                         </div>
+
+                        {/* Inline Rejection Observation Input Form */}
+                        {rejectingId === req.id && (
+                          <div className="mt-3 p-3 bg-rose-50 dark:bg-rose-950/50 rounded-xl border border-rose-200 dark:border-rose-900 space-y-2">
+                            <label className="block text-xs font-bold text-rose-800 dark:text-rose-300">
+                              Motivo da Recusa / Observação do Administrador:
+                            </label>
+                            <textarea
+                              value={rejectReason}
+                              onChange={(e) => setRejectReason(e.target.value)}
+                              placeholder="Digite o motivo da recusa para o colaborador saber..."
+                              className="w-full text-xs bg-white dark:bg-slate-900 border border-rose-300 dark:border-rose-700 rounded-lg p-2 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-rose-500"
+                              rows={2}
+                              autoFocus
+                            />
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRejectingId(null);
+                                  setRejectReason('');
+                                }}
+                                className="px-3 py-1 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold rounded-lg text-xs cursor-pointer hover:bg-slate-300"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!rejectReason.trim()) {
+                                    alert('Por favor, informe o motivo da recusa.');
+                                    return;
+                                  }
+                                  if (onRejectRequest) {
+                                    onRejectRequest(req.id, rejectReason.trim());
+                                  }
+                                  setRejectingId(null);
+                                  setRejectReason('');
+                                }}
+                                className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs cursor-pointer shadow-xs"
+                              >
+                                Confirmar Recusa
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Exclusão exclusiva do Administrador */}
