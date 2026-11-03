@@ -313,7 +313,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                 Total
               </th>
               <th className="sticky left-[460px] z-40 bg-slate-100 dark:bg-slate-800 px-1 py-1.5 min-w-[70px] w-[70px] text-center border-r-2 border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 shadow-[4px_0_10px_-2px_rgba(0,0,0,0.15)] dark:shadow-[4px_0_10px_-2px_rgba(0,0,0,0.5)]">
-                Sáb+Dom
+                2 Dias
               </th>
 
               {dates.map(d => {
@@ -392,7 +392,8 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                 maxConsecutiveWorkDays: 0
               };
 
-              const hasMissingDouble = hasSchedule && stats.doubleWeekendsCount === 0;
+              const isTechOnVacation = stats.totalOffDays > 20 && techSched && Object.values(techSched.days).some(d => d.shift === 'FR' || d.shift === 'FE');
+              const hasMissingDouble = hasSchedule && stats.doubleWeekendsCount === 0 && !isTechOnVacation;
               const hasConsecutiveViolation = hasSchedule && stats.maxConsecutiveWorkDays > 6;
               const dddConfig = DDD_INFO[tech.ddd];
 
@@ -420,7 +421,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                           title={
                             hasConsecutiveViolation
                               ? `Atingiu ${stats.maxConsecutiveWorkDays} dias seguidos (limite: 6).`
-                              : `Sem fim de semana duplado programado!`
+                              : `Sem folga duplada (FD) programada!`
                           }
                         >
                           <AlertTriangle className="w-3.5 h-3.5" />

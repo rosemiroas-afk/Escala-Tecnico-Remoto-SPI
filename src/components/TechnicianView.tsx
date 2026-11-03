@@ -263,26 +263,26 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
 
       {/* Stats Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Double Weekend Card */}
+        {/* Double Weekend / Folga Duplada Card */}
         <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-5 text-white shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-purple-100 uppercase tracking-wider">
-              Fim de Semana Duplado
+              Folga Duplada (FD)
             </span>
             <Star className="w-5 h-5 text-amber-300 fill-amber-300" />
           </div>
           <div className="my-3">
             <div className="text-3xl font-extrabold">
-              {doubleWeekends.length} {doubleWeekends.length === 1 ? 'Garantido' : 'Garantidos'}
+              {currentStats?.doubleWeekendsCount || 0} {(currentStats?.doubleWeekendsCount || 0) === 1 ? 'Garantida' : 'Garantidas'}
             </div>
             <p className="text-xs text-purple-100 mt-1">
-              {doubleWeekends.length > 0
-                ? `${doubleWeekends.map(w => w.label).join(' | ')}`
-                : 'Ajuste em andamento com a supervisão'}
+              {(currentStats?.doubleWeekendsCount || 0) > 0
+                ? `${currentStats?.doubleWeekendsCount} folga(s) duplada(s) no período`
+                : 'Nenhuma folga duplada no período'}
             </p>
           </div>
           <div className="text-[11px] bg-white/20 px-2.5 py-1 rounded-lg backdrop-blur-xs font-medium w-fit">
-            Sábado + Domingo Livres
+            2 Dias Seguidos com FD
           </div>
         </div>
 

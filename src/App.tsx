@@ -980,6 +980,12 @@ export default function App() {
   // Handler: Admin Rejects Off Request
   const handleRejectRequest = useCallback((id: string, reason?: string) => {
     setOffRequests(prev => {
+      const targetReq = prev.find(r => r.id === id);
+      if (targetReq) {
+        // Ao reprovar a solicitação, reverte imediatamente o dia para TB (Dia Trabalhado)
+        handleUpdateShift(targetReq.technicianId, targetReq.date, 'TB', 'Dia Trabalhado (TB) - Solicitação reprovada pelo administrador');
+      }
+
       const updated: OffRequest[] = prev.map(r => {
         if (r.id === id) {
           const recNote = reason ? `Recusado: ${reason}` : 'Recusado pelo administrador';
@@ -1001,7 +1007,18 @@ export default function App() {
 
       return updated;
     });
-  }, []);
+  }, [handleUpdateShift]);
+
+  // Sincronização automática: Garante que qualquer solicitação reprovada não fique como FB ou folga na escala, revertendo para TB
+  useEffect(() => {
+    const rejectedReqs = offRequests.filter(r => r.status === 'reprovado' || r.status === 'recusado');
+    for (const req of rejectedReqs) {
+      const currentShift = schedules[req.technicianId]?.days[req.date]?.shift;
+      if (currentShift && currentShift !== 'TB' && currentShift !== 'T' && (currentShift === 'FB' || currentShift === 'FP' || currentShift === 'FG')) {
+        handleUpdateShift(req.technicianId, req.date, 'TB', 'Dia Trabalhado (TB) - Solicitação reprovada pelo administrador');
+      }
+    }
+  }, [offRequests, schedules, handleUpdateShift]);
 
   // Handler: Delete Off Request
   const handleDeleteRequest = useCallback((id: string) => {

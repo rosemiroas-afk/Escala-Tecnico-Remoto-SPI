@@ -104,19 +104,54 @@ export function validateSchedule(
         }
       }
 
-      // Check double weekends for stats only
+      // Contagem de Folgas Dupladas:
+      // 1) 2 dias seguidos com FD em qualquer dia da semana (ex: qui+sex, sex+sáb, sáb+dom, dom+seg)
+      // 2) Finais de semana (Sáb + Dom) com folga mútua, com a regra estrita: Férias (FR / FE) NÃO contam como folga duplada!
+      const countedDoubleDays = new Set<string>();
+
+      // Passo 1: Reconhecer quaisquer 2 dias seguidos com 'FD' (Folga Duplada)
+      for (let i = 0; i < dates.length - 1; i++) {
+        const d1 = dates[i];
+        const d2 = dates[i + 1];
+        const shift1 = techSched.days[d1]?.shift;
+        const shift2 = techSched.days[d2]?.shift;
+
+        if (shift1 === 'FD' && shift2 === 'FD') {
+          doubleWeekendsCount++;
+          countedDoubleDays.add(d1);
+          countedDoubleDays.add(d2);
+          i++; // Avança para não contar o mesmo par duas vezes
+        }
+      }
+
+      // Passo 2: Finais de semana (Sábado + Domingo) de folga (exceto FÉRIAS FR/FE e pares já computados)
       for (const wk of weekends) {
         const satShift = techSched.days[wk.saturday]?.shift;
         const sunShift = techSched.days[wk.sunday]?.shift;
+
+        if ((satShift === 'FG' || satShift === 'F') && (sunShift === 'TB' || sunShift === 'T')) {
+          inversionsCount++;
+        }
+
+        // FÉRIAS (FR ou FE) NUNCA devem ser computadas como folga duplada!
+        const isSatVacation = satShift === 'FR' || satShift === 'FE';
+        const isSunVacation = sunShift === 'FR' || sunShift === 'FE';
+        if (isSatVacation || isSunVacation) {
+          continue;
+        }
+
+        // Se o sábado ou domingo já foram contabilizados como par de FD, não duplicar
+        if (countedDoubleDays.has(wk.saturday) || countedDoubleDays.has(wk.sunday)) {
+          continue;
+        }
+
         const isSatOff = isOffShift(satShift);
         const isSunOff = isOffShift(sunShift);
 
         if (isSatOff && isSunOff) {
           doubleWeekendsCount++;
-        }
-
-        if ((satShift === 'FG' || satShift === 'F') && (sunShift === 'TB' || sunShift === 'T')) {
-          inversionsCount++;
+          countedDoubleDays.add(wk.saturday);
+          countedDoubleDays.add(wk.sunday);
         }
       }
     }
