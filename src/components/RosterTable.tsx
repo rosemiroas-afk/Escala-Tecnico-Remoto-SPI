@@ -26,8 +26,6 @@ interface ActiveCellPicker {
   techName: string;
   date: string;
   currentShift: ShiftType;
-  top: number;
-  left: number;
 }
 
 export const RosterTable: React.FC<RosterTableProps> = ({
@@ -122,32 +120,13 @@ export const RosterTable: React.FC<RosterTableProps> = ({
     requestsMap.set(`${req.technicianId}__${req.date}`, req);
   }
 
-  const handleCellClick = (e: React.MouseEvent, tech: Technician, date: string, currentShift: ShiftType) => {
+  const handleCellClick = (tech: Technician, date: string, currentShift: ShiftType | '-') => {
     if (readOnly) return;
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const windowWidth = window.innerWidth;
-    const windowHeight = window.innerHeight;
-
-    // Calculate picker popover position safely within viewport
-    let left = rect.left + window.scrollX - 120;
-    let top = rect.bottom + window.scrollY + 6;
-
-    if (left + 320 > windowWidth) {
-      left = windowWidth - 330;
-    }
-    if (left < 10) left = 10;
-
-    if (top + 260 > windowHeight + window.scrollY) {
-      top = rect.top + window.scrollY - 270;
-    }
-
     setActivePicker({
       techId: tech.id,
       techName: tech.name,
       date,
-      currentShift,
-      top,
-      left
+      currentShift: currentShift === '-' ? 'TB' : currentShift
     });
   };
 
@@ -500,7 +479,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                       return (
                       <td
                         key={dateKey}
-                        onClick={readOnly ? undefined : (e) => handleCellClick(e, tech, dateKey, (shift === '-' ? 'TB' : shift) as ShiftType)}
+                        onClick={readOnly ? undefined : () => handleCellClick(tech, dateKey, (shift === '-' ? 'TB' : shift) as ShiftType)}
                         className={`p-0.5 text-center border-r border-slate-100 dark:border-slate-800 transition-all relative ${
                           readOnly ? 'cursor-default' : 'cursor-pointer hover:ring-2 hover:ring-indigo-500 hover:z-10'
                         } ${cellBg}`}
@@ -553,38 +532,41 @@ export const RosterTable: React.FC<RosterTableProps> = ({
         </table>
       </div>
 
-      {/* Floating Shift Picker Popover */}
+      {/* Centered Shift Selection Modal - Exact match of Reference Image 2 */}
       {activePicker && (
         <div
-          ref={pickerRef}
-          style={{ top: `${activePicker.top}px`, left: `${activePicker.left}px` }}
-          className="fixed z-50 w-[310px] bg-white dark:bg-slate-900 rounded-xl shadow-2xl border-2 border-indigo-500 p-3 animate-in fade-in zoom-in-95 duration-100"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setActivePicker(null)}
         >
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
-            <div className="truncate max-w-[220px]">
-              <div className="text-xs font-black text-slate-800 dark:text-slate-100 truncate">
-                {activePicker.techName}
+          <div
+            ref={pickerRef}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-3">
+              <div>
+                <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
+                  Alterar Escala do Dia
+                </h3>
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold">
+                  {activePicker.techName} &bull; {formatDisplayDate(activePicker.date)} (Atual: {activePicker.currentShift})
+                </p>
               </div>
-              <div className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">
-                {formatDisplayDate(activePicker.date)} (Atual: {activePicker.currentShift})
-              </div>
+              <button
+                onClick={() => setActivePicker(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button
-              onClick={() => setActivePicker(null)}
-              className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
 
-          <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-            Selecione a Escala / Folga:
-          </div>
+            <div className="text-xs font-semibold text-slate-500 mb-2">
+              Selecione qualquer nomenclatura da legenda oficial:
+            </div>
 
-          <div className="grid grid-cols-2 gap-1.5 max-h-[290px] overflow-y-auto pr-0.5">
-            {OFFICIAL_LEGEND_ITEMS.map(item => {
-              const isSelected = activePicker.currentShift === item.type;
-              return (
+            <div className="grid grid-cols-2 gap-2 max-h-[340px] overflow-y-auto pr-1">
+              {OFFICIAL_LEGEND_ITEMS.map(item => (
                 <button
                   key={item.type}
                   onClick={() => selectShiftForCell(item.type)}
@@ -593,27 +575,29 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                     color: item.textColor,
                     borderColor: item.borderColor
                   }}
-                  className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-left transition-all cursor-pointer hover:brightness-95 hover:scale-[1.02] shadow-2xs ${
-                    isSelected ? 'ring-2 ring-indigo-600 font-black' : ''
-                  }`}
-                  title={`${item.shortLabel}: ${item.label}`}
+                  className="flex items-center gap-2 p-2 rounded-xl border text-left cursor-pointer hover:brightness-95 hover:scale-[1.02] transition-all shadow-2xs"
                 >
-                  <span className="w-7 h-5 flex items-center justify-center text-[10px] font-black rounded-xs bg-white border border-slate-300 shadow-2xs shrink-0 text-black">
+                  <span className="w-8 h-6 flex items-center justify-center text-xs font-black rounded-sm bg-white border border-slate-300 shadow-2xs shrink-0 text-black">
                     {item.shortLabel}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[11px] font-normal truncate leading-tight text-black">
+                    <div className="text-xs font-bold truncate leading-tight text-black">
                       {item.label}
                     </div>
                   </div>
                 </button>
-              );
-            })}
-          </div>
+              ))}
+            </div>
 
-          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
-            <span>💡 Esc = fechar</span>
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">Salva automaticamente</span>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400">
+              <span>⚠️ Todas interrompem a contagem de dias exceto TB</span>
+              <button
+                onClick={() => setActivePicker(null)}
+                className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-200 cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}
