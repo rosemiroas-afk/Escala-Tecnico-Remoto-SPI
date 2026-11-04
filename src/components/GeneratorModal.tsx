@@ -428,7 +428,7 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                   onChange={e => setBalanceDDD(e.target.checked)}
                   className="w-4 h-4 text-indigo-600 rounded-sm border-slate-300 focus:ring-indigo-500"
                 />
-                <span>Distribuir Folgas por Região (Evitar 4+ no mesmo DDD)</span>
+                <span>Distribuir Folgas por Região (Metade da Equipe por DDD: 4/3, 2/2, 2/1)</span>
               </label>
             </div>
           </div>

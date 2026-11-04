@@ -56,11 +56,12 @@ export function generateSchedule(
     dddGroups[tech.ddd].push(tech);
   }
 
-  // 2. Determine Subgroups for each DDD (60% Group 1, 40% Group 2)
+  // 2. Determine Subgroups for each DDD (Metade da equipe por DDD: 4 e 3, 2 e 1, 2 e 2)
   const techGroups: Record<string, number> = {}; // techId -> 1 or 2
   for (const dddStr of Object.keys(dddGroups)) {
     const techs = dddGroups[Number(dddStr)];
-    const group1Count = Math.max(1, Math.round(techs.length * 0.6));
+    // Metade da equipe por DDD: se tem 7 fica 4 e 3; se 3 fica 2 e 1; se 4 fica 2 e 2; se 6 fica 3 e 3
+    const group1Count = Math.ceil(techs.length / 2);
     
     for (let i = 0; i < techs.length; i++) {
       techGroups[techs[i].id] = i < group1Count ? 1 : 2;
@@ -70,40 +71,67 @@ export function generateSchedule(
   if (is5x2) {
     // =========================================================================
     // REGIME 5x2 LOGIC: Rodízio Quinzenal Rigoroso de 4 Semanas (Equipe SPI 19)
-    // 5 Dias Trabalhados / 2 Folgas Semanais
+    // 5 Dias Trabalhados / 2 Folgas Semanais (Balanceamento por DDD: Metade da Equipe)
     // =========================================================================
 
-    // Order technicians stably by name (Colaborador 01 a Colaborador 19)
-    const sortedTechs = [...activeTechs].sort((a, b) => a.name.localeCompare(b.name));
-    const totalTechs = sortedTechs.length;
+    let grupoA: Technician[] = [];
+    let grupoB: Technician[] = [];
+    let grupoC: Technician[] = [];
 
-    // Determine group counts based on options (default: 9 in Grupo A, 5 in Grupo B, 5 in Grupo C)
-    let countA = options.teamWeekendPercent5x2
-      ? Math.max(1, Math.round(totalTechs * (options.teamWeekendPercent5x2 / 100)))
-      : 9;
-    if (countA >= totalTechs) countA = Math.max(1, totalTechs - 2);
+    if (options.balanceDDDCoverage) {
+      // Distribui rigorosamente metade da equipe de CADA DDD no fim de semana (Grupo A)
+      // e a outra metade nos dias de meio de semana (Grupo B e Grupo C)
+      // Se tem 7 no mesmo DDD: fica 4 e 3 (4 em A, 3 em B/C)
+      // Se tiver 3: fica 2 e 1 (2 em A, 1 em B/C)
+      // Se tiver 4: fica 2 e 2 (2 em A, 2 em B/C)
+      // Se tiver 6: fica 3 e 3 (3 em A, 3 em B/C)
+      let bTurn = true;
+      for (const dddStr of Object.keys(dddGroups)) {
+        const techs = dddGroups[Number(dddStr)];
+        const half = Math.ceil(techs.length / 2);
+        const dddGroupA = techs.slice(0, half);
+        const dddRemainder = techs.slice(half);
 
-    const remainingTechs = totalTechs - countA;
-    const countB = options.midweekGroupBCount5x2 ?? Math.floor(remainingTechs / 2);
-    const countC = remainingTechs - countB;
+        grupoA.push(...dddGroupA);
 
-    // Ciclo 1 Groups
-    const grupoA = sortedTechs.slice(0, countA); // 9 colaboradores
-    const grupoB = sortedTechs.slice(countA, countA + countB); // 5 colaboradores
-    const grupoC = sortedTechs.slice(countA + countB); // 5 colaboradores
+        for (const t of dddRemainder) {
+          if (bTurn) {
+            grupoB.push(t);
+          } else {
+            grupoC.push(t);
+          }
+          bTurn = !bTurn;
+        }
+      }
+    } else {
+      // Order technicians stably by name (Colaborador 01 a Colaborador 19)
+      const sortedTechs = [...activeTechs].sort((a, b) => a.name.localeCompare(b.name));
+      const totalTechs = sortedTechs.length;
+
+      let countA = options.teamWeekendPercent5x2
+        ? Math.max(1, Math.round(totalTechs * (options.teamWeekendPercent5x2 / 100)))
+        : Math.round(totalTechs * 0.5);
+      if (countA >= totalTechs) countA = Math.max(1, totalTechs - 2);
+
+      const remainingTechs = totalTechs - countA;
+      const countB = options.midweekGroupBCount5x2 ?? Math.floor(remainingTechs / 2);
+
+      grupoA = sortedTechs.slice(0, countA);
+      grupoB = sortedTechs.slice(countA, countA + countB);
+      grupoC = sortedTechs.slice(countA + countB);
+    }
 
     const grupoAIds = new Set(grupoA.map(t => t.id));
     const grupoBIds = new Set(grupoB.map(t => t.id));
     const grupoCIds = new Set(grupoC.map(t => t.id));
 
     // Ciclo 2 Groups (A Inversão):
-    // Grupo Novo FDS: obrigatoriamente 5 de B + 5 de C = 10 colaboradores
-    // Grupo Novo Meio 1: primeiros 4 colaboradores de A
-    // Grupo Novo Meio 2: restantes 5 colaboradores de A
-    const halfA = Math.floor(countA / 2); // 4
-    const grupoNovoMeio1 = grupoA.slice(0, halfA); // 4 colaboradores
-    const grupoNovoMeio2 = grupoA.slice(halfA); // 5 colaboradores
-    const grupoNovoFds = [...grupoB, ...grupoC]; // 10 colaboradores
+    // Grupo Novo FDS: obrigatoriamente a outra metade da equipe (Grupo B + Grupo C)
+    // Grupo Novo Meio 1 e 2: distribuídos da metade anterior (Grupo A)
+    const halfA = Math.floor(grupoA.length / 2);
+    const grupoNovoMeio1 = grupoA.slice(0, halfA);
+    const grupoNovoMeio2 = grupoA.slice(halfA);
+    const grupoNovoFds = [...grupoB, ...grupoC];
 
     const grupoNovoFdsIds = new Set(grupoNovoFds.map(t => t.id));
     const grupoNovoMeio1Ids = new Set(grupoNovoMeio1.map(t => t.id));
