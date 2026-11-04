@@ -207,7 +207,7 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-xs text-slate-900">Escala 5x2</span>
+                      <span className="font-bold text-xs text-slate-900">Escala 5x2 Perpétua</span>
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
                         regime === '5x2' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'
                       }`}>
@@ -215,7 +215,7 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-600 leading-snug">
-                      5 trab. / 2 folgas semanais com rodízio quinzenal de FDS.
+                      5 trab. (TB) / 2 folgas (FD/FG) semanais em 3 Grupos Cíclicos.
                     </p>
                   </button>
                 </div>
@@ -225,75 +225,54 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
               <div className="space-y-3">
                 <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                   <Settings className="w-3.5 h-3.5 text-slate-500" />
-                  {regime === '5x2' ? 'Parâmetros da Escala 5x2 SPI' : 'Regras da Escala 6x1 CLT'}
+                  {regime === '5x2' ? 'Parâmetros da Escala 5x2 Perpétua (3 Grupos)' : 'Regras da Escala 6x1 CLT'}
                 </h3>
 
                 {regime === '5x2' ? (
-                  /* 5x2 Selectors */
+                  /* 5x2 Configuration */
                   <div className="space-y-2.5">
-                    {/* Rule 1: % fim de semana */}
+                    {/* Regra 1: Divisão em 3 Grupos Proporcionais */}
                     <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200">
                       <div>
                         <span className="font-semibold text-emerald-950 text-xs block">
-                          % da equipe nos finais de semana:
+                          1. Divisão da Equipe em 3 Grupos:
                         </span>
                         <p className="text-[11px] text-emerald-700 mt-0.5">
-                          Folga fixa de Sábado e Domingo.
+                          Equipe dividida igualmente em <strong>Grupo 1</strong>, <strong>Grupo 2</strong> e <strong>Grupo 3</strong> com distribuição de sobra preferencial nos Grupos 1 e 2.
                         </p>
                       </div>
-                      <select
-                        value={teamWeekendPercent5x2}
-                        onChange={e => setTeamWeekendPercent5x2(Number(e.target.value))}
-                        className="mt-2 w-full text-xs bg-white border border-emerald-300 rounded-lg px-2.5 py-1.5 font-bold text-emerald-900 shadow-xs focus:ring-2 focus:ring-emerald-500 cursor-pointer"
-                      >
-                        <option value={50}>50%</option>
-                        <option value={40}>40%</option>
-                        <option value={60}>60%</option>
-                        <option value={30}>30%</option>
-                        <option value={70}>70%</option>
-                      </select>
+                      <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px] font-bold text-emerald-950 bg-white/80 p-2 rounded-lg border border-emerald-300">
+                        <div>Grupo 1: ~37%</div>
+                        <div>Grupo 2: ~31.5%</div>
+                        <div>Grupo 3: ~31.5%</div>
+                      </div>
                     </div>
 
-                    {/* Rule 2: Consecutive weekends */}
+                    {/* Regra 2: Nomenclatura Estrita */}
                     <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200">
                       <div>
                         <span className="font-semibold text-blue-950 text-xs block">
-                          Finais de semana seguidos de folga:
+                          2. Nomenclatura Estrita de Folgas:
                         </span>
-                        <p className="text-[11px] text-blue-700 mt-0.5">
-                          Duração de cada ciclo consecutivo antes da rotação.
-                        </p>
+                        <div className="mt-1.5 grid grid-cols-1 gap-1 text-[11px] text-blue-900">
+                          <div><strong>TB:</strong> Dia de Trabalho (5 dias de Seg a Dom)</div>
+                          <div><strong>FD:</strong> Folga Duplada (2 dias juntos: Sáb+Dom ou Seg+Ter)</div>
+                          <div><strong>FG:</strong> Folga em Dias Distintos (folgas separadas: Seg e Dom)</div>
+                        </div>
                       </div>
-                      <select
-                        value={consecutiveWeekendsCount5x2}
-                        onChange={e => setConsecutiveWeekendsCount5x2(Number(e.target.value))}
-                        className="mt-2 w-full text-xs bg-white border border-blue-300 rounded-lg px-2.5 py-1.5 font-bold text-blue-900 shadow-xs focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                      >
-                        <option value={2}>2 Finais de semana seguidos (Rodízio Quinzenal)</option>
-                        <option value={1}>1 Final de semana (Alternância semanal)</option>
-                        <option value={3}>3 Finais de semana seguidos</option>
-                      </select>
                     </div>
 
-                    {/* Rule 3: % meio da semana */}
-                    <div className="p-3 bg-purple-50/70 rounded-xl border border-purple-200">
+                    {/* Regra 3: Conformidade CLT */}
+                    <div className="p-3 bg-purple-50/70 rounded-xl border border-purple-200 flex items-start gap-2">
+                      <ShieldCheck className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
                       <div>
                         <span className="font-semibold text-purple-950 text-xs block">
-                          % de folgas no meio da semana:
+                          3. Lógica Jurídica CLT 5x2
                         </span>
-                        <p className="text-[11px] text-purple-700 mt-0.5">
-                          Divisão entre Terça/Quinta e Quarta/Sexta ({100 - teamWeekendPercent5x2}% restante).
+                        <p className="text-[11px] text-purple-700 mt-0.5 leading-snug">
+                          Exatamente 5 TB por semana (Seg a Dom). Bloqueio total de mais de 5 dias consecutivos de trabalho nas viradas de semana.
                         </p>
                       </div>
-                      <select
-                        value="ter_qui_qua_sex"
-                        disabled
-                        className="mt-2 w-full text-xs bg-white border border-purple-300 rounded-lg px-2.5 py-1.5 font-bold text-purple-900 shadow-xs cursor-default"
-                      >
-                        <option value="ter_qui_qua_sex">
-                          {Math.round((100 - teamWeekendPercent5x2) / 2)}% e {Math.round((100 - teamWeekendPercent5x2) / 2)}% (Ter/Qui e Qua/Sex)
-                        </option>
-                      </select>
                     </div>
                   </div>
                 ) : (
@@ -400,53 +379,101 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                 <>
                   <div className="p-4 bg-slate-900 text-white rounded-xl border border-slate-800 space-y-3 shadow-md">
                     <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-                      <span className="text-xs font-bold text-indigo-400 tracking-wider uppercase flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-emerald-400 tracking-wider uppercase flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                        Estrutura do Rodízio Quinzenal ({teamWeekendPercent5x2}% / {Math.round((100 - teamWeekendPercent5x2) / 2)}% / {Math.round((100 - teamWeekendPercent5x2) / 2)}%)
+                        Matriz Cíclica Perpétua 5x2 (3 Grupos de Escala)
                       </span>
-                      <span className="text-[10px] bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded font-mono font-bold">
-                        SPI 5x2
+                      <span className="text-[10px] bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded font-mono font-bold">
+                        5x2 Perpétuo
                       </span>
                     </div>
 
-                    {/* Ciclo 1 */}
-                    <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700 space-y-2 text-xs">
-                      <div className="font-bold text-amber-300 flex items-center gap-1.5 text-xs">
-                        <span>📅 CICLO 1 (Semanas 1 e 2 Consecutivas)</span>
+                    {/* Grupo 1 */}
+                    <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700/80 space-y-1.5 text-xs">
+                      <div className="font-bold text-emerald-300 flex items-center justify-between text-xs">
+                        <span>GRUPO 1 (~37% da equipe)</span>
+                        <span className="text-[10px] text-slate-400 font-mono">FDS &gt; FDS &gt; Seg/Ter &gt; Seg/Dom</span>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
-                        <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/60 flex flex-col justify-between">
-                          <strong className="text-emerald-400 block font-bold mb-1">Grupo A ({teamWeekendPercent5x2}%)</strong>
-                          <span className="text-slate-300 leading-snug">Folga fixa no <strong>Sábado e Domingo</strong> (FD)</span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
+                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
+                          <strong className="text-amber-300 block">Semana A</strong>
+                          <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
+                          <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
                         </div>
-                        <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/60 flex flex-col justify-between">
-                          <strong className="text-sky-400 block font-bold mb-1">Grupo B ({Math.round((100 - teamWeekendPercent5x2) / 2)}%)</strong>
-                          <span className="text-slate-300 leading-snug">Folga fixa na <strong>Terça e Quinta-feira</strong> (FC)</span>
+                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
+                          <strong className="text-amber-300 block">Semana B</strong>
+                          <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
+                          <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
                         </div>
-                        <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/60 flex flex-col justify-between">
-                          <strong className="text-purple-400 block font-bold mb-1">Grupo C ({Math.round((100 - teamWeekendPercent5x2) / 2)}%)</strong>
-                          <span className="text-slate-300 leading-snug">Folga fixa na <strong>Quarta e Sexta-feira</strong> (FC)</span>
+                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
+                          <strong className="text-sky-300 block">Semana C</strong>
+                          <span className="text-emerald-400">Seg-Ter: <strong>FD</strong></span><br/>
+                          <span className="text-slate-300">Qua-Dom: <strong>TB</strong></span>
+                        </div>
+                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
+                          <strong className="text-purple-300 block">Semana D</strong>
+                          <span className="text-yellow-300">Seg e Dom: <strong>FG</strong></span><br/>
+                          <span className="text-slate-300">Ter-Sáb: <strong>TB</strong></span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Ciclo 2 */}
-                    <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700 space-y-2 text-xs">
-                      <div className="font-bold text-cyan-300 flex items-center gap-1.5 text-xs">
-                        <span>🔄 CICLO 2 - A INVERSÃO (Semanas 3 e 4 Consecutivas)</span>
+                    {/* Grupo 2 */}
+                    <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700/80 space-y-1.5 text-xs">
+                      <div className="font-bold text-sky-300 flex items-center justify-between text-xs">
+                        <span>GRUPO 2 (~31.5% da equipe)</span>
+                        <span className="text-[10px] text-slate-400 font-mono">Seg/Ter &gt; Seg/Dom &gt; FDS &gt; FDS</span>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
-                        <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/60 flex flex-col justify-between">
-                          <strong className="text-emerald-400 block font-bold mb-1">Novo FDS ({100 - teamWeekendPercent5x2}%)</strong>
-                          <span className="text-slate-300 leading-snug">Grupo B + C: Folga no <strong>Sábado e Domingo</strong> (FD)</span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
+                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
+                          <strong className="text-sky-300 block">Semana A</strong>
+                          <span className="text-emerald-400">Seg-Ter: <strong>FD</strong></span><br/>
+                          <span className="text-slate-300">Qua-Dom: <strong>TB</strong></span>
                         </div>
-                        <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/60 flex flex-col justify-between">
-                          <strong className="text-sky-400 block font-bold mb-1">Novo Meio 1 ({Math.round(teamWeekendPercent5x2 / 2)}%)</strong>
-                          <span className="text-slate-300 leading-snug">Folga na <strong>Terça e Quinta-feira</strong> (FC)</span>
+                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
+                          <strong className="text-purple-300 block">Semana B</strong>
+                          <span className="text-yellow-300">Seg e Dom: <strong>FG</strong></span><br/>
+                          <span className="text-slate-300">Ter-Sáb: <strong>TB</strong></span>
                         </div>
-                        <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/60 flex flex-col justify-between">
-                          <strong className="text-purple-400 block font-bold mb-1">Novo Meio 2 ({teamWeekendPercent5x2 - Math.round(teamWeekendPercent5x2 / 2)}%)</strong>
-                          <span className="text-slate-300 leading-snug">Folga na <strong>Quarta e Sexta-feira</strong> (FC)</span>
+                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
+                          <strong className="text-amber-300 block">Semana C</strong>
+                          <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
+                          <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
+                        </div>
+                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
+                          <strong className="text-amber-300 block">Semana D</strong>
+                          <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
+                          <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Grupo 3 */}
+                    <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700/80 space-y-1.5 text-xs">
+                      <div className="font-bold text-purple-300 flex items-center justify-between text-xs">
+                        <span>GRUPO 3 (~31.5% da equipe)</span>
+                        <span className="text-[10px] text-slate-400 font-mono">Seg/Dom &gt; FDS &gt; FDS &gt; Seg/Ter</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
+                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
+                          <strong className="text-purple-300 block">Semana A</strong>
+                          <span className="text-yellow-300">Seg e Dom: <strong>FG</strong></span><br/>
+                          <span className="text-slate-300">Ter-Sáb: <strong>TB</strong></span>
+                        </div>
+                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
+                          <strong className="text-amber-300 block">Semana B</strong>
+                          <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
+                          <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
+                        </div>
+                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
+                          <strong className="text-amber-300 block">Semana C</strong>
+                          <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
+                          <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
+                        </div>
+                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
+                          <strong className="text-sky-300 block">Semana D</strong>
+                          <span className="text-emerald-400">Seg-Ter: <strong>FD</strong></span><br/>
+                          <span className="text-slate-300">Qua-Dom: <strong>TB</strong></span>
                         </div>
                       </div>
                     </div>
@@ -456,20 +483,20 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                   <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
                     <span className="font-bold text-slate-800 flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                      Garantias Operacionais do Regime 5x2 SPI
+                      Garantias Operacionais do Regime 5x2 Perpétuo CLT
                     </span>
                     <ul className="space-y-1.5 text-[11px] text-slate-600">
                       <li className="flex items-start gap-1.5">
                         <span className="text-emerald-600 font-bold">•</span>
-                        <span><strong>Jornada Balanceada:</strong> Exatamente 5 dias trabalhados (TB) e 2 dias de descanso (FD/FC) semanais.</span>
+                        <span><strong>Jornada Estrita:</strong> Exatamente 5 TB e 2 folgas (FD ou FG) por semana de Segunda a Domingo.</span>
                       </li>
                       <li className="flex items-start gap-1.5">
                         <span className="text-indigo-600 font-bold">•</span>
-                        <span><strong>Alternância Justa:</strong> Metade da equipe folga no fim de semana por 2 semanas consecutivas e depois inverte.</span>
+                        <span><strong>Proteção CLT:</strong> Nenhum colaborador trabalha mais de 5 dias seguidos, inclusive nas transições semanais.</span>
                       </li>
                       <li className="flex items-start gap-1.5">
                         <span className="text-blue-600 font-bold">•</span>
-                        <span><strong>Preservação Regional:</strong> Metade de cada DDD (4/3, 2/2, 2/1) permanece ativa diariamente em campo.</span>
+                        <span><strong>Cobertura por Região:</strong> Equilíbrio automático por DDD em todos os turnos e finais de semana.</span>
                       </li>
                     </ul>
                   </div>
