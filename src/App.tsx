@@ -288,12 +288,7 @@ export default function App() {
     return officialSched;
   };
 
-  // 5. Generate Date Array for 2 Months
-  const dates = useMemo(() => {
-    return generateDateRange(period.startYear, period.startMonth, period.durationMonths);
-  }, [period.startYear, period.startMonth, period.durationMonths]);
-
-  // 6. Schedules State
+  // 5. Schedules State
   const [schedules, setSchedules] = useState<Record<string, TechnicianSchedule>>(() => {
     const officialSched = getOfficialScheduleMap();
     try {
@@ -315,6 +310,30 @@ export default function App() {
     }
     return officialSched;
   });
+
+  // 6. Generate Dynamic Date Array: Union of base period (Nov/Dez 2026) and all dates in schedules
+  const dates = useMemo(() => {
+    const dateSet = new Set<string>();
+
+    // Always include standard base period (November & December 2026)
+    const baseDates = generateDateRange(2026, 10, 2);
+    for (const d of baseDates) {
+      dateSet.add(d);
+    }
+
+    // Also include any other month/dates present in schedules
+    for (const techSched of Object.values(schedules)) {
+      if (techSched && techSched.days) {
+        for (const d of Object.keys(techSched.days)) {
+          if (d && d.length === 10) {
+            dateSet.add(d);
+          }
+        }
+      }
+    }
+
+    return Array.from(dateSet).sort();
+  }, [schedules]);
 
   // Active View Tab: For technicians, always 'individual'
   const [activeTab, setActiveTab] = useState<'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics'>('matrix');
@@ -1284,23 +1303,38 @@ export default function App() {
     exportScheduleToExcel(technicians, schedules, dates, period, offRequests);
   };
 
-  // Handler: Generate Schedule (Supporting 6x1 vs 5x2) & Save to Supabase
+  // Handler: Generate Schedule (1 month at a time, supporting 6x1 vs 5x2) & Save to Supabase
   const handleGenerate = useCallback(async (options: GeneratorOptions, periodConfig: { startYear: number; startMonth: number }) => {
-    const newDates = generateDateRange(periodConfig.startYear, periodConfig.startMonth, period.durationMonths);
+    // Generate dates strictly for 1 month
+    const newDates = generateDateRange(periodConfig.startYear, periodConfig.startMonth, 1);
     const currentRegime = options.regime || '6x1';
 
     const newPeriod: SchedulePeriod = {
       ...period,
       startYear: periodConfig.startYear,
       startMonth: periodConfig.startMonth,
+      durationMonths: 1,
       regime: currentRegime,
       updatedAt: new Date().toISOString()
     };
     setPeriod(newPeriod);
 
-    // Generate new schedule with regime logic
+    // Generate new schedule for this specific month
     const newSchedule = generateSchedule(technicians, newDates, offRequests, options);
-    setSchedules(newSchedule);
+
+    // Merge into existing schedules so other months remain completely intact
+    setSchedules(prev => {
+      const merged = { ...prev };
+      for (const tech of technicians) {
+        const existingDays = merged[tech.id]?.days || {};
+        const generatedDays = newSchedule[tech.id]?.days || {};
+        merged[tech.id] = {
+          technicianId: tech.id,
+          days: { ...existingDays, ...generatedDays }
+        };
+      }
+      return merged;
+    });
 
     // Save batch to Supabase table 'escalas'
     const rows: any[] = [];
@@ -1320,7 +1354,10 @@ export default function App() {
     }
 
     try {
-      await supabase.from('escalas').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      // Delete only the dates of this specific month in Supabase, preserving other months
+      const monthStart = newDates[0];
+      const monthEnd = newDates[newDates.length - 1];
+      await supabase.from('escalas').delete().gte('data', monthStart).lte('data', monthEnd);
       for (let i = 0; i < rows.length; i += 100) {
         await supabase.from('escalas').insert(rows.slice(i, i + 100));
       }
@@ -1329,7 +1366,7 @@ export default function App() {
     }
 
     setIsGeneratorOpen(false);
-    alert(`Escala ${currentRegime} gerada e salva com sucesso na nuvem Supabase!`);
+    alert(`Escala de ${MONTHS_PT[periodConfig.startMonth]} de ${periodConfig.startYear} (${currentRegime}) gerada e salva com sucesso!`);
   }, [technicians, offRequests, period]);
 
   const isAdmin = currentUser?.role === 'admin';

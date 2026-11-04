@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Technician, TechnicianSchedule, ShiftType, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS, OffRequest, SchedulePeriod } from '../types';
 import { formatDisplayDate, parseDateKey, isSaturday, isSunday, MONTHS_PT } from '../utils/dateUtils';
-import { AuditResult, isOffShift, isWorkingShift } from '../utils/validator';
+import { AuditResult, isOffShift, isWorkingShift, validateSchedule } from '../utils/validator';
 import { DDD_INFO } from '../data/defaultTechnicians';
-import { Filter, Search, AlertTriangle, Star, Trash2, Check, FileSpreadsheet, X, HelpCircle, Upload, RotateCcw, Eye } from 'lucide-react';
+import { Filter, Search, AlertTriangle, Star, Trash2, Check, FileSpreadsheet, X, HelpCircle, Upload, RotateCcw, Eye, Calendar } from 'lucide-react';
 
 interface RosterTableProps {
   technicians: Technician[];
@@ -90,12 +90,45 @@ export const RosterTable: React.FC<RosterTableProps> = ({
     return true;
   });
 
-  // Split dates by month for header grouping
+  // Available months extracted from dates (e.g. ['2026-11', '2026-12'])
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of dates) {
+      if (d && d.length >= 7) {
+        set.add(d.slice(0, 7));
+      }
+    }
+    return Array.from(set).sort();
+  }, [dates]);
+
+  // Selected Month Filter: 'all' or 'YYYY-MM'
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+
+  // Keep selectedMonth synchronized if availableMonths change
+  useEffect(() => {
+    if (selectedMonth !== 'all' && !availableMonths.includes(selectedMonth)) {
+      setSelectedMonth('all');
+    }
+  }, [availableMonths, selectedMonth]);
+
+  // Filtered dates based on selectedMonth
+  const displayDates = useMemo(() => {
+    if (selectedMonth === 'all') return dates;
+    return dates.filter(d => d.startsWith(selectedMonth));
+  }, [dates, selectedMonth]);
+
+  // Dynamic audit specifically for displayDates
+  const filteredAuditResult = useMemo(() => {
+    if (selectedMonth === 'all') return auditResult;
+    return validateSchedule(technicians, schedules, displayDates, offRequests);
+  }, [technicians, schedules, displayDates, offRequests, selectedMonth, auditResult]);
+
+  // Split displayDates by month for header grouping
   const monthGroups: { monthName: string; year: number; dates: string[] }[] = [];
   let currentMonthKey = '';
   let currentGroup: { monthName: string; year: number; dates: string[] } | null = null;
 
-  for (const d of dates) {
+  for (const d of displayDates) {
     const dObj = parseDateKey(d);
     const m = dObj.getMonth();
     const y = dObj.getFullYear();
@@ -186,6 +219,49 @@ export const RosterTable: React.FC<RosterTableProps> = ({
               </button>
             );
           })}
+
+          {/* Month Filter (ex: 11/2026, 12/2026 ou Todos) */}
+          <div className="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-3 ml-1 flex-wrap">
+            <div className="flex items-center gap-1 text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider mr-1">
+              <Calendar className="w-3.5 h-3.5" />
+              Filtrar Mês:
+            </div>
+
+            <button
+              onClick={() => setSelectedMonth('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                selectedMonth === 'all'
+                  ? 'bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-400/50'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              <span>Todos os Meses</span>
+            </button>
+
+            {availableMonths.map(mKey => {
+              const [y, m] = mKey.split('-').map(Number);
+              const monthNum = String(m).padStart(2, '0');
+              const monthName = MONTHS_PT[m - 1] || '';
+              const isSelected = selectedMonth === mKey;
+              return (
+                <button
+                  key={mKey}
+                  onClick={() => setSelectedMonth(mKey)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/50'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                  }`}
+                  title={`Filtrar apenas os dias de ${monthName} de ${y}`}
+                >
+                  <span>{monthNum}/{y}</span>
+                  <span className={`text-[10px] font-normal ${isSelected ? 'text-indigo-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                    ({monthName.slice(0, 3)})
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Search, Clear & Save Roster */}
@@ -316,7 +392,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                 2 Dias
               </th>
 
-              {dates.map(d => {
+              {displayDates.map(d => {
                 const dateObj = parseDateKey(d);
                 const isSat = isSaturday(d);
                 const isSun = isSunday(d);
@@ -356,7 +432,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                 -
               </th>
 
-              {dates.map(d => {
+              {displayDates.map(d => {
                 let workingCount = 0;
                 for (const t of filteredTechs) {
                   const s = schedules[t.id]?.days[d]?.shift;
@@ -380,7 +456,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
             {filteredTechs.map(tech => {
               const techSched = schedules[tech.id];
               const hasSchedule = !!techSched && Object.keys(techSched.days).length > 0;
-              const stats = hasSchedule ? (auditResult.techStats[tech.id] || {
+              const stats = hasSchedule ? (filteredAuditResult.techStats[tech.id] || {
                 totalWorkDays: 0,
                 totalOffDays: 0,
                 doubleWeekendsCount: 0,
@@ -462,7 +538,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                   </td>
 
                   {/* Day cells */}
-                  {dates.map(dateKey => {
+                  {displayDates.map(dateKey => {
                     const day = techSched?.days[dateKey];
                     const rawShift = day?.shift;
                     const shift = rawShift ? (rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift) : '-';

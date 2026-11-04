@@ -108,19 +108,25 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
             
             {/* Left Column: Controles e Configurações */}
             <div className="space-y-4">
-              {/* Period Selector */}
-              <div className="bg-indigo-50/60 p-3.5 rounded-xl border border-indigo-100">
-                <label className="block text-xs font-bold text-indigo-900 uppercase tracking-wider mb-2 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-indigo-600" />
-                  Período Bimestral da Escala (2 Meses)
-                </label>
+              {/* Period Selector - 1 Mês por Vez */}
+              <div className="bg-indigo-50/70 p-3.5 rounded-xl border border-indigo-100 shadow-xs">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-indigo-600" />
+                    Mês da Escala a Ser Gerada (1 Mês por vez)
+                  </label>
+                  <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full border border-indigo-200">
+                    1 Mês Individual
+                  </span>
+                </div>
+                
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] text-slate-600 mb-1">Mês Inicial:</label>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Mês Selecionado:</label>
                     <select
                       value={startMonth}
                       onChange={e => setStartMonth(Number(e.target.value))}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                     >
                       {MONTHS_PT.map((m, idx) => (
                         <option key={idx} value={idx}>
@@ -131,11 +137,11 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] text-slate-600 mb-1">Ano:</label>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Ano:</label>
                     <select
                       value={startYear}
                       onChange={e => setStartYear(Number(e.target.value))}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                     >
                       <option value={2026}>2026</option>
                       <option value={2027}>2027</option>
@@ -144,11 +150,16 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                   </div>
                 </div>
 
-                <div className="mt-2 text-[11px] text-indigo-700 bg-white/70 p-1.5 rounded-lg border border-indigo-100 flex items-center gap-1.5">
-                  <span>📅 Período coberto:</span>
-                  <strong className="text-indigo-900 font-semibold">
-                    {MONTHS_PT[startMonth]} e {MONTHS_PT[nextMonth]} de {startYear === nextYear ? startYear : `${startYear}/${nextYear}`}
-                  </strong>
+                <div className="mt-2.5 text-[11px] text-indigo-900 bg-white/90 p-2.5 rounded-lg border border-indigo-100 space-y-1">
+                  <div className="flex items-center gap-1.5 font-semibold">
+                    <span>📅 Mês a ser gerado:</span>
+                    <strong className="text-indigo-600">
+                      {MONTHS_PT[startMonth]} de {startYear} ({new Date(startYear, startMonth + 1, 0).getDate()} dias)
+                    </strong>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-tight">
+                    💡 <strong>Geração cumulativa:</strong> Os outros meses gerados anteriormente serão preservados. Você pode gerar mês a mês e depois filtrar na matriz de escala.
+                  </p>
                 </div>
               </div>
 

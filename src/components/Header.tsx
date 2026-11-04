@@ -67,7 +67,9 @@ export const Header: React.FC<HeaderProps> = ({
   const startYear = period.startYear;
   const nextYear = period.startMonth === 11 ? startYear + 1 : startYear;
 
-  const periodLabel = `${MONTHS_PT[period.startMonth]} e ${MONTHS_PT[nextMonth]} de ${startYear === nextYear ? startYear : `${startYear}/${nextYear}`}`;
+  const periodLabel = period.durationMonths === 1
+    ? `${MONTHS_PT[period.startMonth]} de ${startYear}`
+    : `${MONTHS_PT[period.startMonth]} e ${MONTHS_PT[nextMonth]} de ${startYear === nextYear ? startYear : `${startYear}/${nextYear}`}`;
   const isAdmin = currentUser?.role === 'admin';
   const isViewer = currentUser?.role === 'viewer';
   const isTechnician = currentUser?.role === 'technician';
