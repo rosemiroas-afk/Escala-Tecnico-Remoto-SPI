@@ -324,6 +324,13 @@ export interface GeneratorOptions {
   prioritizeOffRequests: boolean; // default true
   balanceDDDCoverage: boolean; // default true
   randomSeed?: number;
+
+  // Regras específicas da Nova Escala 5x2 SPI
+  teamWeekendPercent5x2?: number; // % da equipe que irá folgar nos finais de semana (ex: 47% = 9 de 19)
+  consecutiveWeekendsCount5x2?: number; // Quantos finais de semana seguidos serão as folgas (ex: 2 semanas consecutivas)
+  midweekSplitRule5x2?: 'ter_qui_qua_sex' | 'seg_ter_qui_sex'; // Distribuição no meio da semana
+  midweekGroupBCount5x2?: number; // Colaboradores Ter/Qui (ex: 5)
+  midweekGroupCCount5x2?: number; // Colaboradores Qua/Sex (ex: 5)
 }
 
 export type UserRole = 'admin' | 'technician' | 'viewer';

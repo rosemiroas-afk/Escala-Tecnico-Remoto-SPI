@@ -68,69 +68,154 @@ export function generateSchedule(
   }
 
   if (is5x2) {
-    // ==========================================
-    // REGIME 5x2 LOGIC: 5 Dias Trabalhados / 2 Folgas Semanais
-    // ==========================================
-    for (const tech of activeTechs) {
-      const techSched = result[tech.id];
-      const group = techGroups[tech.id];
+    // =========================================================================
+    // REGIME 5x2 LOGIC: Rodízio Quinzenal Rigoroso de 4 Semanas (Equipe SPI 19)
+    // 5 Dias Trabalhados / 2 Folgas Semanais
+    // =========================================================================
 
-      for (let wkIdx = 0; wkIdx < weekends.length; wkIdx++) {
-        const wk = weekends[wkIdx];
-        // Rotate every 2 weeks so all technicians alternate weekend coverage
-        const isGroup1FullWeekend = (Math.floor(wkIdx / 2) % 2 === 0) ? (group === 1) : (group === 2);
+    // Order technicians stably by name (Colaborador 01 a Colaborador 19)
+    const sortedTechs = [...activeTechs].sort((a, b) => a.name.localeCompare(b.name));
+    const totalTechs = sortedTechs.length;
 
-        if (isGroup1FullWeekend) {
-          // Both Saturday and Sunday OFF (FD: Fim de semana duplado completo)
-          techSched.days[wk.saturday] = { date: wk.saturday, shift: 'FD', notes: 'Folga Dupla (5x2 Fim de Semana)' };
-          techSched.days[wk.sunday] = { date: wk.sunday, shift: 'FD', notes: 'Folga Dupla (5x2 Fim de Semana)' };
-        } else {
-          // Off Sunday + Monday, or Friday + Saturday (2 consecutive off days to balance DDD)
-          const satDateObj = parseDateKey(wk.saturday);
-          
-          if (group === 1) {
-            // Sábado + Sexta (Folga Sáb + Sex)
-            techSched.days[wk.saturday] = { date: wk.saturday, shift: 'FG', notes: 'Folga Fim de Semana (5x2)' };
-            techSched.days[wk.sunday] = { date: wk.sunday, shift: 'TB' };
-            // Find Friday before Saturday
-            const friDate = new Date(satDateObj);
-            friDate.setDate(satDateObj.getDate() - 1);
-            const friKey = friDate.toISOString().slice(0, 10);
-            if (techSched.days[friKey]) {
-              techSched.days[friKey] = { date: friKey, shift: 'FC', notes: 'Folga Compensada (5x2 Sexta)' };
+    // Determine group counts based on options (default: 9 in Grupo A, 5 in Grupo B, 5 in Grupo C)
+    let countA = options.teamWeekendPercent5x2
+      ? Math.max(1, Math.round(totalTechs * (options.teamWeekendPercent5x2 / 100)))
+      : 9;
+    if (countA >= totalTechs) countA = Math.max(1, totalTechs - 2);
+
+    const remainingTechs = totalTechs - countA;
+    const countB = options.midweekGroupBCount5x2 ?? Math.floor(remainingTechs / 2);
+    const countC = remainingTechs - countB;
+
+    // Ciclo 1 Groups
+    const grupoA = sortedTechs.slice(0, countA); // 9 colaboradores
+    const grupoB = sortedTechs.slice(countA, countA + countB); // 5 colaboradores
+    const grupoC = sortedTechs.slice(countA + countB); // 5 colaboradores
+
+    const grupoAIds = new Set(grupoA.map(t => t.id));
+    const grupoBIds = new Set(grupoB.map(t => t.id));
+    const grupoCIds = new Set(grupoC.map(t => t.id));
+
+    // Ciclo 2 Groups (A Inversão):
+    // Grupo Novo FDS: obrigatoriamente 5 de B + 5 de C = 10 colaboradores
+    // Grupo Novo Meio 1: primeiros 4 colaboradores de A
+    // Grupo Novo Meio 2: restantes 5 colaboradores de A
+    const halfA = Math.floor(countA / 2); // 4
+    const grupoNovoMeio1 = grupoA.slice(0, halfA); // 4 colaboradores
+    const grupoNovoMeio2 = grupoA.slice(halfA); // 5 colaboradores
+    const grupoNovoFds = [...grupoB, ...grupoC]; // 10 colaboradores
+
+    const grupoNovoFdsIds = new Set(grupoNovoFds.map(t => t.id));
+    const grupoNovoMeio1Ids = new Set(grupoNovoMeio1.map(t => t.id));
+    const grupoNovoMeio2Ids = new Set(grupoNovoMeio2.map(t => t.id));
+
+    // Helper to find the Monday date of the calendar week (Monday to Sunday)
+    const getMondayKey = (dateStr: string): string => {
+      const dt = parseDateKey(dateStr);
+      const day = dt.getDay(); // 0 is Sunday, 1 is Monday, ... 6 is Saturday
+      const diff = day === 0 ? 6 : day - 1;
+      const monday = new Date(dt);
+      monday.setDate(dt.getDate() - diff);
+      const y = monday.getFullYear();
+      const m = String(monday.getMonth() + 1).padStart(2, '0');
+      const d = String(monday.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+
+    // Extract all unique Monday keys sorted chronologically
+    const uniqueMondays = Array.from(new Set(dates.map(getMondayKey))).sort();
+    const consecutiveWeeks = options.consecutiveWeekendsCount5x2 || 2; // Default: 2 semanas consecutivas (Quinzenal)
+
+    for (const d of dates) {
+      const dt = parseDateKey(d);
+      const dow = dt.getDay(); // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
+      const mondayKey = getMondayKey(d);
+      const weekIdx = Math.max(0, uniqueMondays.indexOf(mondayKey));
+
+      // Each cycle lasts consecutiveWeeks (default 2 weeks)
+      // Cycle 1: weekIdx 0, 1 -> Math.floor(0/2)=0, Math.floor(1/2)=0 (even)
+      // Cycle 2: weekIdx 2, 3 -> Math.floor(2/2)=1, Math.floor(3/2)=1 (odd)
+      const isCiclo1 = Math.floor(weekIdx / consecutiveWeeks) % 2 === 0;
+
+      for (const tech of activeTechs) {
+        const techSched = result[tech.id];
+        if (!techSched || !techSched.days[d]) continue;
+
+        if (isCiclo1) {
+          // ==========================================
+          // CICLO 1 (Semanas 1 e 2 Consecutivas)
+          // ==========================================
+          if (grupoAIds.has(tech.id)) {
+            // Grupo A (9 colaboradores): Folga fixa Sábado e Domingo (FD)
+            if (dow === 6 || dow === 0) {
+              techSched.days[d] = {
+                date: d,
+                shift: 'FD',
+                notes: 'Folga Dupla FDS (5x2 Ciclo 1 - Grupo A)'
+              };
+            } else {
+              techSched.days[d] = { date: d, shift: 'TB' };
             }
-          } else {
-            // Domingo + Segunda (Folga Dom + Seg)
-            techSched.days[wk.saturday] = { date: wk.saturday, shift: 'TB' };
-            techSched.days[wk.sunday] = { date: wk.sunday, shift: 'FG', notes: 'Folga Fim de Semana (5x2)' };
-            // Find Monday after Sunday
-            const sunDateObj = parseDateKey(wk.sunday);
-            const monDate = new Date(sunDateObj);
-            monDate.setDate(sunDateObj.getDate() + 1);
-            const monKey = monDate.toISOString().slice(0, 10);
-            if (techSched.days[monKey]) {
-              techSched.days[monKey] = { date: monKey, shift: 'FC', notes: 'Folga Compensada (5x2 Segunda)' };
+          } else if (grupoBIds.has(tech.id)) {
+            // Grupo B (5 colaboradores): Folga fixa Terça e Quinta-feira (FC)
+            if (dow === 2 || dow === 4) {
+              techSched.days[d] = {
+                date: d,
+                shift: 'FC',
+                notes: 'Folga Compensada Ter/Qui (5x2 Ciclo 1 - Grupo B)'
+              };
+            } else {
+              techSched.days[d] = { date: d, shift: 'TB' };
+            }
+          } else if (grupoCIds.has(tech.id)) {
+            // Grupo C (5 colaboradores): Folga fixa Quarta e Sexta-feira (FC)
+            if (dow === 3 || dow === 5) {
+              techSched.days[d] = {
+                date: d,
+                shift: 'FC',
+                notes: 'Folga Compensada Qua/Sex (5x2 Ciclo 1 - Grupo C)'
+              };
+            } else {
+              techSched.days[d] = { date: d, shift: 'TB' };
             }
           }
-        }
-      }
-    }
-
-    // Ensure 5x2 never exceeds 5 consecutive work days
-    for (const tech of activeTechs) {
-      const techSched = result[tech.id];
-      let consecutiveWork = 0;
-      for (let i = 0; i < dates.length; i++) {
-        const d = dates[i];
-        const isOff = techSched.days[d].shift !== 'TB';
-        if (isOff) {
-          consecutiveWork = 0;
         } else {
-          consecutiveWork++;
-          if (consecutiveWork >= 6) {
-            // Invert to FC
-            techSched.days[d] = { date: d, shift: 'FC', notes: 'Folga Regulamentar (Limite 5x2)' };
-            consecutiveWork = 0;
+          // ==========================================
+          // CICLO 2 - A INVERSÃO (Semanas 3 e 4 Consecutivas)
+          // ==========================================
+          if (grupoNovoFdsIds.has(tech.id)) {
+            // Grupo Novo FDS (10 colaboradores: 5 de B + 5 de C): Folga fixa Sábado e Domingo (FD)
+            if (dow === 6 || dow === 0) {
+              techSched.days[d] = {
+                date: d,
+                shift: 'FD',
+                notes: 'Folga Dupla FDS (5x2 Ciclo 2 - Novo FDS)'
+              };
+            } else {
+              techSched.days[d] = { date: d, shift: 'TB' };
+            }
+          } else if (grupoNovoMeio1Ids.has(tech.id)) {
+            // Grupo Novo Meio 1 (4 colaboradores de A): Folga fixa Terça e Quinta-feira (FC)
+            if (dow === 2 || dow === 4) {
+              techSched.days[d] = {
+                date: d,
+                shift: 'FC',
+                notes: 'Folga Compensada Ter/Qui (5x2 Ciclo 2 - Novo Meio 1)'
+              };
+            } else {
+              techSched.days[d] = { date: d, shift: 'TB' };
+            }
+          } else if (grupoNovoMeio2Ids.has(tech.id)) {
+            // Grupo Novo Meio 2 (5 colaboradores de A): Folga fixa Quarta e Sexta-feira (FC)
+            if (dow === 3 || dow === 5) {
+              techSched.days[d] = {
+                date: d,
+                shift: 'FC',
+                notes: 'Folga Compensada Qua/Sex (5x2 Ciclo 2 - Novo Meio 2)'
+              };
+            } else {
+              techSched.days[d] = { date: d, shift: 'TB' };
+            }
           }
         }
       }

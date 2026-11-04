@@ -285,7 +285,7 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                 {filteredRequests.map(req => {
                   const tech = technicians.find(t => t.id === req.technicianId);
                   const isApproved = req.status === 'atendido' || req.status === 'aprovado';
-                  const isRejected = req.status === 'recusado';
+                  const isRejected = req.status === 'recusado' || req.status === 'reprovado';
                   const isPending = !isApproved && !isRejected;
 
                   return (
@@ -387,7 +387,7 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
                         </div>
 
                         {/* Inline Rejection Observation Input Form */}
-                        {rejectingId === req.id && (
+                        {isAdmin && isPending && rejectingId === req.id && (
                           <div className="mt-3 p-3 bg-rose-50 dark:bg-rose-950/50 rounded-xl border border-rose-200 dark:border-rose-900 space-y-2">
                             <label className="block text-xs font-bold text-rose-800 dark:text-rose-300">
                               Motivo da Recusa / Observação do Administrador:

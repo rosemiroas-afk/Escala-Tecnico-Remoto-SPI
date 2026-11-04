@@ -29,6 +29,13 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
   const [prioritizeRequests, setPrioritizeRequests] = useState<boolean>(true);
   const [balanceDDD, setBalanceDDD] = useState<boolean>(true);
 
+  // Regras específicas da Nova Escala 5x2 SPI (Rodízio 50% / 25% / 25%)
+  const [teamWeekendPercent5x2, setTeamWeekendPercent5x2] = useState<number>(50); // 50% FDS
+  const [consecutiveWeekendsCount5x2, setConsecutiveWeekendsCount5x2] = useState<number>(2); // 2 fins de semana seguidos
+  const [midweekSplitRule5x2, setMidweekSplitRule5x2] = useState<'ter_qui_qua_sex'>('ter_qui_qua_sex');
+  const [midweekGroupBCount5x2, setMidweekGroupBCount5x2] = useState<number>(5); // 5 colaboradores Ter/Qui
+  const [midweekGroupCCount5x2, setMidweekGroupCCount5x2] = useState<number>(5); // 5 colaboradores Qua/Sex
+
   if (!isOpen) return null;
 
   const nextMonth = (startMonth + 1) % 12;
@@ -43,7 +50,14 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
       maxConsecutiveWorkDays: regime === '5x2' ? 5 : maxConsecutiveDays,
       prioritizeOffRequests: prioritizeRequests,
       balanceDDDCoverage: balanceDDD,
-      randomSeed: Date.now()
+      randomSeed: Date.now(),
+
+      // Parâmetros 5x2 SPI
+      teamWeekendPercent5x2,
+      consecutiveWeekendsCount5x2,
+      midweekSplitRule5x2,
+      midweekGroupBCount5x2,
+      midweekGroupCCount5x2
     };
 
     onGenerate(options, { startYear, startMonth });
@@ -73,10 +87,10 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-white">
-                Gerador Automático de Escala 6x1
+                Gerador Automático de Escala SPI
               </h2>
               <p className="text-xs text-indigo-100">
-                Distribuição matemática inteligente com folgas dupladas e limite de 6 dias
+                Distribuição matemática inteligente com regimes 6x1 (CLT) e 5x2 (Rodízio Quinzenal SPI)
               </p>
             </div>
           </div>
@@ -186,7 +200,7 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-slate-600">
-                  5 dias trabalhados com 2 folgas consecutivas por semana (Sáb/Dom ou Sex/Sáb e Dom/Seg) garantindo cobertura.
+                  Escala 5x2 SPI: Rodízio quinzenal de 4 semanas com alternância entre folgas no final de semana e folgas no meio de semana.
                 </p>
               </button>
             </div>
@@ -196,79 +210,206 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
               <Settings className="w-4 h-4 text-slate-500" />
-              Regras e Parâmetros Solicitados
+              {regime === '5x2' ? 'Parâmetros e Regras da Escala 5x2 SPI' : 'Regras e Parâmetros Solicitados (6x1 CLT)'}
             </h3>
 
+            {regime === '5x2' ? (
+              /* Specific 5x2 SPI Configuration */
+              <div className="space-y-3">
+                {/* Rule 1: % fim de semana */}
+                <div className="p-3.5 bg-emerald-50/70 rounded-xl border border-emerald-200">
+                  <div>
+                    <span className="font-semibold text-emerald-950 text-sm block">
+                      % da equipe nos finais de semana:
+                    </span>
+                    <p className="text-xs text-emerald-700 mt-0.5">
+                      Folga fixa de Sábado e Domingo.
+                    </p>
+                  </div>
+                  <select
+                    value={teamWeekendPercent5x2}
+                    onChange={e => setTeamWeekendPercent5x2(Number(e.target.value))}
+                    className="mt-2.5 w-full text-xs bg-white border border-emerald-300 rounded-lg px-3 py-2 font-bold text-emerald-900 shadow-xs focus:ring-2 focus:ring-emerald-500 cursor-pointer"
+                  >
+                    <option value={50}>50%</option>
+                    <option value={40}>40%</option>
+                    <option value={60}>60%</option>
+                    <option value={30}>30%</option>
+                    <option value={70}>70%</option>
+                  </select>
+                </div>
 
-            {/* Double weekend toggle */}
-            <div className="flex items-start gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-              <input
-                type="checkbox"
-                id="dw-check"
-                checked={ensureDoubleWeekend}
-                onChange={e => setEnsureDoubleWeekend(e.target.checked)}
-                className="mt-1 w-4 h-4 text-indigo-600 rounded-sm border-slate-300 focus:ring-indigo-500"
-              />
-              <div className="flex-1">
-                <label htmlFor="dw-check" className="font-semibold text-slate-900 text-sm cursor-pointer block">
-                  Garantir Final de Semana Duplado (Sábado e Domingo Livres)
-                </label>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Cada técnico recebe ao menos um fim de semana completo com Sábado e Domingo de folga casados.
-                </p>
-                {ensureDoubleWeekend && (
-                  <div className="mt-2 flex items-center gap-3">
-                    <span className="text-xs text-slate-700 font-medium">Quantidade por técnico no bimestre:</span>
+                {/* Rule 2: Consecutive weekends */}
+                <div className="p-3.5 bg-blue-50/70 rounded-xl border border-blue-200">
+                  <div>
+                    <span className="font-semibold text-blue-950 text-sm block">
+                      Finais de semana seguidos de folga:
+                    </span>
+                    <p className="text-xs text-blue-700 mt-0.5">
+                      Duração de cada ciclo consecutivo antes da rotação.
+                    </p>
+                  </div>
+                  <select
+                    value={consecutiveWeekendsCount5x2}
+                    onChange={e => setConsecutiveWeekendsCount5x2(Number(e.target.value))}
+                    className="mt-2.5 w-full text-xs bg-white border border-blue-300 rounded-lg px-3 py-2 font-bold text-blue-900 shadow-xs focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value={2}>2 Finais de semana seguidos (Rodízio Quinzenal)</option>
+                    <option value={1}>1 Final de semana (Alternância semanal)</option>
+                    <option value={3}>3 Finais de semana seguidos</option>
+                  </select>
+                </div>
+
+                {/* Rule 3: % meio da semana - Dinâmico sincronizado */}
+                <div className="p-3.5 bg-purple-50/70 rounded-xl border border-purple-200">
+                  <div>
+                    <span className="font-semibold text-purple-950 text-sm block">
+                      % de folgas no meio da semana:
+                    </span>
+                    <p className="text-xs text-purple-700 mt-0.5">
+                      Divisão equilibrada entre Terça/Quinta e Quarta/Sexta ({100 - teamWeekendPercent5x2}% restante da equipe).
+                    </p>
+                  </div>
+                  <select
+                    value="ter_qui_qua_sex"
+                    disabled
+                    className="mt-2.5 w-full text-xs bg-white border border-purple-300 rounded-lg px-3 py-2 font-bold text-purple-900 shadow-xs cursor-default"
+                  >
+                    <option value="ter_qui_qua_sex">
+                      {Math.round((100 - teamWeekendPercent5x2) / 2)}% e {Math.round((100 - teamWeekendPercent5x2) / 2)}% (Ter/Qui e Qua/Sex)
+                    </option>
+                  </select>
+                </div>
+
+                {/* Visual Schema Card (Ciclo 1 & Ciclo 2) */}
+                <div className="p-4 bg-slate-900 text-white rounded-xl border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <span className="text-xs font-bold text-indigo-400 tracking-wider uppercase flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      Estrutura do Modelo de Rodízio Quinzenal ({teamWeekendPercent5x2}% / {Math.round((100 - teamWeekendPercent5x2) / 2)}% / {Math.round((100 - teamWeekendPercent5x2) / 2)}%)
+                    </span>
+                    <span className="text-[10px] bg-indigo-500/30 text-indigo-300 px-2 py-0.5 rounded font-mono font-bold">
+                      SPI 5x2
+                    </span>
+                  </div>
+
+                  {/* Ciclo 1 */}
+                  <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700 space-y-1.5 text-xs">
+                    <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                      <span>📅 CICLO 1 (Semanas 1 e 2 Consecutivas)</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
+                      <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/60">
+                        <strong className="text-emerald-400 block font-bold">Grupo A ({teamWeekendPercent5x2}%)</strong>
+                        <span className="text-slate-300">Folga fixa no <strong>Sábado e Domingo</strong> (Folga Dupla - FD)</span>
+                      </div>
+                      <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/60">
+                        <strong className="text-sky-400 block font-bold">Grupo B ({Math.round((100 - teamWeekendPercent5x2) / 2)}%)</strong>
+                        <span className="text-slate-300">Folga fixa na <strong>Terça e Quinta-feira</strong> (FC)</span>
+                      </div>
+                      <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/60">
+                        <strong className="text-purple-400 block font-bold">Grupo C ({Math.round((100 - teamWeekendPercent5x2) / 2)}%)</strong>
+                        <span className="text-slate-300">Folga fixa na <strong>Quarta e Sexta-feira</strong> (FC)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Ciclo 2 */}
+                  <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700 space-y-1.5 text-xs">
+                    <div className="font-bold text-cyan-300 flex items-center gap-1.5">
+                      <span>🔄 CICLO 2 - A INVERSÃO (Semanas 3 e 4 Consecutivas)</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
+                      <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/60">
+                        <strong className="text-emerald-400 block font-bold">Novo FDS ({100 - teamWeekendPercent5x2}%)</strong>
+                        <span className="text-slate-300">Grupo B + C: Folga no <strong>Sábado e Domingo</strong> (FD)</span>
+                      </div>
+                      <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/60">
+                        <strong className="text-sky-400 block font-bold">Novo Meio 1 ({Math.round(teamWeekendPercent5x2 / 2)}%)</strong>
+                        <span className="text-slate-300">Folga na <strong>Terça e Quinta-feira</strong> (FC)</span>
+                      </div>
+                      <div className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-700/60">
+                        <strong className="text-purple-400 block font-bold">Novo Meio 2 ({teamWeekendPercent5x2 - Math.round(teamWeekendPercent5x2 / 2)}%)</strong>
+                        <span className="text-slate-300">Folga na <strong>Quarta e Sexta-feira</strong> (FC)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Specific 6x1 CLT Configuration */
+              <>
+                {/* Double weekend toggle */}
+                <div className="flex items-start gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <input
+                    type="checkbox"
+                    id="dw-check"
+                    checked={ensureDoubleWeekend}
+                    onChange={e => setEnsureDoubleWeekend(e.target.checked)}
+                    className="mt-1 w-4 h-4 text-indigo-600 rounded-sm border-slate-300 focus:ring-indigo-500"
+                  />
+                  <div className="flex-1">
+                    <label htmlFor="dw-check" className="font-semibold text-slate-900 text-sm cursor-pointer block">
+                      Garantir Final de Semana Duplado (Sábado e Domingo Livres)
+                    </label>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Cada técnico recebe ao menos um fim de semana completo com Sábado e Domingo de folga casados.
+                    </p>
+                    {ensureDoubleWeekend && (
+                      <div className="mt-2 flex items-center gap-3">
+                        <span className="text-xs text-slate-700 font-medium">Quantidade por técnico no bimestre:</span>
+                        <select
+                          value={targetDoubleWeekends}
+                          onChange={e => setTargetDoubleWeekends(Number(e.target.value))}
+                          className="text-xs bg-white border border-slate-300 rounded-md px-2 py-1 font-semibold text-indigo-700"
+                        >
+                          <option value={1}>1 Fim de Semana Duplado (Mínimo)</option>
+                          <option value={2}>2 Finais de Semana Duplados</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Inversions */}
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-semibold text-slate-900 text-sm block">
+                        Inversões de Escala no Período (~2 inversões)
+                      </span>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Gera a virada de turnos (trabalha sábado/folga domingo para folga sábado/trabalha domingo com folga compensatória no meio da semana).
+                      </p>
+                    </div>
                     <select
-                      value={targetDoubleWeekends}
-                      onChange={e => setTargetDoubleWeekends(Number(e.target.value))}
-                      className="text-xs bg-white border border-slate-300 rounded-md px-2 py-1 font-semibold text-indigo-700"
+                      value={targetInversions}
+                      onChange={e => setTargetInversions(Number(e.target.value))}
+                      className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-semibold text-slate-800"
                     >
-                      <option value={1}>1 Fim de Semana Duplado (Mínimo)</option>
-                      <option value={2}>2 Finais de Semana Duplados</option>
+                      <option value={1}>1 Inversão</option>
+                      <option value={2}>2 Inversões (Recomendado)</option>
+                      <option value={3}>3 Inversões</option>
                     </select>
                   </div>
-                )}
-              </div>
-            </div>
-
-            {/* Inversions */}
-            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-semibold text-slate-900 text-sm block">
-                    Inversões de Escala no Período (~2 inversões)
-                  </span>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Gera a virada de turnos (trabalha sábado/folga domingo para folga sábado/trabalha domingo com folga compensatória no meio da semana).
-                  </p>
                 </div>
-                <select
-                  value={targetInversions}
-                  onChange={e => setTargetInversions(Number(e.target.value))}
-                  className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-semibold text-slate-800"
-                >
-                  <option value={1}>1 Inversão</option>
-                  <option value={2}>2 Inversões (Recomendado)</option>
-                  <option value={3}>3 Inversões</option>
-                </select>
-              </div>
-            </div>
 
-            {/* Max consecutive days */}
-            <div className="p-3.5 bg-emerald-50/70 rounded-xl border border-emerald-200 flex items-start gap-3">
-              <ShieldCheck className="w-5 h-5 text-emerald-600 mt-0.5" />
-              <div>
-                <span className="font-semibold text-emerald-900 text-sm block">
-                  Limite Legal Rigoroso: Máximo 6 Dias Consecutivos (CLT 6x1)
-                </span>
-                <p className="text-xs text-emerald-700 mt-0.5">
-                  O algoritmo proíbe estritamente 7 dias seguidos de trabalho. Ao inverter escalas, insere folga automática no meio da semana de forma escalonada entre os técnicos.
-                </p>
-              </div>
-            </div>
+                {/* Max consecutive days */}
+                <div className="p-3.5 bg-emerald-50/70 rounded-xl border border-emerald-200 flex items-start gap-3">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-emerald-900 text-sm block">
+                      Limite Legal Rigoroso: Máximo 6 Dias Consecutivos (CLT 6x1)
+                    </span>
+                    <p className="text-xs text-emerald-700 mt-0.5">
+                      O algoritmo proíbe estritamente 7 dias seguidos de trabalho. Ao inverter escalas, insere folga automática no meio da semana de forma escalonada entre os técnicos.
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
 
-            {/* Checkboxes */}
+            {/* Checkboxes for both regimes */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label className="flex items-center gap-2.5 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs font-medium text-slate-800 cursor-pointer">
                 <input
