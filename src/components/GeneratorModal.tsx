@@ -35,6 +35,7 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
   const [midweekSplitRule5x2, setMidweekSplitRule5x2] = useState<'ter_qui_qua_sex'>('ter_qui_qua_sex');
   const [midweekGroupBCount5x2, setMidweekGroupBCount5x2] = useState<number>(5); // 5 colaboradores Ter/Qui
   const [midweekGroupCCount5x2, setMidweekGroupCCount5x2] = useState<number>(5); // 5 colaboradores Qua/Sex
+  const [monthType5x2, setMonthType5x2] = useState<'auto' | 'tipo_1' | 'tipo_2'>('auto');
 
   if (!isOpen) return null;
 
@@ -57,7 +58,8 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
       consecutiveWeekendsCount5x2,
       midweekSplitRule5x2,
       midweekGroupBCount5x2,
-      midweekGroupCCount5x2
+      midweekGroupCCount5x2,
+      monthType5x2
     };
 
     onGenerate(options, { startYear, startMonth });
@@ -231,46 +233,73 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                 {regime === '5x2' ? (
                   /* 5x2 Configuration */
                   <div className="space-y-2.5">
-                    {/* Regra 1: Divisão em 3 Grupos Proporcionais */}
+                    {/* Regra 1: Divisão Dinâmica por Porcentagem e DDD */}
                     <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200">
                       <div>
                         <span className="font-semibold text-emerald-950 text-xs block">
-                          1. Divisão da Equipe em 3 Grupos:
+                          1. Divisão por Frações e DDD (~33,3% por Grupo)
                         </span>
                         <p className="text-[11px] text-emerald-700 mt-0.5">
-                          Equipe dividida igualmente em <strong>Grupo 1</strong>, <strong>Grupo 2</strong> e <strong>Grupo 3</strong> com distribuição de sobra preferencial nos Grupos 1 e 2.
+                          A base de técnicos por DDD é particionada matematicamente em <strong>Grupo 1/3</strong>, <strong>Grupo 2/3</strong> e <strong>Grupo 3/3</strong>. Sobras distribuídas no 1/3 e 2/3.
                         </p>
                       </div>
                       <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px] font-bold text-emerald-950 bg-white/80 p-2 rounded-lg border border-emerald-300">
-                        <div>Grupo 1: ~37%</div>
-                        <div>Grupo 2: ~31.5%</div>
-                        <div>Grupo 3: ~31.5%</div>
+                        <div>Grupo 1/3 (~33%)</div>
+                        <div>Grupo 2/3 (~33%)</div>
+                        <div>Grupo 3/3 (~33%)</div>
                       </div>
                     </div>
 
-                    {/* Regra 2: Nomenclatura Estrita */}
+                    {/* Regra 2: Revezamento Dinâmico Bimestral do 4º FDS */}
+                    <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-200">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-semibold text-indigo-950 text-xs block">
+                          2. Revezamento do 4º Final de Semana:
+                        </span>
+                      </div>
+                      <select
+                        value={monthType5x2}
+                        onChange={e => setMonthType5x2(e.target.value as any)}
+                        className="w-full text-xs bg-white border border-indigo-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                      >
+                        <option value="auto">
+                          🔄 Automático pelo Mês ({MONTHS_PT[startMonth]} = {(startMonth + 1) % 2 !== 0 ? 'Mês Tipo 1' : 'Mês Tipo 2'})
+                        </option>
+                        <option value="tipo_1">
+                          📅 Mês Tipo 1 (Ímpar - Sáb TB / Dom Folga)
+                        </option>
+                        <option value="tipo_2">
+                          📅 Mês Tipo 2 (Par - Sáb Folga / Dom TB)
+                        </option>
+                      </select>
+                      <p className="text-[10px] text-indigo-700 mt-1.5 leading-snug">
+                        Garante alternância contínua entre meses com folgas de meio de semana estritamente entre quarta e sexta-feira (Qua/Qui ou Sex).
+                      </p>
+                    </div>
+
+                    {/* Regra 3: Nomenclatura Estrita */}
                     <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200">
                       <div>
                         <span className="font-semibold text-blue-950 text-xs block">
-                          2. Nomenclatura Estrita de Folgas:
+                          3. Nomenclatura Estrita de Escala:
                         </span>
                         <div className="mt-1.5 grid grid-cols-1 gap-1 text-[11px] text-blue-900">
-                          <div><strong>TB:</strong> Dia de Trabalho (5 dias de Seg a Dom)</div>
-                          <div><strong>FD:</strong> Folga Duplada (2 dias juntos: Sáb+Dom ou Seg+Ter)</div>
-                          <div><strong>FG:</strong> Folga em Dias Distintos (folgas separadas: Seg e Dom)</div>
+                          <div><strong>TB:</strong> Dia de Trabalho (exatamente 5 por semana Seg-Dom)</div>
+                          <div><strong>FD:</strong> Folga Duplada (2 dias seguidos: Sáb+Dom, Qua+Qui ou Sex+Sáb)</div>
+                          <div><strong>FG:</strong> Folga Geral Individual (1 dia isolado: Sex e Dom)</div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Regra 3: Conformidade CLT */}
+                    {/* Regra 4: Conformidade CLT e Trava Anti-Emenda */}
                     <div className="p-3 bg-purple-50/70 rounded-xl border border-purple-200 flex items-start gap-2">
                       <ShieldCheck className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
                       <div>
                         <span className="font-semibold text-purple-950 text-xs block">
-                          3. Lógica Jurídica CLT 5x2
+                          4. Lógica Jurídica CLT 5x2 & Trava Anti-Emenda
                         </span>
                         <p className="text-[11px] text-purple-700 mt-0.5 leading-snug">
-                          Exatamente 5 TB por semana (Seg a Dom). Bloqueio total de mais de 5 dias consecutivos de trabalho nas viradas de semana.
+                          Máximo de 2 folgas consecutivas. Proibido emendar 4 dias seguidos. Linha <strong>ATUANTES DIA nunca zera</strong> em nenhum DDD.
                         </p>
                       </div>
                     </div>
@@ -381,99 +410,99 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                     <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                       <span className="text-xs font-bold text-emerald-400 tracking-wider uppercase flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                        Matriz Cíclica Perpétua 5x2 (3 Grupos de Escala)
+                        Matriz Cíclica Perpétua 5x2 (Frações 1/3, 2/3, 3/3 por DDD)
                       </span>
                       <span className="text-[10px] bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded font-mono font-bold">
                         5x2 Perpétuo
                       </span>
                     </div>
 
-                    {/* Grupo 1 */}
+                    {/* Grupo 1/3 */}
                     <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700/80 space-y-1.5 text-xs">
                       <div className="font-bold text-emerald-300 flex items-center justify-between text-xs">
-                        <span>GRUPO 1 (~37% da equipe)</span>
-                        <span className="text-[10px] text-slate-400 font-mono">FDS &gt; FDS &gt; Seg/Ter &gt; Seg/Dom</span>
+                        <span>GRUPO 1/3 (1º Terço do DDD ~33%)</span>
+                        <span className="text-[10px] text-slate-400 font-mono">Sem 1 (Livre) &gt; Sem 2 (Livre) &gt; Sem 3 (Trab) &gt; Sem 4 (Rev)</span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
                         <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-amber-300 block">Semana A</strong>
+                          <strong className="text-amber-300 block">Semana 1</strong>
                           <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
                           <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
                         </div>
                         <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-amber-300 block">Semana B</strong>
+                          <strong className="text-amber-300 block">Semana 2</strong>
                           <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
                           <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
                         </div>
                         <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-sky-300 block">Semana C</strong>
-                          <span className="text-emerald-400">Seg-Ter: <strong>FD</strong></span><br/>
-                          <span className="text-slate-300">Qua-Dom: <strong>TB</strong></span>
+                          <strong className="text-sky-300 block">Semana 3</strong>
+                          <span className="text-emerald-400">Qua-Qui: <strong>FD</strong></span><br/>
+                          <span className="text-slate-300">Sáb-Dom: <strong>TB</strong></span>
                         </div>
                         <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-purple-300 block">Semana D</strong>
-                          <span className="text-yellow-300">Seg e Dom: <strong>FG</strong></span><br/>
-                          <span className="text-slate-300">Ter-Sáb: <strong>TB</strong></span>
+                          <strong className="text-purple-300 block">Semana 4</strong>
+                          <span className="text-yellow-300">Tipo 1: Sex/Dom FG</span><br/>
+                          <span className="text-slate-300">Tipo 2: Sex/Sáb FD</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Grupo 2 */}
+                    {/* Grupo 2/3 */}
                     <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700/80 space-y-1.5 text-xs">
                       <div className="font-bold text-sky-300 flex items-center justify-between text-xs">
-                        <span>GRUPO 2 (~31.5% da equipe)</span>
-                        <span className="text-[10px] text-slate-400 font-mono">Seg/Ter &gt; Seg/Dom &gt; FDS &gt; FDS</span>
+                        <span>GRUPO 2/3 (2º Terço do DDD ~33%)</span>
+                        <span className="text-[10px] text-slate-400 font-mono">Sem 3 (Trab) &gt; Sem 4 (Rev) &gt; Sem 1 (Livre) &gt; Sem 2 (Livre)</span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
                         <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-sky-300 block">Semana A</strong>
-                          <span className="text-emerald-400">Seg-Ter: <strong>FD</strong></span><br/>
-                          <span className="text-slate-300">Qua-Dom: <strong>TB</strong></span>
+                          <strong className="text-sky-300 block">Semana 1</strong>
+                          <span className="text-emerald-400">Qua-Qui: <strong>FD</strong></span><br/>
+                          <span className="text-slate-300">Sáb-Dom: <strong>TB</strong></span>
                         </div>
                         <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-purple-300 block">Semana B</strong>
-                          <span className="text-yellow-300">Seg e Dom: <strong>FG</strong></span><br/>
-                          <span className="text-slate-300">Ter-Sáb: <strong>TB</strong></span>
+                          <strong className="text-purple-300 block">Semana 2</strong>
+                          <span className="text-yellow-300">Tipo 1: Sex/Dom FG</span><br/>
+                          <span className="text-slate-300">Tipo 2: Sex/Sáb FD</span>
                         </div>
                         <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-amber-300 block">Semana C</strong>
+                          <strong className="text-amber-300 block">Semana 3</strong>
                           <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
                           <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
                         </div>
                         <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-amber-300 block">Semana D</strong>
+                          <strong className="text-amber-300 block">Semana 4</strong>
                           <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
                           <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Grupo 3 */}
+                    {/* Grupo 3/3 */}
                     <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700/80 space-y-1.5 text-xs">
                       <div className="font-bold text-purple-300 flex items-center justify-between text-xs">
-                        <span>GRUPO 3 (~31.5% da equipe)</span>
-                        <span className="text-[10px] text-slate-400 font-mono">Seg/Dom &gt; FDS &gt; FDS &gt; Seg/Ter</span>
+                        <span>GRUPO 3/3 (3º Terço do DDD ~33%)</span>
+                        <span className="text-[10px] text-slate-400 font-mono">Sem 1 (Livre) &gt; Sem 2 (Trab) &gt; Sem 3 (Livre) &gt; Sem 4 (Trab)</span>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
                         <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-purple-300 block">Semana A</strong>
-                          <span className="text-yellow-300">Seg e Dom: <strong>FG</strong></span><br/>
-                          <span className="text-slate-300">Ter-Sáb: <strong>TB</strong></span>
-                        </div>
-                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-amber-300 block">Semana B</strong>
+                          <strong className="text-amber-300 block">Semana 1</strong>
                           <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
                           <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
                         </div>
                         <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-amber-300 block">Semana C</strong>
+                          <strong className="text-sky-300 block">Semana 2</strong>
+                          <span className="text-emerald-400">Qua-Qui: <strong>FD</strong></span><br/>
+                          <span className="text-slate-300">Sáb-Dom: <strong>TB</strong></span>
+                        </div>
+                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
+                          <strong className="text-amber-300 block">Semana 3</strong>
                           <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
                           <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
                         </div>
                         <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-sky-300 block">Semana D</strong>
-                          <span className="text-emerald-400">Seg-Ter: <strong>FD</strong></span><br/>
-                          <span className="text-slate-300">Qua-Dom: <strong>TB</strong></span>
+                          <strong className="text-sky-300 block">Semana 4</strong>
+                          <span className="text-emerald-400">Qua-Qui: <strong>FD</strong></span><br/>
+                          <span className="text-slate-300">Sáb-Dom: <strong>TB</strong></span>
                         </div>
                       </div>
                     </div>
@@ -492,11 +521,11 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                       </li>
                       <li className="flex items-start gap-1.5">
                         <span className="text-indigo-600 font-bold">•</span>
-                        <span><strong>Proteção CLT:</strong> Nenhum colaborador trabalha mais de 5 dias seguidos, inclusive nas transições semanais.</span>
+                        <span><strong>Trava Anti-Emenda:</strong> Folgas no meio de semana estritamente Qua-Sex. Máximo 2 dias de folga seguidos (proibido 4 dias de emenda).</span>
                       </li>
                       <li className="flex items-start gap-1.5">
-                        <span className="text-blue-600 font-bold">•</span>
-                        <span><strong>Cobertura por Região:</strong> Equilíbrio automático por DDD em todos os turnos e finais de semana.</span>
+                        <span className="text-emerald-600 font-bold">•</span>
+                        <span><strong>Cobertura Ininterrupta:</strong> A linha <strong>ATUANTES DIA nunca zera</strong> em nenhum DDD em nenhum dia do mês.</span>
                       </li>
                     </ul>
                   </div>

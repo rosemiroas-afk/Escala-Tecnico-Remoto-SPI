@@ -331,6 +331,7 @@ export interface GeneratorOptions {
   midweekSplitRule5x2?: 'ter_qui_qua_sex' | 'seg_ter_qui_sex'; // Distribuição no meio da semana
   midweekGroupBCount5x2?: number; // Colaboradores Ter/Qui (ex: 5)
   midweekGroupCCount5x2?: number; // Colaboradores Qua/Sex (ex: 5)
+  monthType5x2?: 'tipo_1' | 'tipo_2' | 'auto'; // Revezamento Dinâmico Bimestral do 4º FDS (Tipo 1 ímpar vs Tipo 2 par)
 }
 
 export type UserRole = 'admin' | 'technician' | 'viewer';
