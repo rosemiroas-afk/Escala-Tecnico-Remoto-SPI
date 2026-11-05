@@ -321,19 +321,8 @@ export const RosterTable: React.FC<RosterTableProps> = ({
               Todos
             </button>
 
-            {/* Botão de Atalho para Gerar Escala Mês a Mês */}
-            {onOpenGenerator && !readOnly && (
-              <button
-                onClick={onOpenGenerator}
-                className="ml-2 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-                title="Abrir o gerador para gerar a escala de mês em mês"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                <span>Gerar Escala (Mês em Mês)</span>
-              </button>
-            )}
+            </div>
           </div>
-        </div>
 
         {/* Search, Clear & Save Roster */}
         <div className="flex items-center gap-2">
