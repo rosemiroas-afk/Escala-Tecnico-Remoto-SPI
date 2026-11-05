@@ -603,8 +603,19 @@ export default function App() {
 
         // C. Fetch Schedule Shifts from escalas
         const { data: escalasData, error: escalasError } = await supabase.from('escalas').select('*');
-        setSchedules(() => {
-          const next = getOfficialScheduleMap();
+        setSchedules(prev => {
+          const next: Record<string, TechnicianSchedule> = { ...prev };
+          const officialMap = getOfficialScheduleMap();
+
+          // Initialize with officialMap on cold start if state is empty
+          for (const [techId, officialSched] of Object.entries(officialMap)) {
+            if (!next[techId]) {
+              next[techId] = { technicianId: techId, days: { ...officialSched.days } };
+            } else if (!next[techId].days || Object.keys(next[techId].days).length === 0) {
+              next[techId].days = { ...officialSched.days };
+            }
+          }
+
           let detectedRegime: '6x1' | '5x2' | undefined;
 
           if (escalasData && Array.isArray(escalasData) && escalasData.length > 0 && !escalasError) {
@@ -635,6 +646,13 @@ export default function App() {
           if (detectedRegime) {
             setPeriod(p => ({ ...p, regime: detectedRegime }));
           }
+
+          try {
+            localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(next));
+          } catch (e) {
+            console.error('Failed saving fetched schedule to localStorage', e);
+          }
+
           return next;
         });
       } catch (err) {
@@ -1277,35 +1295,115 @@ export default function App() {
     }
   }, [technicians]);
 
+  // Reusable helper to save schedule data and users to Supabase cloud safely
+  const saveSchedulesToCloud = useCallback(async (
+    targetSchedules: Record<string, TechnicianSchedule>,
+    currentRegime: string,
+    techsList: Technician[],
+    usersList: AppUser[]
+  ) => {
+    try {
+      const rows: any[] = [];
+      for (const tech of techsList) {
+        const techSched = targetSchedules[tech.id];
+        if (!techSched || !techSched.days) continue;
+        for (const [d, day] of Object.entries(techSched.days)) {
+          if (!d || d.length !== 10) continue;
+          rows.push({
+            id_usuario: tech.id,
+            data: d,
+            tipo_escala: currentRegime,
+            legenda_dia: day?.shift || 'TB',
+            horario: tech.shiftHours || null
+          });
+        }
+      }
+
+      if (rows.length > 0) {
+        const allDates = Array.from(new Set(rows.map(r => r.data))).sort();
+        const minDate = allDates[0];
+        const maxDate = allDates[allDates.length - 1];
+
+        if (minDate && maxDate) {
+          await supabase.from('escalas').delete().gte('data', minDate).lte('data', maxDate);
+        }
+
+        for (let i = 0; i < rows.length; i += 100) {
+          const chunk = rows.slice(i, i + 100);
+          const { error } = await supabase.from('escalas').insert(chunk);
+          if (error) console.error('Error inserting chunk into escalas:', error);
+        }
+      }
+
+      if (usersList && usersList.length > 0) {
+        const userRows = usersList.map(u => ({
+          id: u.id,
+          nome: u.name,
+          role: u.role === 'technician' ? 'tecnico' : u.role === 'viewer' ? 'viewer' : u.role,
+          pin: u.pin,
+          primeiro_acesso: u.primeiro_acesso ?? u.isFirstLogin ?? false
+        }));
+        await supabase.from('usuarios').upsert(userRows);
+      }
+    } catch (err) {
+      console.error('Error saving schedules to cloud:', err);
+    }
+  }, []);
+
   // Handler: Load Official Schedule from Spreadsheet (Restaurar Padrão Oficial)
+  // Preserva a escala de Novembro de 2026 e restaura Dezembro de 2026 para a referência oficial
   const handleLoadOfficialSchedule = useCallback(async () => {
-    if (!window.confirm('Deseja restaurar a Escala Oficial Padrão (Novembro e Dezembro de 2026)?')) {
+    if (!window.confirm('Deseja restaurar a Escala Oficial Padrão? (A escala de Novembro de 2026 será preservada e Dezembro voltará ao padrão oficial)')) {
       return;
     }
     const sortedTechs = [...OFFICIAL_TECHNICIANS].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     setTechnicians(sortedTechs);
-    const newSchedules: Record<string, TechnicianSchedule> = {};
+
+    const officialBaseline = getOfficialScheduleMap();
+    const restoredSchedules: Record<string, TechnicianSchedule> = {};
 
     for (const tech of sortedTechs) {
-      const techShifts = OFFICIAL_SHIFTS_BY_TECH_NAME[tech.id] ||
-                         OFFICIAL_SHIFTS_BY_TECH_NAME[tech.name] ||
-                         OFFICIAL_SHIFTS_BY_TECH_NAME[tech.name.toUpperCase()] ||
-                         {};
-      newSchedules[tech.id] = { technicianId: tech.id, days: {} };
+      const currentTechDays = schedules[tech.id]?.days || {};
+      const officialTechDays = officialBaseline[tech.id]?.days || {};
+      const newDays: Record<string, any> = {};
 
-      for (const [dateStr, shiftCode] of Object.entries(techShifts)) {
-        newSchedules[tech.id].days[dateStr] = {
-          date: dateStr,
-          shift: shiftCode,
-          manualOverride: true,
-          notes: tech.shiftHours
-        };
+      // 1. Preserva TODAS as datas de Novembro de 2026 (2026-11-*)
+      for (const [d, dayObj] of Object.entries(currentTechDays)) {
+        if (d.startsWith('2026-11')) {
+          newDays[d] = dayObj;
+        }
       }
+      // Se faltar algum dia de Novembro, preenche com a base oficial
+      for (const [d, dayObj] of Object.entries(officialTechDays)) {
+        if (d.startsWith('2026-11') && !newDays[d]) {
+          newDays[d] = dayObj;
+        }
+      }
+
+      // 2. Restaura as datas de Dezembro de 2026 (2026-12-*) para o padrão oficial
+      for (const [d, dayObj] of Object.entries(officialTechDays)) {
+        if (d.startsWith('2026-12')) {
+          newDays[d] = dayObj;
+        }
+      }
+
+      restoredSchedules[tech.id] = {
+        technicianId: tech.id,
+        days: newDays
+      };
     }
 
-    setSchedules(newSchedules);
-    alert('Escala Oficial Padrão restaurada na tela! Revise e clique em "Salvar Escala" para gravar na nuvem.');
-  }, []);
+    setSchedules(restoredSchedules);
+
+    try {
+      localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(restoredSchedules));
+    } catch (e) {
+      console.error('Failed saving restored schedule to localStorage', e);
+    }
+
+    await saveSchedulesToCloud(restoredSchedules, period.regime || '6x1', sortedTechs, users);
+    showToast('Escala Oficial Padrão restaurada! (Novembro mantido e Dezembro restaurado)');
+  }, [schedules, period.regime, users, saveSchedulesToCloud, showToast]);
 
   // Handler: Export Excel
   const handleExportExcel = () => {
@@ -1342,6 +1440,7 @@ export default function App() {
     const newSchedule = generateSchedule(technicians, targetDates, offRequests, options);
 
     // Merge into existing schedules so other months remain completely intact
+    let mergedSchedules: Record<string, TechnicianSchedule> = {};
     setSchedules(prev => {
       const merged = { ...prev };
       for (const tech of technicians) {
@@ -1352,41 +1451,22 @@ export default function App() {
           days: { ...existingDays, ...generatedDays }
         };
       }
+      mergedSchedules = merged;
       return merged;
     });
 
-    // Save batch to Supabase table 'escalas'
-    const rows: any[] = [];
-    for (const tech of technicians) {
-      const techSched = newSchedule[tech.id];
-      if (!techSched || !techSched.days) continue;
-      for (const d of targetDates) {
-        const day = techSched.days[d];
-        rows.push({
-          id_usuario: tech.id,
-          data: d,
-          tipo_escala: currentRegime,
-          legenda_dia: day?.shift || 'TB',
-          horario: tech.shiftHours || null
-        });
-      }
+    try {
+      localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(mergedSchedules));
+    } catch (e) {
+      console.error('Failed saving generated schedule to localStorage', e);
     }
 
-    try {
-      // Delete only the dates of this specific period in Supabase, preserving other months
-      const monthStart = targetDates[0];
-      const monthEnd = targetDates[targetDates.length - 1];
-      await supabase.from('escalas').delete().gte('data', monthStart).lte('data', monthEnd);
-      for (let i = 0; i < rows.length; i += 100) {
-        await supabase.from('escalas').insert(rows.slice(i, i + 100));
-      }
-    } catch (e) {
-      console.warn('Failed saving generated schedule to Supabase:', e);
-    }
+    // Save batch to Supabase cloud
+    await saveSchedulesToCloud(mergedSchedules, currentRegime, technicians, users);
 
     setIsGeneratorOpen(false);
-    showToast(`Escala de ${MONTHS_PT[periodConfig.startMonth]} de ${periodConfig.startYear} (${currentRegime}) gerada com sucesso${options.generateNextMonthPreview && options.regime === '5x2' ? ' (incluindo prévia sincronizada do mês seguinte)' : ''}!`);
-  }, [technicians, offRequests, period, showToast]);
+    showToast(`Escala de ${MONTHS_PT[periodConfig.startMonth]} de ${periodConfig.startYear} (${currentRegime}) gerada e SALVA com sucesso!`);
+  }, [technicians, offRequests, period, users, saveSchedulesToCloud, showToast]);
 
   const isAdmin = currentUser?.role === 'admin';
   const isViewer = currentUser?.role === 'viewer';
@@ -1396,45 +1476,20 @@ export default function App() {
   const handleSave = useCallback(async () => {
     try {
       const currentRegime = period.regime || '6x1';
-      const rows: any[] = [];
-      for (const tech of technicians) {
-        const techSched = schedules[tech.id];
-        if (!techSched || !techSched.days) continue;
-        for (const d of dates) {
-          const day = techSched.days[d];
-          rows.push({
-            id_usuario: tech.id,
-            data: d,
-            tipo_escala: currentRegime,
-            legenda_dia: day?.shift || 'TB',
-            horario: tech.shiftHours || null
-          });
-        }
+      await saveSchedulesToCloud(schedules, currentRegime, technicians, users);
+
+      try {
+        localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(schedules));
+      } catch (e) {
+        console.error('Failed saving schedule to localStorage', e);
       }
 
-      // Delete old and save batch in chunks of 100
-      await supabase.from('escalas').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      for (let i = 0; i < rows.length; i += 100) {
-        const { error } = await supabase.from('escalas').insert(rows.slice(i, i + 100));
-        if (error) console.error('Error inserting chunk into escalas:', error);
-      }
-
-      // Save all users to 'usuarios'
-      const userRows = users.map(u => ({
-        id: u.id,
-        nome: u.name,
-        role: u.role === 'technician' ? 'tecnico' : u.role === 'viewer' ? 'viewer' : u.role,
-        pin: u.pin,
-        primeiro_acesso: u.primeiro_acesso ?? u.isFirstLogin ?? false
-      }));
-      await supabase.from('usuarios').upsert(userRows);
-
-      alert('✅ Escala salva com 100% de sucesso na nuvem Supabase!');
+      showToast('✅ Escala salva com 100% de sucesso na nuvem!');
     } catch (err) {
       console.error('Error saving to Supabase:', err);
-      alert('Erro ao salvar na nuvem Supabase. Verifique a conexão.');
+      showToast('⚠️ Erro ao salvar na nuvem Supabase. Verifique a conexão.');
     }
-  }, [technicians, schedules, dates, period.regime, users]);
+  }, [technicians, schedules, period.regime, users, saveSchedulesToCloud, showToast]);
 
   // Handler: Update Technicians List
   const handleUpdateTechnicians = useCallback((updated: Technician[]) => {
