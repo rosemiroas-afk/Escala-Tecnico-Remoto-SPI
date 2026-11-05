@@ -3,7 +3,7 @@ import { Technician, TechnicianSchedule, ShiftType, SHIFT_TYPES, OFFICIAL_LEGEND
 import { formatDisplayDate, parseDateKey, isSaturday, isSunday, MONTHS_PT } from '../utils/dateUtils';
 import { AuditResult, isOffShift, isWorkingShift, validateSchedule } from '../utils/validator';
 import { DDD_INFO } from '../data/defaultTechnicians';
-import { Filter, Search, AlertTriangle, Star, Trash2, Check, FileSpreadsheet, X, HelpCircle, Upload, RotateCcw, Eye, Calendar } from 'lucide-react';
+import { Filter, Search, AlertTriangle, Star, Trash2, Check, FileSpreadsheet, X, HelpCircle, Upload, RotateCcw, Eye, Calendar, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 
 interface RosterTableProps {
   technicians: Technician[];
@@ -18,6 +18,7 @@ interface RosterTableProps {
   onSave?: () => void;
   onLoadOfficialSchedule?: () => void;
   onUploadScheduleFile?: (file: File) => void;
+  onOpenGenerator?: () => void;
   readOnly?: boolean;
 }
 
@@ -41,6 +42,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
   onSave,
   onLoadOfficialSchedule,
   onUploadScheduleFile,
+  onOpenGenerator,
   readOnly = false
 }) => {
   const [selectedDDD, setSelectedDDD] = useState<string>('all');
@@ -122,6 +124,34 @@ export const RosterTable: React.FC<RosterTableProps> = ({
     if (selectedMonth === 'all') return auditResult;
     return validateSchedule(technicians, schedules, displayDates, offRequests);
   }, [technicians, schedules, displayDates, offRequests, selectedMonth, auditResult]);
+
+  // Month navigation helpers
+  const currentMonthIndex = selectedMonth === 'all' ? -1 : availableMonths.indexOf(selectedMonth);
+
+  const handlePrevMonth = () => {
+    if (availableMonths.length === 0) return;
+    if (currentMonthIndex <= 0) {
+      setSelectedMonth(availableMonths[availableMonths.length - 1]);
+    } else {
+      setSelectedMonth(availableMonths[currentMonthIndex - 1]);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (availableMonths.length === 0) return;
+    if (currentMonthIndex === -1 || currentMonthIndex >= availableMonths.length - 1) {
+      setSelectedMonth(availableMonths[0]);
+    } else {
+      setSelectedMonth(availableMonths[currentMonthIndex + 1]);
+    }
+  };
+
+  const getCycleBadge = (mKey: string) => {
+    if (mKey === 'all') return null;
+    const m = Number(mKey.split('-')[1]);
+    if (m === 2) return 'Transição Fev';
+    return m % 2 !== 0 ? 'Mês 1 (Mestre)' : 'Mês 2 (Mestre)';
+  };
 
   // Split displayDates by month for header grouping
   const monthGroups: { monthName: string; year: number; dates: string[] }[] = [];
@@ -220,47 +250,88 @@ export const RosterTable: React.FC<RosterTableProps> = ({
             );
           })}
 
-          {/* Month Filter (ex: 11/2026, 12/2026 ou Todos) */}
+          {/* Month Selector Bar na Guia Matriz */}
           <div className="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-3 ml-1 flex-wrap">
             <div className="flex items-center gap-1 text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider mr-1">
               <Calendar className="w-3.5 h-3.5" />
-              Filtrar Mês:
+              Mês da Escala:
             </div>
 
+            {/* Mês Anterior */}
             <button
-              onClick={() => setSelectedMonth('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                selectedMonth === 'all'
-                  ? 'bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-400/50'
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
-              }`}
+              onClick={handlePrevMonth}
+              title="Ir para o Mês Anterior"
+              className="p-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
             >
-              <span>Todos os Meses</span>
+              <ChevronLeft className="w-4 h-4" />
             </button>
 
+            {/* Botões dos Meses Disponíveis */}
             {availableMonths.map(mKey => {
               const [y, m] = mKey.split('-').map(Number);
               const monthNum = String(m).padStart(2, '0');
               const monthName = MONTHS_PT[m - 1] || '';
               const isSelected = selectedMonth === mKey;
+              const cycleBadge = getCycleBadge(mKey);
               return (
                 <button
                   key={mKey}
                   onClick={() => setSelectedMonth(mKey)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs ${
                     isSelected
                       ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/50'
-                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
                   }`}
-                  title={`Filtrar apenas os dias de ${monthName} de ${y}`}
+                  title={`Visualizar apenas a escala de ${monthName} de ${y}`}
                 >
                   <span>{monthNum}/{y}</span>
                   <span className={`text-[10px] font-normal ${isSelected ? 'text-indigo-100' : 'text-slate-500 dark:text-slate-400'}`}>
                     ({monthName.slice(0, 3)})
                   </span>
+                  {cycleBadge && (
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isSelected ? 'bg-indigo-700 text-white' : 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
+                    }`}>
+                      {cycleBadge}
+                    </span>
+                  )}
                 </button>
               );
             })}
+
+            {/* Próximo Mês */}
+            <button
+              onClick={handleNextMonth}
+              title="Ir para o Próximo Mês"
+              className="p-1.5 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            {/* Todos os Meses */}
+            <button
+              onClick={() => setSelectedMonth('all')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                selectedMonth === 'all'
+                  ? 'bg-slate-800 text-white shadow-xs'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+              }`}
+              title="Exibir todos os meses na matriz"
+            >
+              Todos
+            </button>
+
+            {/* Botão de Atalho para Gerar Escala Mês a Mês */}
+            {onOpenGenerator && !readOnly && (
+              <button
+                onClick={onOpenGenerator}
+                className="ml-2 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                title="Abrir o gerador para gerar a escala de mês em mês"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>Gerar Escala (Mês em Mês)</span>
+              </button>
+            )}
           </div>
         </div>
 

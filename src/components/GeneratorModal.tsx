@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { GeneratorOptions, SchedulePeriod } from '../types';
 import { MONTHS_PT } from '../utils/dateUtils';
-import { Sparkles, Calendar, Settings, ShieldCheck, X, Check, RefreshCw } from 'lucide-react';
+import { MASTER_PATTERN_5X2, resolvePatternKey, getNextMonthInfo } from '../utils/masterPattern5x2';
+import { Sparkles, Calendar, Settings, ShieldCheck, X, Check, RefreshCw, ArrowRight, Eye } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface GeneratorModalProps {
@@ -25,22 +26,31 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
   const [ensureDoubleWeekend, setEnsureDoubleWeekend] = useState<boolean>(true);
   const [targetDoubleWeekends, setTargetDoubleWeekends] = useState<number>(1);
   const [targetInversions, setTargetInversions] = useState<number>(2);
-  const [maxConsecutiveDays, setMaxConsecutiveDays] = useState<number>(regime === '5x2' ? 5 : 6);
+  const [maxConsecutiveDays, setMaxConsecutiveDays] = useState<number>(regime === '5x2' ? 5 : maxConsecutiveDaysInit(regime));
   const [prioritizeRequests, setPrioritizeRequests] = useState<boolean>(true);
   const [balanceDDD, setBalanceDDD] = useState<boolean>(true);
 
-  // Regras específicas da Nova Escala 5x2 SPI (Rodízio 50% / 25% / 25%)
-  const [teamWeekendPercent5x2, setTeamWeekendPercent5x2] = useState<number>(50); // 50% FDS
-  const [consecutiveWeekendsCount5x2, setConsecutiveWeekendsCount5x2] = useState<number>(2); // 2 fins de semana seguidos
+  function maxConsecutiveDaysInit(r: string) {
+    return r === '5x2' ? 5 : 6;
+  }
+
+  // Regras específicas da Nova Escala 5x2 SPI (Padrão Mestre 2 Meses Corridos)
+  const [teamWeekendPercent5x2, setTeamWeekendPercent5x2] = useState<number>(50);
+  const [consecutiveWeekendsCount5x2, setConsecutiveWeekendsCount5x2] = useState<number>(2);
   const [midweekSplitRule5x2, setMidweekSplitRule5x2] = useState<'ter_qui_qua_sex'>('ter_qui_qua_sex');
-  const [midweekGroupBCount5x2, setMidweekGroupBCount5x2] = useState<number>(5); // 5 colaboradores Ter/Qui
-  const [midweekGroupCCount5x2, setMidweekGroupCCount5x2] = useState<number>(5); // 5 colaboradores Qua/Sex
+  const [midweekGroupBCount5x2, setMidweekGroupBCount5x2] = useState<number>(5);
+  const [midweekGroupCCount5x2, setMidweekGroupCCount5x2] = useState<number>(5);
   const [monthType5x2, setMonthType5x2] = useState<'auto' | 'tipo_1' | 'tipo_2'>('auto');
+  const [cycleMonth5x2, setCycleMonth5x2] = useState<'mes_1' | 'mes_2' | 'transicao_fev' | 'auto'>('auto');
+  const [generateNextMonthPreview, setGenerateNextMonthPreview] = useState<boolean>(true);
 
   if (!isOpen) return null;
 
-  const nextMonth = (startMonth + 1) % 12;
-  const nextYear = startMonth === 11 ? startYear + 1 : startYear;
+  const nextInfo = getNextMonthInfo(startYear, startMonth);
+  const currentPatternKey = resolvePatternKey(startMonth + 1, cycleMonth5x2);
+  const nextPatternKey = resolvePatternKey(nextInfo.monthNum);
+
+  const [previewTab, setPreviewTab] = useState<'mes1' | 'mes2' | 'transicaoFev'>(currentPatternKey);
 
   const handleRunGenerator = () => {
     const options: GeneratorOptions = {
@@ -59,7 +69,9 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
       midweekSplitRule5x2,
       midweekGroupBCount5x2,
       midweekGroupCCount5x2,
-      monthType5x2
+      monthType5x2,
+      cycleMonth5x2,
+      generateNextMonthPreview
     };
 
     onGenerate(options, { startYear, startMonth });
@@ -227,79 +239,103 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
               <div className="space-y-3">
                 <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                   <Settings className="w-3.5 h-3.5 text-slate-500" />
-                  {regime === '5x2' ? 'Parâmetros da Escala 5x2 Perpétua (3 Grupos)' : 'Regras da Escala 6x1 CLT'}
+                  {regime === '5x2' ? 'Parâmetros da Escala 5x2 Perpétua (Padrão Mestre 2 Meses Corridos)' : 'Regras da Escala 6x1 CLT'}
                 </h3>
 
                 {regime === '5x2' ? (
                   /* 5x2 Configuration */
                   <div className="space-y-2.5">
-                    {/* Regra 1: Divisão Dinâmica por Porcentagem e DDD */}
+                    {/* Regra 1: Padrão Mestre 2 Meses Corridos & Divisão por Frações e DDD */}
                     <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-200">
                       <div>
                         <span className="font-semibold text-emerald-950 text-xs block">
-                          1. Divisão por Frações e DDD (~33,3% por Grupo)
+                          1. Divisão por Frações DDD & Ciclo Mestre de 2 Meses
                         </span>
                         <p className="text-[11px] text-emerald-700 mt-0.5">
-                          A base de técnicos por DDD é particionada matematicamente em <strong>Grupo 1/3</strong>, <strong>Grupo 2/3</strong> e <strong>Grupo 3/3</strong>. Sobras distribuídas no 1/3 e 2/3.
+                          Equipe dividida em <strong>Grupo 1/3</strong>, <strong>Grupo 2/3</strong> e <strong>Grupo 3/3</strong> (~33,3% por DDD). Segue rigorosamente o padrão de 2 meses corridos e transição de Fevereiro.
                         </p>
                       </div>
-                      <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px] font-bold text-emerald-950 bg-white/80 p-2 rounded-lg border border-emerald-300">
-                        <div>Grupo 1/3 (~33%)</div>
-                        <div>Grupo 2/3 (~33%)</div>
-                        <div>Grupo 3/3 (~33%)</div>
+
+                      <div className="mt-2.5">
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Padrão de Ciclo para este Mês:</label>
+                        <select
+                          value={cycleMonth5x2}
+                          onChange={e => setCycleMonth5x2(e.target.value as any)}
+                          className="w-full text-xs bg-white border border-emerald-300 rounded-lg px-2.5 py-1.5 font-semibold text-emerald-900 focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                        >
+                          <option value="auto">
+                            🔄 Automático ({MONTHS_PT[startMonth]} = {currentPatternKey === 'mes1' ? 'Mês 1 do Ciclo' : currentPatternKey === 'mes2' ? 'Mês 2 do Ciclo' : 'Transição Fev'})
+                          </option>
+                          <option value="mes_1">
+                            📅 Mês 1 do Ciclo (Padrão Mestre 1 - 31 dias)
+                          </option>
+                          <option value="mes_2">
+                            📅 Mês 2 do Ciclo (Padrão Mestre 2 - 31 dias)
+                          </option>
+                          <option value="transicao_fev">
+                            ⚡ Transição Fevereiro (Padrão Mestre Fev - 7 dias cíclicos)
+                          </option>
+                        </select>
                       </div>
                     </div>
 
-                    {/* Regra 2: Revezamento Dinâmico Bimestral do 4º FDS */}
-                    <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-200">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-semibold text-indigo-950 text-xs block">
-                          2. Revezamento do 4º Final de Semana:
+                    {/* Regra 2: Card de Prévia do Mês Seguinte */}
+                    <div className="p-3 bg-indigo-50/80 rounded-xl border border-indigo-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-indigo-950 flex items-center gap-1.5">
+                          <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                          Prévia do Mês Seguinte ({MONTHS_PT[nextInfo.monthIndex]}/{nextInfo.year})
+                        </span>
+                        <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full border border-indigo-200">
+                          {nextPatternKey === 'mes1' ? 'Mês 1 do Ciclo' : nextPatternKey === 'mes2' ? 'Mês 2 do Ciclo' : 'Transição Fev'}
                         </span>
                       </div>
-                      <select
-                        value={monthType5x2}
-                        onChange={e => setMonthType5x2(e.target.value as any)}
-                        className="w-full text-xs bg-white border border-indigo-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 shadow-2xs"
-                      >
-                        <option value="auto">
-                          🔄 Automático pelo Mês ({MONTHS_PT[startMonth]} = {(startMonth + 1) % 2 !== 0 ? 'Mês Tipo 1' : 'Mês Tipo 2'})
-                        </option>
-                        <option value="tipo_1">
-                          📅 Mês Tipo 1 (Ímpar - Sáb TB / Dom Folga)
-                        </option>
-                        <option value="tipo_2">
-                          📅 Mês Tipo 2 (Par - Sáb Folga / Dom TB)
-                        </option>
-                      </select>
-                      <p className="text-[10px] text-indigo-700 mt-1.5 leading-snug">
-                        Garante alternância contínua entre meses com folgas de meio de semana estritamente entre quarta e sexta-feira (Qua/Qui ou Sex).
+                      <p className="text-[11px] text-indigo-800 leading-snug">
+                        Ao gerar <strong>{MONTHS_PT[startMonth]}/{startYear}</strong>, o sistema projeta e sincroniza a alternância contínua com <strong>{MONTHS_PT[nextInfo.monthIndex]}/{nextInfo.year}</strong>.
                       </p>
+                      
+                      <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] font-bold text-indigo-950 bg-white/90 p-2 rounded-lg border border-indigo-200">
+                        <div>Colab 1/3: 23TB / 8F</div>
+                        <div>Colab 2/3: 23TB / 8F</div>
+                        <div>Colab 3/3: 23TB / 8F</div>
+                      </div>
+
+                      <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={generateNextMonthPreview}
+                          onChange={e => setGenerateNextMonthPreview(e.target.checked)}
+                          className="w-3.5 h-3.5 text-indigo-600 rounded-sm border-indigo-300 focus:ring-indigo-500"
+                        />
+                        <span className="text-[11px] text-indigo-900 font-semibold">
+                          Também pré-carregar a escala de {MONTHS_PT[nextInfo.monthIndex]} na matriz
+                        </span>
+                      </label>
                     </div>
 
                     {/* Regra 3: Nomenclatura Estrita */}
                     <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200">
                       <div>
                         <span className="font-semibold text-blue-950 text-xs block">
-                          3. Nomenclatura Estrita de Escala:
+                          3. Diretrizes de Nomenclatura Estrita:
                         </span>
                         <div className="mt-1.5 grid grid-cols-1 gap-1 text-[11px] text-blue-900">
-                          <div><strong>TB:</strong> Dia de Trabalho (exatamente 5 por semana Seg-Dom)</div>
-                          <div><strong>FD:</strong> Folga Duplada (2 dias seguidos: Sáb+Dom, Qua+Qui ou Sex+Sáb)</div>
-                          <div><strong>FG:</strong> Folga Geral Individual (1 dia isolado: Sex e Dom)</div>
+                          <div><strong>TB:</strong> Dia de Trabalho (5 por semana Seg-Dom)</div>
+                          <div><strong>FD:</strong> Folga Duplada (2 dias seguidos de descanso)</div>
+                          <div><strong>FG:</strong> Folga Geral Individual (1 dia isolado de descanso)</div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Regra 4: Conformidade CLT e Trava Anti-Emenda */}
+                    {/* Regra 4: Conformidade CLT e Trava Horizontal Absoluta */}
                     <div className="p-3 bg-purple-50/70 rounded-xl border border-purple-200 flex items-start gap-2">
                       <ShieldCheck className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
                       <div>
                         <span className="font-semibold text-purple-950 text-xs block">
-                          4. Lógica Jurídica CLT 5x2 & Trava Anti-Emenda
+                          4. Travas Operacionais CLT 5x2
                         </span>
                         <p className="text-[11px] text-purple-700 mt-0.5 leading-snug">
-                          Máximo de 2 folgas consecutivas. Proibido emendar 4 dias seguidos. Linha <strong>ATUANTES DIA nunca zera</strong> em nenhum DDD.
+                          Limite máximo de 6 TB consecutivos na linha horizontal (proibido 7 seguidos). Total mensal nunca menor que 8 folgas. Cobertura ininterrupta por DDD (atuantes nunca zera).
                         </p>
                       </div>
                     </div>
@@ -410,122 +446,124 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                     <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                       <span className="text-xs font-bold text-emerald-400 tracking-wider uppercase flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                        Matriz Cíclica Perpétua 5x2 (Frações 1/3, 2/3, 3/3 por DDD)
+                        Padrão Mestre 5x2 (2 Meses Corridos + Transição Fev)
                       </span>
                       <span className="text-[10px] bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded font-mono font-bold">
-                        5x2 Perpétuo
+                        Referência de Mestre
                       </span>
                     </div>
 
-                    {/* Grupo 1/3 */}
-                    <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700/80 space-y-1.5 text-xs">
-                      <div className="font-bold text-emerald-300 flex items-center justify-between text-xs">
-                        <span>GRUPO 1/3 (1º Terço do DDD ~33%)</span>
-                        <span className="text-[10px] text-slate-400 font-mono">Sem 1 (Livre) &gt; Sem 2 (Livre) &gt; Sem 3 (Trab) &gt; Sem 4 (Rev)</span>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
-                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-amber-300 block">Semana 1</strong>
-                          <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
-                          <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
-                        </div>
-                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-amber-300 block">Semana 2</strong>
-                          <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
-                          <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
-                        </div>
-                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-sky-300 block">Semana 3</strong>
-                          <span className="text-emerald-400">Qua-Qui: <strong>FD</strong></span><br/>
-                          <span className="text-slate-300">Sáb-Dom: <strong>TB</strong></span>
-                        </div>
-                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-purple-300 block">Semana 4</strong>
-                          <span className="text-yellow-300">Tipo 1: Sex/Dom FG</span><br/>
-                          <span className="text-slate-300">Tipo 2: Sex/Sáb FD</span>
-                        </div>
-                      </div>
+                    {/* Selector Tabs for Master Pattern */}
+                    <div className="flex items-center gap-1.5 bg-slate-800 p-1 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewTab('mes1')}
+                        className={`flex-1 py-1.5 px-2 rounded text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                          previewTab === 'mes1'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span>Mês 1 (31d)</span>
+                        {currentPatternKey === 'mes1' && <span className="text-[9px] bg-white/20 px-1 rounded">Atual</span>}
+                        {nextPatternKey === 'mes1' && <span className="text-[9px] bg-indigo-500/40 px-1 rounded">Seguinte</span>}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPreviewTab('mes2')}
+                        className={`flex-1 py-1.5 px-2 rounded text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                          previewTab === 'mes2'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span>Mês 2 (31d)</span>
+                        {currentPatternKey === 'mes2' && <span className="text-[9px] bg-white/20 px-1 rounded">Atual</span>}
+                        {nextPatternKey === 'mes2' && <span className="text-[9px] bg-indigo-500/40 px-1 rounded">Seguinte</span>}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPreviewTab('transicaoFev')}
+                        className={`flex-1 py-1.5 px-2 rounded text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                          previewTab === 'transicaoFev'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <span>Transição Fev (7d)</span>
+                        {currentPatternKey === 'transicaoFev' && <span className="text-[9px] bg-white/20 px-1 rounded">Atual</span>}
+                        {nextPatternKey === 'transicaoFev' && <span className="text-[9px] bg-indigo-500/40 px-1 rounded">Seguinte</span>}
+                      </button>
                     </div>
 
-                    {/* Grupo 2/3 */}
-                    <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700/80 space-y-1.5 text-xs">
-                      <div className="font-bold text-sky-300 flex items-center justify-between text-xs">
-                        <span>GRUPO 2/3 (2º Terço do DDD ~33%)</span>
-                        <span className="text-[10px] text-slate-400 font-mono">Sem 3 (Trab) &gt; Sem 4 (Rev) &gt; Sem 1 (Livre) &gt; Sem 2 (Livre)</span>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
-                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-sky-300 block">Semana 1</strong>
-                          <span className="text-emerald-400">Qua-Qui: <strong>FD</strong></span><br/>
-                          <span className="text-slate-300">Sáb-Dom: <strong>TB</strong></span>
-                        </div>
-                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-purple-300 block">Semana 2</strong>
-                          <span className="text-yellow-300">Tipo 1: Sex/Dom FG</span><br/>
-                          <span className="text-slate-300">Tipo 2: Sex/Sáb FD</span>
-                        </div>
-                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-amber-300 block">Semana 3</strong>
-                          <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
-                          <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
-                        </div>
-                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-amber-300 block">Semana 4</strong>
-                          <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
-                          <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
-                        </div>
-                      </div>
-                    </div>
+                    {/* Display the 3 Groups for the active previewTab */}
+                    {(['grupo1', 'grupo2', 'grupo3'] as const).map(gKey => {
+                      const grp = MASTER_PATTERN_5X2[gKey];
+                      const seq = grp[previewTab];
+                      const tbCount = seq.filter(s => s === 'TB').length;
+                      const fdCount = seq.filter(s => s === 'FD').length;
+                      const fgCount = seq.filter(s => s === 'FG').length;
+                      const offTotal = fdCount + fgCount;
 
-                    {/* Grupo 3/3 */}
-                    <div className="bg-slate-800/80 p-3 rounded-lg border border-slate-700/80 space-y-1.5 text-xs">
-                      <div className="font-bold text-purple-300 flex items-center justify-between text-xs">
-                        <span>GRUPO 3/3 (3º Terço do DDD ~33%)</span>
-                        <span className="text-[10px] text-slate-400 font-mono">Sem 1 (Livre) &gt; Sem 2 (Trab) &gt; Sem 3 (Livre) &gt; Sem 4 (Trab)</span>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px]">
-                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-amber-300 block">Semana 1</strong>
-                          <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
-                          <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
+                      return (
+                        <div key={gKey} className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/80 space-y-1.5">
+                          <div className="flex items-center justify-between text-xs font-bold">
+                            <span className={gKey === 'grupo1' ? 'text-emerald-400' : gKey === 'grupo2' ? 'text-sky-400' : 'text-purple-400'}>
+                              {grp.name} ({grp.fractionLabel})
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-300">
+                              {tbCount} TB • {offTotal} Folgas ({fdCount} FD, {fgCount} FG)
+                            </span>
+                          </div>
+
+                          {/* Chip Track of Shifts */}
+                          <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto p-1.5 bg-slate-900/90 rounded border border-slate-700 font-mono text-[9px] font-bold">
+                            {seq.map((s, idx) => {
+                              const badgeClass = s === 'TB'
+                                ? 'bg-slate-700 text-slate-200 border-slate-600'
+                                : s === 'FD'
+                                ? 'bg-orange-500/30 text-orange-200 border-orange-500/50'
+                                : 'bg-yellow-500/30 text-yellow-200 border-yellow-500/50';
+                              return (
+                                <span
+                                  key={idx}
+                                  className={`px-1 py-0.2 rounded border ${badgeClass}`}
+                                  title={`Dia ${idx + 1}: ${s}`}
+                                >
+                                  {s}
+                                </span>
+                              );
+                            })}
+                          </div>
+
+                          <div className="text-[9px] font-mono text-slate-400 truncate select-all" title="Sequência exata">
+                            {seq.join(', ')}
+                          </div>
                         </div>
-                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-sky-300 block">Semana 2</strong>
-                          <span className="text-emerald-400">Qua-Qui: <strong>FD</strong></span><br/>
-                          <span className="text-slate-300">Sáb-Dom: <strong>TB</strong></span>
-                        </div>
-                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-amber-300 block">Semana 3</strong>
-                          <span className="text-slate-300">Seg-Sex: <strong>TB</strong></span><br/>
-                          <span className="text-emerald-400">Sáb-Dom: <strong>FD</strong></span>
-                        </div>
-                        <div className="bg-slate-900/90 p-1.5 rounded border border-slate-700">
-                          <strong className="text-sky-300 block">Semana 4</strong>
-                          <span className="text-emerald-400">Qua-Qui: <strong>FD</strong></span><br/>
-                          <span className="text-slate-300">Sáb-Dom: <strong>TB</strong></span>
-                        </div>
-                      </div>
-                    </div>
+                      );
+                    })}
                   </div>
 
                   {/* Informational Guidance Box */}
                   <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
                     <span className="font-bold text-slate-800 flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                      Garantias Operacionais do Regime 5x2 Perpétuo CLT
+                      Garantias Operacionais do Padrão Mestre 5x2 (CLT)
                     </span>
                     <ul className="space-y-1.5 text-[11px] text-slate-600">
                       <li className="flex items-start gap-1.5">
                         <span className="text-emerald-600 font-bold">•</span>
-                        <span><strong>Jornada Estrita:</strong> Exatamente 5 TB e 2 folgas (FD ou FG) por semana de Segunda a Domingo.</span>
+                        <span><strong>Conformidade Seco:</strong> Exatamente 5 TB e 2 folgas (FD ou FG) por semana comercial (Segunda a Domingo). Mínimo de 8 folgas mensais.</span>
                       </li>
                       <li className="flex items-start gap-1.5">
                         <span className="text-indigo-600 font-bold">•</span>
-                        <span><strong>Trava Anti-Emenda:</strong> Folgas no meio de semana estritamente Qua-Sex. Máximo 2 dias de folga seguidos (proibido 4 dias de emenda).</span>
+                        <span><strong>Trava Horizontal Absoluta:</strong> Limite máximo de 6 TB consecutivos na linha horizontal. Proibido trabalhar 7 dias seguidos.</span>
                       </li>
                       <li className="flex items-start gap-1.5">
                         <span className="text-emerald-600 font-bold">•</span>
-                        <span><strong>Cobertura Ininterrupta:</strong> A linha <strong>ATUANTES DIA nunca zera</strong> em nenhum DDD em nenhum dia do mês.</span>
+                        <span><strong>Cobertura Desalinhada por DDD:</strong> Os 3 grupos rodam assincronamente para que a força de trabalho nunca zere.</span>
                       </li>
                     </ul>
                   </div>

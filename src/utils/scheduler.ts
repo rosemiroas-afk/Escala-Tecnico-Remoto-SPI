@@ -6,6 +6,7 @@ import {
   ShiftType
 } from '../types';
 import { extractWeekends, parseDateKey } from './dateUtils';
+import { MASTER_PATTERN_5X2, resolvePatternKey } from './masterPattern5x2';
 
 /**
  * Generate 6x1 schedule strictly matching the user's requirements:
@@ -70,22 +71,12 @@ export function generateSchedule(
 
   if (is5x2) {
     // =========================================================================
-    // REGIME 5x2 PERPÉTUO CLT: FRAÇÕES POR DDD (1/3, 2/3, 3/3) & ALTERNÂNCIA BIMESTRAL
-    // 5 Dias Trabalhados (TB) e 2 Folgas Semanais (FD ou FG) de Segunda a Domingo
-    // Siglas estritas:
-    // - TB: Dia Trabalhado (exatamente 5 dias por semana de Segunda a Domingo)
-    // - FD: Folga Duplada (2 folgas consecutivas, ex: Sáb+Dom ou Qua+Qui ou Sex+Sáb)
-    // - FG: Folga Geral Individual (1 dia isolado, ex: Sex e Dom)
+    // REGIME 5x2 PERPÉTUO CLT: PADRÃO EXATO DE 2 MESES CORRIDOS (REFERÊNCIA DE MESTRE)
+    // Sequência rigorosa fornecida para Colaborador 1/3, 2/3 e 3/3 por DDD
+    // - TB: Dia de Trabalho
+    // - FD: Folga Duplada (2 dias seguidos de descanso)
+    // - FG: Folga Geral Individual (1 dia isolado de descanso)
     // =========================================================================
-
-    // Determina se o mês selecionado é Tipo 1 (Ímpar) ou Tipo 2 (Par)
-    const firstDateObj = parseDateKey(dates[0]);
-    const monthNum = firstDateObj.getMonth() + 1; // 1-12
-    const isTipo1 = options.monthType5x2 === 'tipo_1'
-      ? true
-      : options.monthType5x2 === 'tipo_2'
-      ? false
-      : (monthNum % 2 !== 0);
 
     // [REGRA 1: DIVISÃO DINÂMICA POR PORCENTAGEM E DDD]
     // Lê a base de dados agrupada por DDD e divide matematicamente em 3 grupos equivalentes:
@@ -113,128 +104,48 @@ export function generateSchedule(
     const grupo2Ids = new Set(grupo2Techs.map(t => t.id));
     const grupo3Ids = new Set(grupo3Techs.map(t => t.id));
 
-    // Helper para identificar a Segunda-feira da semana de calendário (Segunda a Domingo)
-    const getMondayKey = (dateStr: string): string => {
-      const dt = parseDateKey(dateStr);
-      const day = dt.getDay(); // 0=Dom, 1=Seg, ... 6=Sáb
-      const diff = day === 0 ? 6 : day - 1;
-      const monday = new Date(dt);
-      monday.setDate(dt.getDate() - diff);
-      const y = monday.getFullYear();
-      const m = String(monday.getMonth() + 1).padStart(2, '0');
-      const d = String(monday.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    };
-
-    // Identifica todas as semanas de calendário presentes no período gerado
-    const uniqueMondays = Array.from(new Set(dates.map(getMondayKey))).sort();
-
-    // Matrizes Semanais Padrão [Seg, Ter, Qua, Qui, Sex, Sáb, Dom]
-    // Cada uma contém exatamente 5 TB e 2 Folgas (FD ou FG)
-    interface WeekPatternDay {
-      shift: ShiftType;
-      notes: string;
-    }
-
-    // Semana 1 e 2 (FDS Livre): Seg-Sex TB, Sáb-Dom FD
-    const SEMANA_FDS_LIVRE: WeekPatternDay[] = [
-      { shift: 'TB', notes: 'Dia de Trabalho (Segunda)' },
-      { shift: 'TB', notes: 'Dia de Trabalho (Terça)' },
-      { shift: 'TB', notes: 'Dia de Trabalho (Quarta)' },
-      { shift: 'TB', notes: 'Dia de Trabalho (Quinta)' },
-      { shift: 'TB', notes: 'Dia de Trabalho (Sexta)' },
-      { shift: 'FD', notes: 'Folga Dupla FDS (Sábado)' },
-      { shift: 'FD', notes: 'Folga Dupla FDS (Domingo)' }
-    ];
-
-    // Semana 3 (FDS Trabalhado): Seg-Ter TB, Qua-Qui FD, Sex-Dom TB (Folga Qua/Qui evita emenda de 4 dias)
-    const SEMANA_FDS_TRABALHADO: WeekPatternDay[] = [
-      { shift: 'TB', notes: 'Dia de Trabalho (Segunda)' },
-      { shift: 'TB', notes: 'Dia de Trabalho (Terça)' },
-      { shift: 'FD', notes: 'Folga Dupla Meio de Semana (Quarta)' },
-      { shift: 'FD', notes: 'Folga Dupla Meio de Semana (Quinta)' },
-      { shift: 'TB', notes: 'Dia de Trabalho (Sexta)' },
-      { shift: 'TB', notes: 'Dia de Trabalho FDS (Sábado)' },
-      { shift: 'TB', notes: 'Dia de Trabalho FDS (Domingo)' }
-    ];
-
-    // Semana 4 Mês Tipo 1: Trabalha Sábado, Folga Domingo (Sex FG e Dom FG, Sáb TB)
-    const SEMANA_4_TIPO_1: WeekPatternDay[] = [
-      { shift: 'TB', notes: 'Dia de Trabalho (Segunda)' },
-      { shift: 'TB', notes: 'Dia de Trabalho (Terça)' },
-      { shift: 'TB', notes: 'Dia de Trabalho (Quarta)' },
-      { shift: 'TB', notes: 'Dia de Trabalho (Quinta)' },
-      { shift: 'FG', notes: 'Folga Geral Isolada (Sexta)' },
-      { shift: 'TB', notes: 'Dia de Trabalho FDS (Sábado)' },
-      { shift: 'FG', notes: 'Folga Geral Isolada (Domingo)' }
-    ];
-
-    // Semana 4 Mês Tipo 2: Folga Sábado, Trabalha Domingo (Sex FD e Sáb FD, Dom TB)
-    const SEMANA_4_TIPO_2: WeekPatternDay[] = [
-      { shift: 'TB', notes: 'Dia de Trabalho (Segunda)' },
-      { shift: 'TB', notes: 'Dia de Trabalho (Terça)' },
-      { shift: 'TB', notes: 'Dia de Trabalho (Quarta)' },
-      { shift: 'TB', notes: 'Dia de Trabalho (Quinta)' },
-      { shift: 'FD', notes: 'Folga Dupla Casada (Sexta)' },
-      { shift: 'FD', notes: 'Folga Dupla Casada (Sábado)' },
-      { shift: 'TB', notes: 'Dia de Trabalho FDS (Domingo)' }
-    ];
-
-    const semana4Ativa = isTipo1 ? SEMANA_4_TIPO_1 : SEMANA_4_TIPO_2;
-
-    // Definição dos ciclos de 4 semanas para os 3 grupos assíncronos:
-    // Garante que o DDD NUNCA fique com 0 técnicos atuantes em nenhum dia da semana ou final de semana.
-    const planGrupo1: WeekPatternDay[][] = [
-      SEMANA_FDS_LIVRE,      // Semana 1: FDS Livre (Sáb+Dom FD)
-      SEMANA_FDS_LIVRE,      // Semana 2: FDS Livre (Sáb+Dom FD)
-      SEMANA_FDS_TRABALHADO, // Semana 3: FDS Trabalhado (Qua+Qui FD, Sáb+Dom TB)
-      semana4Ativa           // Semana 4: Alternância bimestral
-    ];
-
-    const planGrupo2: WeekPatternDay[][] = [
-      SEMANA_FDS_TRABALHADO, // Semana 1: FDS Trabalhado (cobre o FDS enquanto G1 folga)
-      semana4Ativa,          // Semana 2: Alternância bimestral
-      SEMANA_FDS_LIVRE,      // Semana 3: FDS Livre (Sáb+Dom FD)
-      SEMANA_FDS_LIVRE       // Semana 4: FDS Livre (Sáb+Dom FD)
-    ];
-
-    const planGrupo3: WeekPatternDay[][] = [
-      SEMANA_FDS_LIVRE,      // Semana 1: FDS Livre
-      SEMANA_FDS_TRABALHADO, // Semana 2: FDS Trabalhado (garante cobertura total de Domingo)
-      SEMANA_FDS_LIVRE,      // Semana 3: FDS Livre
-      SEMANA_FDS_TRABALHADO  // Semana 4: FDS Trabalhado (garante cobertura total de Domingo)
-    ];
-
-    // Aplicação para cada dia do mês
+    // Mapeamento dos dias com o Padrão Mestre Exato
     for (const d of dates) {
       const dt = parseDateKey(d);
-      const dow = dt.getDay(); // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sáb
-      // Índice de 0 a 6 (0=Segunda, 1=Terça, ..., 5=Sábado, 6=Domingo)
-      const dayIndex = dow === 0 ? 6 : dow - 1;
+      const monthNum = dt.getMonth() + 1; // 1-12
+      const dayNum = dt.getDate(); // 1-31
+      const dayIndex = dayNum - 1; // 0-30
 
-      const mondayKey = getMondayKey(d);
-      const weekIndex = uniqueMondays.indexOf(mondayKey);
-      const cycleWeek = weekIndex >= 0 ? weekIndex % 4 : 0;
+      // Determina se o mês segue mes1, mes2 ou transicaoFev
+      const patternKey = resolvePatternKey(monthNum, options.cycleMonth5x2);
 
       for (const tech of activeTechs) {
         const techSched = result[tech.id];
         if (!techSched || !techSched.days[d]) continue;
 
-        let patternDay: WeekPatternDay;
+        let patternArr: ShiftType[];
+        let groupLabel = '';
 
         if (grupo1Ids.has(tech.id)) {
-          patternDay = planGrupo1[cycleWeek][dayIndex];
+          patternArr = MASTER_PATTERN_5X2.grupo1[patternKey];
+          groupLabel = 'Colaborador 1/3';
         } else if (grupo2Ids.has(tech.id)) {
-          patternDay = planGrupo2[cycleWeek][dayIndex];
+          patternArr = MASTER_PATTERN_5X2.grupo2[patternKey];
+          groupLabel = 'Colaborador 2/3';
         } else {
-          // Grupo 3
-          patternDay = planGrupo3[cycleWeek][dayIndex];
+          patternArr = MASTER_PATTERN_5X2.grupo3[patternKey];
+          groupLabel = 'Colaborador 3/3';
         }
+
+        const shift = patternKey === 'transicaoFev'
+          ? patternArr[dayIndex % patternArr.length]
+          : patternArr[Math.min(dayIndex, patternArr.length - 1)];
+
+        const note = shift === 'TB'
+          ? `Dia de Trabalho (${groupLabel})`
+          : shift === 'FD'
+          ? `Folga Duplada Consecutiva (${groupLabel})`
+          : `Folga Geral Individual (${groupLabel})`;
 
         techSched.days[d] = {
           date: d,
-          shift: patternDay.shift,
-          notes: patternDay.notes
+          shift,
+          notes: note
         };
       }
     }

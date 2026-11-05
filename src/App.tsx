@@ -1303,24 +1303,34 @@ export default function App() {
     exportScheduleToExcel(technicians, schedules, dates, period, offRequests);
   };
 
-  // Handler: Generate Schedule (1 month at a time, supporting 6x1 vs 5x2) & Save to Supabase
+  // Handler: Generate Schedule (month by month, with optional next month sync) & Save to Supabase
   const handleGenerate = useCallback(async (options: GeneratorOptions, periodConfig: { startYear: number; startMonth: number }) => {
-    // Generate dates strictly for 1 month
-    const newDates = generateDateRange(periodConfig.startYear, periodConfig.startMonth, 1);
+    // Generate dates strictly for the selected month
+    const currentMonthDates = generateDateRange(periodConfig.startYear, periodConfig.startMonth, 1);
+    let targetDates = [...currentMonthDates];
+
+    // If generateNextMonthPreview is active and regime is 5x2, also include next month dates
+    if (options.regime === '5x2' && options.generateNextMonthPreview) {
+      const nextMonth = (periodConfig.startMonth + 1) % 12;
+      const nextYear = periodConfig.startMonth === 11 ? periodConfig.startYear + 1 : periodConfig.startYear;
+      const nextDates = generateDateRange(nextYear, nextMonth, 1);
+      targetDates = [...currentMonthDates, ...nextDates];
+    }
+
     const currentRegime = options.regime || '6x1';
 
     const newPeriod: SchedulePeriod = {
       ...period,
       startYear: periodConfig.startYear,
       startMonth: periodConfig.startMonth,
-      durationMonths: 1,
+      durationMonths: options.generateNextMonthPreview ? 2 : 1,
       regime: currentRegime,
       updatedAt: new Date().toISOString()
     };
     setPeriod(newPeriod);
 
-    // Generate new schedule for this specific month
-    const newSchedule = generateSchedule(technicians, newDates, offRequests, options);
+    // Generate new schedule for these dates
+    const newSchedule = generateSchedule(technicians, targetDates, offRequests, options);
 
     // Merge into existing schedules so other months remain completely intact
     setSchedules(prev => {
@@ -1341,7 +1351,7 @@ export default function App() {
     for (const tech of technicians) {
       const techSched = newSchedule[tech.id];
       if (!techSched || !techSched.days) continue;
-      for (const d of newDates) {
+      for (const d of targetDates) {
         const day = techSched.days[d];
         rows.push({
           id_usuario: tech.id,
@@ -1354,9 +1364,9 @@ export default function App() {
     }
 
     try {
-      // Delete only the dates of this specific month in Supabase, preserving other months
-      const monthStart = newDates[0];
-      const monthEnd = newDates[newDates.length - 1];
+      // Delete only the dates of this specific period in Supabase, preserving other months
+      const monthStart = targetDates[0];
+      const monthEnd = targetDates[targetDates.length - 1];
       await supabase.from('escalas').delete().gte('data', monthStart).lte('data', monthEnd);
       for (let i = 0; i < rows.length; i += 100) {
         await supabase.from('escalas').insert(rows.slice(i, i + 100));
@@ -1366,7 +1376,7 @@ export default function App() {
     }
 
     setIsGeneratorOpen(false);
-    alert(`Escala de ${MONTHS_PT[periodConfig.startMonth]} de ${periodConfig.startYear} (${currentRegime}) gerada e salva com sucesso!`);
+    alert(`Escala de ${MONTHS_PT[periodConfig.startMonth]} de ${periodConfig.startYear} (${currentRegime}) gerada com sucesso${options.generateNextMonthPreview && options.regime === '5x2' ? ' (incluindo prévia sincronizada do mês seguinte)' : ''}!`);
   }, [technicians, offRequests, period]);
 
   const isAdmin = currentUser?.role === 'admin';
@@ -1573,6 +1583,7 @@ export default function App() {
                 onSave={handleSave}
                 onLoadOfficialSchedule={handleLoadOfficialSchedule}
                 onUploadScheduleFile={handleUploadScheduleFile}
+                onOpenGenerator={() => setIsGeneratorOpen(true)}
               />
             )}
 

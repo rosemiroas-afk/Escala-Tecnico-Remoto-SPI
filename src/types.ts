@@ -332,6 +332,8 @@ export interface GeneratorOptions {
   midweekGroupBCount5x2?: number; // Colaboradores Ter/Qui (ex: 5)
   midweekGroupCCount5x2?: number; // Colaboradores Qua/Sex (ex: 5)
   monthType5x2?: 'tipo_1' | 'tipo_2' | 'auto'; // Revezamento Dinâmico Bimestral do 4º FDS (Tipo 1 ímpar vs Tipo 2 par)
+  cycleMonth5x2?: 'mes_1' | 'mes_2' | 'transicao_fev' | 'auto'; // Padrão Mestre Exato 2 Meses Corridos (Mês 1, Mês 2, Transição Fev)
+  generateNextMonthPreview?: boolean; // Também gerar/atualizar o mês seguinte na matriz
 }
 
 export type UserRole = 'admin' | 'technician' | 'viewer';
