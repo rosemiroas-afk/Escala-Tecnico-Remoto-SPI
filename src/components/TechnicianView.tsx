@@ -112,30 +112,150 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     });
     return groups;
   }, [techAtestados]);
-  const weekends = extractWeekends(dates);
+  // Extrai todos os meses disponíveis das datas (ex: ['2026-11', '2026-12', '2027-01'])
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of dates) {
+      if (d && d.length >= 7) {
+        set.add(d.slice(0, 7));
+      }
+    }
+    const list = Array.from(set).sort();
+    return list.length > 0 ? list : ['2026-11'];
+  }, [dates]);
+
+  // Filtro de mês estrito (exibe exclusivamente um único mês por vez)
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const targetKey = `${period.startYear}-${String(period.startMonth + 1).padStart(2, '0')}`;
+    const set = new Set(dates.map(d => d.slice(0, 7)));
+    if (set.has(targetKey)) return targetKey;
+    const sorted = Array.from(set).sort();
+    return sorted[0] || '2026-11';
+  });
+
+  // Mantém selectedMonth sincronizado se availableMonths mudar
+  useEffect(() => {
+    if (availableMonths.length > 0 && !availableMonths.includes(selectedMonth)) {
+      setSelectedMonth(availableMonths[0]);
+    }
+  }, [availableMonths, selectedMonth]);
+
+  // Datas estritamente filtradas para o mês selecionado
+  const displayDates = useMemo(() => {
+    return dates.filter(d => d.startsWith(selectedMonth));
+  }, [dates, selectedMonth]);
+
+  // Formatação amigável do nome do mês (ex: "Novembro de 2026")
+  const formatMonthName = (mKey: string) => {
+    const parts = mKey.split('-');
+    const y = Number(parts[0]);
+    const m = Number(parts[1]) - 1;
+    return `${MONTHS_PT[m]} de ${y}`;
+  };
+
+  // Navegação entre meses
+  const currentMonthIndex = availableMonths.indexOf(selectedMonth);
+
+  const handlePrevMonth = () => {
+    if (availableMonths.length <= 1) return;
+    if (currentMonthIndex <= 0) {
+      setSelectedMonth(availableMonths[availableMonths.length - 1]);
+    } else {
+      setSelectedMonth(availableMonths[currentMonthIndex - 1]);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (availableMonths.length <= 1) return;
+    if (currentMonthIndex === -1 || currentMonthIndex >= availableMonths.length - 1) {
+      setSelectedMonth(availableMonths[0]);
+    } else {
+      setSelectedMonth(availableMonths[currentMonthIndex + 1]);
+    }
+  };
+
+  // Atualiza reqDate para a primeira data do mês quando mudar o mês
+  useEffect(() => {
+    if (displayDates.length > 0 && (!reqDate || !displayDates.includes(reqDate))) {
+      setReqDate(displayDates[0]);
+    }
+  }, [displayDates]);
 
   if (!currentTech || !currentSched) {
     return <div className="p-8 text-center text-slate-500">Nenhum técnico disponível.</div>;
   }
 
-  // Find their double weekends (strictly Sáb + Dom)
-  const doubleWeekends = weekends.filter(wk => {
-    const sat = currentSched.days[wk.saturday]?.shift;
-    const sun = currentSched.days[wk.sunday]?.shift;
-    return (sat === 'FD' || sat === 'FG' || sat === 'F') && (sun === 'FD' || sun === 'FG' || sun === 'F');
-  });
+  // Estatísticas específicas do mês selecionado
+  const monthStats = useMemo(() => {
+    let totalOffDays = 0;
+    let totalWorkDays = 0;
+    let weekendDaysOff = 0;
+    let maxConsecutiveWorkDays = 0;
+    let currentConsecutive = 0;
+    let inversionsCount = 0;
 
-  const currentStats = auditResult?.techStats?.[currentTech.id];
+    for (let i = 0; i < displayDates.length; i++) {
+      const d = displayDates[i];
+      const shift = currentSched.days[d]?.shift || 'TB';
+      const isOff = shift === 'FD' || shift === 'FG' || shift === 'FC' || shift === 'FN' || shift === 'FE' || shift === 'FR' || shift === 'F';
+      if (isOff) {
+        totalOffDays++;
+        if (isSaturday(d) || isSunday(d)) {
+          weekendDaysOff++;
+        }
+        currentConsecutive = 0;
+        if (shift === 'FC') {
+          inversionsCount++;
+        }
+      } else if (shift === 'TB' || shift === 'T') {
+        totalWorkDays++;
+        currentConsecutive++;
+        if (currentConsecutive > maxConsecutiveWorkDays) {
+          maxConsecutiveWorkDays = currentConsecutive;
+        }
+      }
+    }
+
+    const monthWeekends = extractWeekends(displayDates);
+    const doubleWeekendsCount = monthWeekends.filter(wk => {
+      const sat = currentSched.days[wk.saturday]?.shift;
+      const sun = currentSched.days[wk.sunday]?.shift;
+      const isSatOff = sat === 'FD' || sat === 'FG' || sat === 'F';
+      const isSunOff = sun === 'FD' || sun === 'FG' || sun === 'F';
+      return isSatOff && isSunOff;
+    }).length;
+
+    return {
+      totalOffDays,
+      doubleWeekendsCount,
+      totalWorkDays,
+      weekendDaysOff,
+      maxConsecutiveWorkDays,
+      inversionsCount
+    };
+  }, [currentSched, displayDates]);
 
   const handleCopyWhatsApp = () => {
-    const text = generateIndividualWhatsAppMessage(currentTech, currentSched, dates, period, offRequests);
+    const text = generateIndividualWhatsAppMessage(
+      currentTech,
+      currentSched,
+      displayDates,
+      { ...period, name: formatMonthName(selectedMonth) },
+      offRequests
+    );
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
   const handleOpenWhatsApp = () => {
-    const text = generateIndividualWhatsAppMessage(currentTech, currentSched, dates, period, offRequests);
+    const text = generateIndividualWhatsAppMessage(
+      currentTech,
+      currentSched,
+      displayDates,
+      { ...period, name: formatMonthName(selectedMonth) },
+      offRequests
+    );
     const cleanPhone = currentTech.phone ? currentTech.phone.replace(/\D/g, '') : '';
     const fullPhone = cleanPhone ? (cleanPhone.length <= 9 ? `${currentTech.ddd}${cleanPhone}` : cleanPhone) : '';
     const url = fullPhone
@@ -261,7 +381,82 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         </div>
       </div>
 
-      {/* Stats Summary Cards */}
+      {/* Month Selector Bar - Individual Mês a Mês (Tanto para Admin quanto Colaborador) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-2xs">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Filtro de Mês (Visualização Individual):
+              </span>
+              <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+                1 Mês por vez
+              </span>
+            </div>
+            <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white capitalize mt-0.5">
+              {formatMonthName(selectedMonth)}
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 ml-2">
+                ({displayDates.length} dias no mês)
+              </span>
+            </h3>
+          </div>
+        </div>
+
+        {/* Controles de Navegação e Seleção de Mês */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={handlePrevMonth}
+            disabled={availableMonths.length <= 1}
+            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all disabled:opacity-40 cursor-pointer"
+            title="Mês Anterior"
+          >
+            ◀ Mês Anterior
+          </button>
+
+          {/* Botões dos Meses Disponíveis */}
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+            {availableMonths.map(mKey => {
+              const isSelected = selectedMonth === mKey;
+              const count = dates.filter(d => d.startsWith(mKey)).length;
+              return (
+                <button
+                  key={mKey}
+                  type="button"
+                  onClick={() => setSelectedMonth(mKey)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <span>{formatMonthName(mKey)}</span>
+                  <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono ${
+                    isSelected ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                  }`}>
+                    {count}d
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleNextMonth}
+            disabled={availableMonths.length <= 1}
+            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all disabled:opacity-40 cursor-pointer"
+            title="Próximo Mês"
+          >
+            Próximo Mês ▶
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Summary Cards (Específicos do Mês Selecionado) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Double Weekend / Folga Duplada Card */}
         <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-5 text-white shadow-sm flex flex-col justify-between">
@@ -273,16 +468,16 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           </div>
           <div className="my-3">
             <div className="text-3xl font-extrabold">
-              {currentStats?.doubleWeekendsCount || 0} {(currentStats?.doubleWeekendsCount || 0) === 1 ? 'Garantida' : 'Garantidas'}
+              {monthStats.doubleWeekendsCount} {monthStats.doubleWeekendsCount === 1 ? 'Garantida' : 'Garantidas'}
             </div>
             <p className="text-xs text-purple-100 mt-1">
-              {(currentStats?.doubleWeekendsCount || 0) > 0
-                ? `${currentStats?.doubleWeekendsCount} folga(s) duplada(s) no período`
-                : 'Nenhuma folga duplada no período'}
+              {monthStats.doubleWeekendsCount > 0
+                ? `${monthStats.doubleWeekendsCount} fim de semana duplado em ${formatMonthName(selectedMonth)}`
+                : `Nenhum fim de semana duplado em ${formatMonthName(selectedMonth)}`}
             </p>
           </div>
           <div className="text-[11px] bg-white/20 px-2.5 py-1 rounded-lg backdrop-blur-xs font-medium w-fit">
-            2 Dias Seguidos com FD
+            Sáb + Dom de Descanso
           </div>
         </div>
 
@@ -294,14 +489,33 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           </div>
           <div className="my-3">
             <div className="text-3xl font-extrabold text-slate-800 dark:text-slate-100">
-              {currentStats?.totalOffDays || 0} dias
+              {monthStats.totalOffDays} dias
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Sendo {currentStats?.weekendDaysOff || 0} dias em finais de semana
+              Sendo {monthStats.weekendDaysOff} folgas em fins de semana ({formatMonthName(selectedMonth)})
             </p>
           </div>
           <div className="text-[11px] text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 px-2.5 py-1 rounded-lg font-medium w-fit">
-            Regime 6x1 regular
+            Descanso no Mês
+          </div>
+        </div>
+
+        {/* Total Work Days (TB) */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+            <span className="text-xs font-semibold uppercase tracking-wider">Dias Trabalhados (TB)</span>
+            <Briefcase className="w-5 h-5 text-emerald-500" />
+          </div>
+          <div className="my-3">
+            <div className="text-3xl font-extrabold text-emerald-700 dark:text-emerald-400">
+              {monthStats.totalWorkDays} dias
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Atuação em {formatMonthName(selectedMonth)}
+            </p>
+          </div>
+          <div className="text-[11px] text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-lg font-medium w-fit">
+            Produtividade Mensal
           </div>
         </div>
 
@@ -313,37 +527,18 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           </div>
           <div className="my-3">
             <div className={`text-3xl font-extrabold ${
-              (currentStats?.maxConsecutiveWorkDays || 0) > 6 ? 'text-rose-600' : 'text-emerald-700 dark:text-emerald-400'
+              monthStats.maxConsecutiveWorkDays > 6 ? 'text-rose-600' : 'text-emerald-700 dark:text-emerald-400'
             }`}>
-              {currentStats?.maxConsecutiveWorkDays || 0} dias
+              {monthStats.maxConsecutiveWorkDays} dias
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              {(currentStats?.maxConsecutiveWorkDays || 0) <= 6
+              {monthStats.maxConsecutiveWorkDays <= 6
                 ? '✅ Conforme com o limite legal CLT'
-                : '⚠️ Violação do limite de 6 dias'}
+                : '⚠️ Atenção aos dias seguidos'}
             </p>
           </div>
           <div className="text-[11px] text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-lg font-medium w-fit">
-            Máximo 6 dias de trabalho seguidos
-          </div>
-        </div>
-
-        {/* Inversions Count */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Inversões de Escala</span>
-            <Sparkles className="w-5 h-5 text-indigo-500" />
-          </div>
-          <div className="my-3">
-            <div className="text-3xl font-extrabold text-indigo-700 dark:text-indigo-400">
-              {currentStats?.inversionsCount || 0}
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Folga compensatória de segunda a quinta
-            </p>
-          </div>
-          <div className="text-[11px] text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-2.5 py-1 rounded-lg font-medium w-fit">
-            Meta bimestral: ~2 inversões
+            Máximo de trabalho contínuo
           </div>
         </div>
       </div>
@@ -359,8 +554,8 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {isAdmin
-                  ? 'Clique em qualquer dia para alterar o status.'
-                  : 'Suas folgas programadas e dias de trabalho para o bimestre.'}
+                  ? `Clique em qualquer dia para alterar o status. Exibindo ${formatMonthName(selectedMonth)}.`
+                  : `Suas folgas programadas e dias de trabalho em ${formatMonthName(selectedMonth)} (${displayDates.length} dias).`}
               </p>
             </div>
             <span className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${DDD_INFO[currentTech.ddd]?.badge}`}>
@@ -369,7 +564,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-            {dates.map(d => {
+            {displayDates.map(d => {
               const day = currentSched.days[d];
               const rawShift = day?.shift || 'TB';
               const shift = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
@@ -468,7 +663,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                   onChange={e => setReqDate(e.target.value)}
                   className="w-full text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100"
                 >
-                  {dates.map(d => (
+                  {displayDates.map(d => (
                     <option key={d} value={d}>
                       {formatDisplayDate(d)}
                     </option>
