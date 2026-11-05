@@ -112,16 +112,17 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     });
     return groups;
   }, [techAtestados]);
-  // Extrai todos os meses disponíveis das datas (ex: ['2026-11', '2026-12', '2027-01'])
+  // Extrai todos os meses disponíveis das datas (excluindo meses com menos de 5 dias como Outubro)
   const availableMonths = useMemo(() => {
-    const set = new Set<string>();
+    const counts: Record<string, number> = {};
     for (const d of dates) {
       if (d && d.length >= 7) {
-        set.add(d.slice(0, 7));
+        const mKey = d.slice(0, 7);
+        counts[mKey] = (counts[mKey] || 0) + 1;
       }
     }
-    const list = Array.from(set).sort();
-    return list.length > 0 ? list : ['2026-11'];
+    const list = Object.keys(counts).filter(mKey => counts[mKey] >= 5).sort();
+    return list.length > 0 ? list : Object.keys(counts).sort();
   }, [dates]);
 
   // Filtro de mês estrito (exibe exclusivamente um único mês por vez)
@@ -405,54 +406,31 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           </div>
         </div>
 
-        {/* Controles de Navegação e Seleção de Mês */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={handlePrevMonth}
-            disabled={availableMonths.length <= 1}
-            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all disabled:opacity-40 cursor-pointer"
-            title="Mês Anterior"
-          >
-            ◀ Mês Anterior
-          </button>
-
-          {/* Botões dos Meses Disponíveis */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-            {availableMonths.map(mKey => {
-              const isSelected = selectedMonth === mKey;
-              const count = dates.filter(d => d.startsWith(mKey)).length;
-              return (
-                <button
-                  key={mKey}
-                  type="button"
-                  onClick={() => setSelectedMonth(mKey)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    isSelected
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  <span>{formatMonthName(mKey)}</span>
-                  <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono ${
-                    isSelected ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
-                  }`}>
-                    {count}d
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            type="button"
-            onClick={handleNextMonth}
-            disabled={availableMonths.length <= 1}
-            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all disabled:opacity-40 cursor-pointer"
-            title="Próximo Mês"
-          >
-            Próximo Mês ▶
-          </button>
+        {/* Botões dos Meses Disponíveis */}
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+          {availableMonths.map(mKey => {
+            const isSelected = selectedMonth === mKey;
+            const count = dates.filter(d => d.startsWith(mKey)).length;
+            return (
+              <button
+                key={mKey}
+                type="button"
+                onClick={() => setSelectedMonth(mKey)}
+                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                <span>{formatMonthName(mKey)}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
+                  isSelected ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                }`}>
+                  {count}d
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
