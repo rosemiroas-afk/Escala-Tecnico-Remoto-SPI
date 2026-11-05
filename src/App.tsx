@@ -31,6 +31,7 @@ import { PendingRequestsNotificationWidget } from './components/PendingRequestsN
 import { WhatsAppPushAlertWidget } from './components/WhatsAppPushAlertWidget';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { AtestadoUploadModal } from './components/AtestadoUploadModal';
+import { Check, X } from 'lucide-react';
 import { supabase } from './supabase';
 
 const STORAGE_KEY_TECHS = 'escalamaster_techs_v4';
@@ -346,6 +347,14 @@ export default function App() {
   const [selectedTechForRequests, setSelectedTechForRequests] = useState<string | undefined>(undefined);
   const [isAtestadoModalOpen, setIsAtestadoModalOpen] = useState(false);
   const [techForAtestado, setTechForAtestado] = useState<Technician | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(prev => (prev === msg ? null : prev));
+    }, 4500);
+  }, []);
 
   // Atestados State (Persisted locally and synced with Supabase)
   const [atestados, setAtestados] = useState<Atestado[]>(() => {
@@ -1376,8 +1385,8 @@ export default function App() {
     }
 
     setIsGeneratorOpen(false);
-    alert(`Escala de ${MONTHS_PT[periodConfig.startMonth]} de ${periodConfig.startYear} (${currentRegime}) gerada com sucesso${options.generateNextMonthPreview && options.regime === '5x2' ? ' (incluindo prévia sincronizada do mês seguinte)' : ''}!`);
-  }, [technicians, offRequests, period]);
+    showToast(`Escala de ${MONTHS_PT[periodConfig.startMonth]} de ${periodConfig.startYear} (${currentRegime}) gerada com sucesso${options.generateNextMonthPreview && options.regime === '5x2' ? ' (incluindo prévia sincronizada do mês seguinte)' : ''}!`);
+  }, [technicians, offRequests, period, showToast]);
 
   const isAdmin = currentUser?.role === 'admin';
   const isViewer = currentUser?.role === 'viewer';
@@ -1438,6 +1447,20 @@ export default function App() {
     <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
       darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-800'
     }`}>
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs sm:text-sm font-bold border border-emerald-400/30 backdrop-blur-xs animate-bounce">
+          <Check className="w-5 h-5 text-emerald-200 shrink-0" />
+          <span>{toastMessage}</span>
+          <button
+            onClick={() => setToastMessage(null)}
+            className="ml-3 hover:bg-emerald-700/80 p-1 rounded-lg text-emerald-100 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Top Header & Navigation */}
       <Header
         period={period}

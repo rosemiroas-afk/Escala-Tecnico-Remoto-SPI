@@ -6,7 +6,7 @@ import {
   ShiftType
 } from '../types';
 import { extractWeekends, parseDateKey } from './dateUtils';
-import { MASTER_PATTERN_5X2, resolvePatternKey } from './masterPattern5x2';
+import { MASTER_PATTERN_5X2, resolvePatternKey, getShiftFromMasterPattern } from './masterPattern5x2';
 
 /**
  * Generate 6x1 schedule strictly matching the user's requirements:
@@ -104,37 +104,27 @@ export function generateSchedule(
     const grupo2Ids = new Set(grupo2Techs.map(t => t.id));
     const grupo3Ids = new Set(grupo3Techs.map(t => t.id));
 
-    // Mapeamento dos dias com o Padrão Mestre Exato
+    // Mapeamento rigoroso dos dias com a Planilha Oficial (Colaborador 1/3, 2/3 e 3/3)
     for (const d of dates) {
-      const dt = parseDateKey(d);
-      const monthNum = dt.getMonth() + 1; // 1-12
-      const dayNum = dt.getDate(); // 1-31
-      const dayIndex = dayNum - 1; // 0-30
-
-      // Determina se o mês segue mes1, mes2 ou transicaoFev
-      const patternKey = resolvePatternKey(monthNum, options.cycleMonth5x2);
-
       for (const tech of activeTechs) {
         const techSched = result[tech.id];
         if (!techSched || !techSched.days[d]) continue;
 
-        let patternArr: ShiftType[];
+        let groupKey: 'grupo1' | 'grupo2' | 'grupo3';
         let groupLabel = '';
 
         if (grupo1Ids.has(tech.id)) {
-          patternArr = MASTER_PATTERN_5X2.grupo1[patternKey];
+          groupKey = 'grupo1';
           groupLabel = 'Colaborador 1/3';
         } else if (grupo2Ids.has(tech.id)) {
-          patternArr = MASTER_PATTERN_5X2.grupo2[patternKey];
+          groupKey = 'grupo2';
           groupLabel = 'Colaborador 2/3';
         } else {
-          patternArr = MASTER_PATTERN_5X2.grupo3[patternKey];
+          groupKey = 'grupo3';
           groupLabel = 'Colaborador 3/3';
         }
 
-        const shift = patternKey === 'transicaoFev'
-          ? patternArr[dayIndex % patternArr.length]
-          : patternArr[Math.min(dayIndex, patternArr.length - 1)];
+        const shift = getShiftFromMasterPattern(d, groupKey);
 
         const note = shift === 'TB'
           ? `Dia de Trabalho (${groupLabel})`
