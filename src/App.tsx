@@ -1528,76 +1528,72 @@ export default function App() {
     const newSchedule = generateSchedule(technicians, targetDates, offRequests, options);
 
     // Merge into existing schedules so other months remain completely intact
-    let mergedSchedules: Record<string, TechnicianSchedule> = {};
-    setSchedules(prev => {
-      const merged = { ...prev };
-      for (const tech of technicians) {
-        const existingDays = merged[tech.id]?.days || {};
-        const generatedDays = newSchedule[tech.id]?.days || {};
-        merged[tech.id] = {
-          technicianId: tech.id,
-          days: { ...existingDays, ...generatedDays }
-        };
-      }
+    const merged: Record<string, TechnicianSchedule> = { ...schedules };
+    for (const tech of technicians) {
+      const existingDays = merged[tech.id]?.days || {};
+      const generatedDays = newSchedule[tech.id]?.days || {};
+      merged[tech.id] = {
+        technicianId: tech.id,
+        days: { ...existingDays, ...generatedDays }
+      };
+    }
 
-      // GARANTIA OPERACIONAL E LEGAL CLT: MÍNIMO RIGOROSO DE 8 FOLGAS POR MÊS
-      // Percorre os meses que foram gerados (alvo e preview) e valida cada técnico
-      const generatedMonths = Array.from(new Set(targetDates.map(d => d.slice(0, 7))));
-      for (const mKey of generatedMonths) {
-        const monthDates = targetDates.filter(d => d.startsWith(mKey));
-        if (monthDates.length >= 20) {
-          for (const tech of technicians) {
-            const techSched = merged[tech.id];
-            if (!techSched) continue;
+    // GARANTIA OPERACIONAL E LEGAL CLT: MÍNIMO RIGOROSO DE 8 FOLGAS POR MÊS
+    // Percorre os meses que foram gerados (alvo e preview) e valida cada técnico
+    const generatedMonths = Array.from(new Set(targetDates.map(d => d.slice(0, 7))));
+    for (const mKey of generatedMonths) {
+      const monthDates = targetDates.filter(d => d.startsWith(mKey));
+      if (monthDates.length >= 20) {
+        for (const tech of technicians) {
+          const techSched = merged[tech.id];
+          if (!techSched) continue;
 
-            let currentOffs = monthDates.filter(d => isOffShift(techSched.days[d]?.shift)).length;
-            if (currentOffs < 8) {
-              // Converte dias TB em FG até que o colaborador atinja no mínimo 8 folgas
-              for (const d of monthDates) {
-                if (currentOffs >= 8) break;
-                if (isWorkingShift(techSched.days[d]?.shift)) {
-                  techSched.days[d] = {
-                    date: d,
-                    shift: 'FG',
-                    notes: 'Folga Geral 5x2 (Garantia Mínima 8 Folgas CLT)',
-                    manualOverride: false
-                  };
-                  currentOffs++;
-                }
+          let currentOffs = monthDates.filter(d => isOffShift(techSched.days[d]?.shift)).length;
+          if (currentOffs < 8) {
+            // Converte dias TB em FG até que o colaborador atinja no mínimo 8 folgas
+            for (const d of monthDates) {
+              if (currentOffs >= 8) break;
+              if (isWorkingShift(techSched.days[d]?.shift)) {
+                techSched.days[d] = {
+                  date: d,
+                  shift: 'FG',
+                  notes: 'Folga Geral 5x2 (Garantia Mínima 8 Folgas CLT)',
+                  manualOverride: false
+                };
+                currentOffs++;
               }
             }
           }
         }
       }
+    }
 
-      // Aplica regras rígidas de cobertura 5x2 (Domingos 4-7, Sábados > Domingos, Meio de semana diluído)
-      if (currentRegime === '5x2') {
-        enforce5x2CoverageRules(merged, targetDates, technicians);
-      }
+    // Aplica regras rígidas de cobertura 5x2 (Domingos 4-7, Sábados > Domingos, Meio de semana diluído)
+    if (currentRegime === '5x2') {
+      enforce5x2CoverageRules(merged, targetDates, technicians);
+    }
 
-      // Purga preventivamente datas anteriores a 2026-11
-      for (const tech of technicians) {
-        if (merged[tech.id]?.days) {
-          for (const d of Object.keys(merged[tech.id].days)) {
-            if (d.slice(0, 7) < '2026-11') {
-              delete merged[tech.id].days[d];
-            }
+    // Purga preventivamente datas anteriores a 2026-11
+    for (const tech of technicians) {
+      if (merged[tech.id]?.days) {
+        for (const d of Object.keys(merged[tech.id].days)) {
+          if (d.slice(0, 7) < '2026-11') {
+            delete merged[tech.id].days[d];
           }
         }
       }
+    }
 
-      mergedSchedules = merged;
-      return merged;
-    });
+    setSchedules(merged);
 
     try {
-      localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(mergedSchedules));
+      localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(merged));
     } catch (e) {
       console.error('Failed saving generated schedule to localStorage', e);
     }
 
     // Save batch to Supabase cloud
-    await saveSchedulesToCloud(mergedSchedules, currentRegime, technicians, users);
+    await saveSchedulesToCloud(merged, currentRegime, technicians, users);
 
     setIsGeneratorOpen(false);
     showToast(`Escala de ${MONTHS_PT[periodConfig.startMonth]} de ${periodConfig.startYear} (${currentRegime}) gerada e SALVA com sucesso (Mínimo 8 folgas garantido)!`);
