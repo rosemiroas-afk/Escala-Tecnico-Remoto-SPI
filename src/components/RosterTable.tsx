@@ -92,11 +92,11 @@ export const RosterTable: React.FC<RosterTableProps> = ({
     return true;
   });
 
-  // Available months extracted from dates (e.g. ['2026-11', '2026-12'])
+  // Available months extracted from dates: apenas mês atual e meses futuros (>= 2026-11)
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
     for (const d of dates) {
-      if (d && d.length >= 7) {
+      if (d && d.length >= 7 && d.slice(0, 7) >= '2026-11') {
         set.add(d.slice(0, 7));
       }
     }
@@ -106,9 +106,9 @@ export const RosterTable: React.FC<RosterTableProps> = ({
   // Selected Month Filter: 'all' or 'YYYY-MM'
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
 
-  // Keep selectedMonth synchronized if availableMonths change
+  // Keep selectedMonth synchronized if availableMonths change or if a past month was selected
   useEffect(() => {
-    if (selectedMonth !== 'all' && !availableMonths.includes(selectedMonth)) {
+    if (selectedMonth !== 'all' && (!availableMonths.includes(selectedMonth) || selectedMonth < '2026-11')) {
       setSelectedMonth('all');
     }
   }, [availableMonths, selectedMonth]);

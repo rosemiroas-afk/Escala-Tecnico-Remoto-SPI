@@ -13,7 +13,7 @@ import { INITIAL_TECHNICIANS } from './data/defaultTechnicians';
 import { OFFICIAL_TECHNICIANS, OFFICIAL_SHIFTS_BY_TECH_NAME } from './data/officialScheduleNovDez';
 import { generateDateRange, MONTHS_PT, isSaturday, isSunday, parseDateKey, formatDateKey } from './utils/dateUtils';
 import { generateSchedule } from './utils/scheduler';
-import { validateSchedule, checkCltConsecutiveWorkViolation } from './utils/validator';
+import { validateSchedule, checkCltConsecutiveWorkViolation, isOffShift, isWorkingShift } from './utils/validator';
 import { exportScheduleToExcel } from './utils/exportUtils';
 import { parseScheduleLongCsv, normalizeName } from './utils/csvScheduleParser';
 import { Header } from './components/Header';
@@ -287,12 +287,14 @@ export default function App() {
                          {};
       officialSched[tech.id] = { technicianId: tech.id, days: {} };
       for (const [dateStr, shiftCode] of Object.entries(techShifts)) {
-        officialSched[tech.id].days[dateStr] = {
-          date: dateStr,
-          shift: shiftCode,
-          manualOverride: true,
-          notes: tech.shiftHours
-        };
+        if (dateStr.slice(0, 7) >= '2026-11') {
+          officialSched[tech.id].days[dateStr] = {
+            date: dateStr,
+            shift: shiftCode,
+            manualOverride: true,
+            notes: tech.shiftHours
+          };
+        }
       }
     }
     return officialSched;
@@ -309,7 +311,13 @@ export default function App() {
           const merged = { ...officialSched };
           for (const [techId, techSched] of Object.entries(parsed)) {
             if (techSched && (techSched as any).days && Object.keys((techSched as any).days).length > 0) {
-              merged[techId] = techSched as any;
+              const cleanedDays: Record<string, any> = {};
+              for (const [d, dayObj] of Object.entries((techSched as any).days)) {
+                if (d && d.length === 10 && d.slice(0, 7) >= '2026-11') {
+                  cleanedDays[d] = dayObj;
+                }
+              }
+              merged[techId] = { ...(techSched as any), days: cleanedDays };
             }
           }
           return merged;
@@ -321,21 +329,23 @@ export default function App() {
     return officialSched;
   });
 
-  // 6. Generate Dynamic Date Array: Union of base period (Nov/Dez 2026) and all dates in schedules
+  // 6. Generate Dynamic Date Array: Union of base period (Nov/Dez 2026) and all future dates in schedules (>= 2026-11)
   const dates = useMemo(() => {
     const dateSet = new Set<string>();
 
     // Always include standard base period (November & December 2026)
     const baseDates = generateDateRange(2026, 10, 2);
     for (const d of baseDates) {
-      dateSet.add(d);
+      if (d.slice(0, 7) >= '2026-11') {
+        dateSet.add(d);
+      }
     }
 
-    // Also include any other month/dates present in schedules
+    // Also include any other month/dates present in schedules >= 2026-11
     for (const techSched of Object.values(schedules)) {
       if (techSched && techSched.days) {
         for (const d of Object.keys(techSched.days)) {
-          if (d && d.length === 10) {
+          if (d && d.length === 10 && d.slice(0, 7) >= '2026-11') {
             dateSet.add(d);
           }
         }
@@ -626,6 +636,9 @@ export default function App() {
         }
 
         // C. Fetch Schedule Shifts from escalas
+        // Limpa permanentemente registros anteriores a 2026-11 na nuvem Supabase
+        supabase.from('escalas').delete().lt('data', '2026-11-01').then();
+
         const { data: escalasData, error: escalasError } = await supabase.from('escalas').select('*');
         setSchedules(prev => {
           const next: Record<string, TechnicianSchedule> = { ...prev };
@@ -646,6 +659,9 @@ export default function App() {
             escalasData.forEach((row: any) => {
               const techId = row.id_usuario;
               const date = row.data;
+              // Ignora e não carrega datas de meses que já passaram (< 2026-11)
+              if (!date || date.slice(0, 7) < '2026-11') return;
+
               const rawShift = row.legenda_dia || 'TB';
               const shift: ShiftType = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
 
@@ -665,6 +681,17 @@ export default function App() {
                 };
               }
             });
+          }
+
+          // Expulsa qualquer data passada (< 2026-11) que estivesse no estado
+          for (const techId of Object.keys(next)) {
+            if (next[techId]?.days) {
+              for (const d of Object.keys(next[techId].days)) {
+                if (d.slice(0, 7) < '2026-11') {
+                  delete next[techId].days[d];
+                }
+              }
+            }
           }
 
           if (detectedRegime) {
@@ -1423,6 +1450,28 @@ export default function App() {
       };
     }
 
+    // Garantia CLT 5x2: Mínimo de 8 folgas garantido para todos os técnicos em Dezembro
+    for (const tech of sortedTechs) {
+      const techDays = restoredSchedules[tech.id]?.days;
+      if (!techDays) continue;
+      const decDates = Object.keys(techDays).filter(d => d.startsWith('2026-12'));
+      let decOffs = decDates.filter(d => isOffShift(techDays[d]?.shift)).length;
+      if (decOffs < 8) {
+        for (const d of decDates) {
+          if (decOffs >= 8) break;
+          if (isWorkingShift(techDays[d]?.shift)) {
+            techDays[d] = {
+              date: d,
+              shift: 'FG',
+              notes: 'Folga Geral 5x2 (Garantia Mínima 8 Folgas CLT)',
+              manualOverride: true
+            };
+            decOffs++;
+          }
+        }
+      }
+    }
+
     setSchedules(restoredSchedules);
 
     try {
@@ -1481,6 +1530,48 @@ export default function App() {
           days: { ...existingDays, ...generatedDays }
         };
       }
+
+      // GARANTIA OPERACIONAL E LEGAL CLT: MÍNIMO RIGOROSO DE 8 FOLGAS POR MÊS
+      // Percorre os meses que foram gerados (alvo e preview) e valida cada técnico
+      const generatedMonths = Array.from(new Set(targetDates.map(d => d.slice(0, 7))));
+      for (const mKey of generatedMonths) {
+        const monthDates = targetDates.filter(d => d.startsWith(mKey));
+        if (monthDates.length >= 20) {
+          for (const tech of technicians) {
+            const techSched = merged[tech.id];
+            if (!techSched) continue;
+
+            let currentOffs = monthDates.filter(d => isOffShift(techSched.days[d]?.shift)).length;
+            if (currentOffs < 8) {
+              // Converte dias TB em FG até que o colaborador atinja no mínimo 8 folgas
+              for (const d of monthDates) {
+                if (currentOffs >= 8) break;
+                if (isWorkingShift(techSched.days[d]?.shift)) {
+                  techSched.days[d] = {
+                    date: d,
+                    shift: 'FG',
+                    notes: 'Folga Geral 5x2 (Garantia Mínima 8 Folgas CLT)',
+                    manualOverride: false
+                  };
+                  currentOffs++;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Purga preventivamente datas anteriores a 2026-11
+      for (const tech of technicians) {
+        if (merged[tech.id]?.days) {
+          for (const d of Object.keys(merged[tech.id].days)) {
+            if (d.slice(0, 7) < '2026-11') {
+              delete merged[tech.id].days[d];
+            }
+          }
+        }
+      }
+
       mergedSchedules = merged;
       return merged;
     });
@@ -1495,7 +1586,7 @@ export default function App() {
     await saveSchedulesToCloud(mergedSchedules, currentRegime, technicians, users);
 
     setIsGeneratorOpen(false);
-    showToast(`Escala de ${MONTHS_PT[periodConfig.startMonth]} de ${periodConfig.startYear} (${currentRegime}) gerada e SALVA com sucesso!`);
+    showToast(`Escala de ${MONTHS_PT[periodConfig.startMonth]} de ${periodConfig.startYear} (${currentRegime}) gerada e SALVA com sucesso (Mínimo 8 folgas garantido)!`);
   }, [technicians, offRequests, period, users, saveSchedulesToCloud, showToast]);
 
   const isAdmin = currentUser?.role === 'admin';

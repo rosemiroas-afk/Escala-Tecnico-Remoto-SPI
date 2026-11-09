@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType, AppUser, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS, Atestado } from '../types';
 import { formatDisplayDate, formatFullDate, parseDateKey, isSaturday, isSunday, extractWeekends, MONTHS_PT } from '../utils/dateUtils';
-import { AuditResult, checkCltConsecutiveWorkViolation, CltViolationDetails } from '../utils/validator';
+import { AuditResult, checkCltConsecutiveWorkViolation, CltViolationDetails, isOffShift, isWorkingShift } from '../utils/validator';
 import { generateIndividualWhatsAppMessage } from '../utils/exportUtils';
 import { DDD_INFO } from '../data/defaultTechnicians';
 import { AtestadoViewerModal } from './AtestadoViewerModal';
@@ -113,13 +113,15 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     });
     return groups;
   }, [techAtestados]);
-  // Extrai todos os meses disponíveis das datas (excluindo meses com menos de 5 dias como Outubro)
+  // Extrai apenas o mês atual e meses futuros (>= 2026-11), expurgando meses que já passaram
   const availableMonths = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const d of dates) {
       if (d && d.length >= 7) {
         const mKey = d.slice(0, 7);
-        counts[mKey] = (counts[mKey] || 0) + 1;
+        if (mKey >= '2026-11') {
+          counts[mKey] = (counts[mKey] || 0) + 1;
+        }
       }
     }
     const list = Object.keys(counts).filter(mKey => counts[mKey] >= 5).sort();
@@ -129,8 +131,8 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   // Filtro de mês estrito (exibe exclusivamente um único mês por vez)
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const targetKey = `${period.startYear}-${String(period.startMonth + 1).padStart(2, '0')}`;
-    const set = new Set(dates.map(d => d.slice(0, 7)));
-    if (set.has(targetKey)) return targetKey;
+    const set = new Set(dates.map(d => d.slice(0, 7)).filter(mKey => mKey >= '2026-11'));
+    if (set.has(targetKey) && targetKey >= '2026-11') return targetKey;
     const sorted = Array.from(set).sort();
     return sorted[0] || '2026-11';
   });
@@ -199,7 +201,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     for (let i = 0; i < displayDates.length; i++) {
       const d = displayDates[i];
       const shift = currentSched.days[d]?.shift || 'TB';
-      const isOff = shift === 'FD' || shift === 'FG' || shift === 'FC' || shift === 'FN' || shift === 'FE' || shift === 'FR' || shift === 'F';
+      const isOff = isOffShift(shift);
       if (isOff) {
         totalOffDays++;
         if (isSaturday(d) || isSunday(d)) {
@@ -209,7 +211,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         if (shift === 'FC') {
           inversionsCount++;
         }
-      } else if (shift === 'TB' || shift === 'T') {
+      } else if (isWorkingShift(shift)) {
         totalWorkDays++;
         currentConsecutive++;
         if (currentConsecutive > maxConsecutiveWorkDays) {

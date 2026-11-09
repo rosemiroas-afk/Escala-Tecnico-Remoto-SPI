@@ -157,8 +157,6 @@ export const OFFICIAL_TECHNICIANS: Technician[] = [
 
 function buildShifts(values: Record<string, ShiftType>): Record<string, ShiftType> {
   const result: Record<string, ShiftType> = {};
-  // October 31
-  result["2026-10-31"] = values["2026-10-31"] || "TB";
 
   // November (30 days)
   for (let d = 1; d <= 30; d++) {
@@ -206,7 +204,6 @@ const shiftsAdilson = buildShifts({
 
 // Row 2: Andre Luiz De Araujo
 const shiftsAndre = buildShifts({
-  "2026-10-31": "FG",
   "2026-11-02": "FN",
   "2026-11-08": "FG",
   "2026-11-15": "FG",
@@ -221,7 +218,6 @@ const shiftsAndre = buildShifts({
 
 // Row 3: Ayrton Cesar Dos Santos Pereira
 const shiftsAyrton = buildShifts({
-  "2026-10-31": "FD",
   "2026-11-01": "FD",
   "2026-11-08": "FG",
   "2026-11-15": "FG",
@@ -283,7 +279,6 @@ const shiftsEwander = buildShifts({
 
 // Row 7: Ewandro Moura Fe
 const shiftsEwandro = buildShifts({
-  "2026-10-31": "FG",
   "2026-11-02": "FN",
   "2026-11-07": "FG",
   "2026-11-14": "FG",
@@ -298,7 +293,6 @@ const shiftsEwandro = buildShifts({
 
 // Row 8: Gersam Bernardo De Oliveira
 const shiftsGersam = buildShifts({
-  "2026-10-31": "FG",
   "2026-11-02": "FN",
   "2026-11-08": "FG",
   "2026-11-15": "FG",
@@ -313,7 +307,6 @@ const shiftsGersam = buildShifts({
 
 // Row 9: Gustavo Donizeti Carette
 const shiftsGustavoC = buildShifts({
-  "2026-10-31": "FG",
   "2026-11-02": "FN",
   "2026-11-08": "FG",
   "2026-11-15": "FG",
@@ -360,7 +353,6 @@ const shiftsHenrique = buildShifts({
 
 // Row 12: Josnei Machado De Souza
 const shiftsJosnei = buildShifts({
-  "2026-10-31": "FG",
   "2026-11-07": "FG",
   "2026-11-10": "FR",
   "2026-11-11": "FR",
@@ -399,7 +391,6 @@ const shiftsJosnei = buildShifts({
 
 // Row 13: Leonardo Teixeira Do Nascimento
 const shiftsLeonardo = buildShifts({
-  "2026-10-31": "FG",
   "2026-11-02": "FN",
   "2026-11-07": "FG",
   "2026-11-14": "FG",
@@ -432,7 +423,6 @@ const shiftsLeonardo = buildShifts({
 
 // Row 14: Lucas Pais De Camargo
 const shiftsLucas = buildShifts({
-  "2026-10-31": "FR",
   "2026-11-01": "FR",
   "2026-11-02": "FR",
   "2026-11-03": "FR",
@@ -516,7 +506,6 @@ const shiftsPaulo = buildShifts({
 
 // Row 18: Rodrigo Ferreira Albuquerque
 const shiftsRodrigo = buildShifts({
-  "2026-10-31": "FG",
   "2026-11-07": "FD",
   "2026-11-08": "FD",
   "2026-11-15": "FG",

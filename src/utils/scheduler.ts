@@ -7,6 +7,7 @@ import {
 } from '../types';
 import { extractWeekends, parseDateKey } from './dateUtils';
 import { MASTER_PATTERN_5X2, resolvePatternKey, getShiftFromMasterPattern } from './masterPattern5x2';
+import { isOffShift, isWorkingShift } from './validator';
 
 /**
  * Generate 6x1 schedule strictly matching the user's requirements:
@@ -162,7 +163,7 @@ export function generateSchedule(
           let offCount = 0;
           for (const d of monthDates) {
             const shift = techSched.days[d]?.shift;
-            if (shift && shift !== 'TB' && shift !== 'T') {
+            if (isOffShift(shift)) {
               offCount++;
             }
           }
@@ -177,7 +178,7 @@ export function generateSchedule(
             for (let i = 0; i < monthDates.length; i++) {
               const d = monthDates[i];
               const s = techSched.days[d]?.shift;
-              if (s === 'TB' || s === 'T') {
+              if (isWorkingShift(s)) {
                 currentStreak++;
                 if (currentStreak > maxStreak) {
                   maxStreak = currentStreak;
@@ -188,7 +189,20 @@ export function generateSchedule(
               }
             }
 
-            if (maxStreak === 0 || streakEndIdx === -1) break;
+            if (maxStreak === 0 || streakEndIdx === -1) {
+              // Fallback imediato: pega o primeiro dia trabalhado disponível no mês
+              const anyTbDate = monthDates.find(d => isWorkingShift(techSched.days[d]?.shift));
+              if (anyTbDate) {
+                techSched.days[anyTbDate] = {
+                  date: anyTbDate,
+                  shift: 'FG',
+                  notes: 'Folga Geral 5x2 (Garantia Mínima 8 Folgas CLT)'
+                };
+                offCount++;
+                continue;
+              }
+              break;
+            }
 
             // Escolhe o melhor dia da sequência para conceder folga (priorizando Quarta, Quinta, Terça ou Sexta)
             let chosenDate = monthDates[streakEndIdx];
@@ -196,22 +210,33 @@ export function generateSchedule(
               const checkD = monthDates[j];
               const dow = parseDateKey(checkD).getDay();
               if (dow === 3 || dow === 4 || dow === 5 || dow === 2) {
-                // Checa se há cobertura no DDD
-                const dddTechs = dddGroups[tech.ddd] || [];
-                const otherWorking = dddTechs.filter(t => t.id !== tech.id && result[t.id]?.days[checkD]?.shift === 'TB');
-                if (otherWorking.length > 0 || dddTechs.length <= 1) {
-                  chosenDate = checkD;
-                  break;
-                }
+                chosenDate = checkD;
+                break;
               }
             }
 
             techSched.days[chosenDate] = {
               date: chosenDate,
               shift: 'FG',
-              notes: 'Folga Geral 5x2 (Garantia Mínima de 8 Folgas CLT)'
+              notes: 'Folga Geral 5x2 (Garantia Mínima 8 Folgas CLT)'
             };
             offCount++;
+          }
+
+          // Garantia final de fechamento: assegura que offCount seja >= 8
+          let finalOffs = monthDates.filter(d => isOffShift(techSched.days[d]?.shift)).length;
+          if (finalOffs < 8) {
+            for (const d of monthDates) {
+              if (finalOffs >= 8) break;
+              if (isWorkingShift(techSched.days[d]?.shift)) {
+                techSched.days[d] = {
+                  date: d,
+                  shift: 'FG',
+                  notes: 'Folga Geral 5x2 (Garantia Mínima 8 Folgas CLT)'
+                };
+                finalOffs++;
+              }
+            }
           }
         }
       }

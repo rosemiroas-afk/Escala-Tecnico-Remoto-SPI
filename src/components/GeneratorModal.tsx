@@ -22,7 +22,7 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
 }) => {
   const [startMonth, setStartMonth] = useState<number>(currentPeriod.startMonth);
   const [startYear, setStartYear] = useState<number>(currentPeriod.startYear);
-  const [regime, setRegime] = useState<'6x1' | '5x2'>(currentPeriod.regime || '6x1');
+  const [regime, setRegime] = useState<'6x1' | '5x2'>(currentPeriod.regime === '6x1' ? '6x1' : '5x2');
   const [ensureDoubleWeekend, setEnsureDoubleWeekend] = useState<boolean>(true);
   const [targetDoubleWeekends, setTargetDoubleWeekends] = useState<number>(1);
   const [targetInversions, setTargetInversions] = useState<number>(2);
