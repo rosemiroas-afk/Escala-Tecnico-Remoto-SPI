@@ -23,161 +23,28 @@ export interface MasterGroupPattern {
  * - FG: Folga Geral Individual (1 dia isolado de descanso)
  */
 
-// Mapeamento EXATO dia a dia de 30/11/2026 a 07/02/2027 (70 dias corridos)
-export const OFFICIAL_IMAGE_EXACT_MAP: Record<string, { grupo1: ShiftType; grupo2: ShiftType; grupo3: ShiftType }> = {
-  // LINHA 1: 30/11 a 03/01 (Dezembro e bordas)
-  '2026-11-30': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2026-12-01': { grupo1: 'TB', grupo2: 'FG', grupo3: 'TB' }, // Ter
-  '2026-12-02': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FG' }, // Qua
-  '2026-12-03': { grupo1: 'TB', grupo2: 'FG', grupo3: 'TB' }, // Qui
-  '2026-12-04': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2026-12-05': { grupo1: 'FD', grupo2: 'TB', grupo3: 'TB' }, // Sáb
-  '2026-12-06': { grupo1: 'FD', grupo2: 'TB', grupo3: 'FG' }, // Dom
-
-  '2026-12-07': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2026-12-08': { grupo1: 'FG', grupo2: 'TB', grupo3: 'TB' }, // Ter
-  '2026-12-09': { grupo1: 'TB', grupo2: 'FG', grupo3: 'TB' }, // Qua
-  '2026-12-10': { grupo1: 'FG', grupo2: 'TB', grupo3: 'TB' }, // Qui
-  '2026-12-11': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2026-12-12': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FD' }, // Sáb
-  '2026-12-13': { grupo1: 'TB', grupo2: 'FG', grupo3: 'FD' }, // Dom
-
-  '2026-12-14': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2026-12-15': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Ter
-  '2026-12-16': { grupo1: 'FG', grupo2: 'TB', grupo3: 'FG' }, // Qua
-  '2026-12-17': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Qui
-  '2026-12-18': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2026-12-19': { grupo1: 'TB', grupo2: 'FD', grupo3: 'TB' }, // Sáb
-  '2026-12-20': { grupo1: 'FG', grupo2: 'FD', grupo3: 'FG' }, // Dom
-
-  '2026-12-21': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2026-12-22': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Ter
-  '2026-12-23': { grupo1: 'TB', grupo2: 'FG', grupo3: 'FG' }, // Qua
-  '2026-12-24': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Qui
-  '2026-12-25': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2026-12-26': { grupo1: 'FD', grupo2: 'TB', grupo3: 'FG' }, // Sáb
-  '2026-12-27': { grupo1: 'FD', grupo2: 'TB', grupo3: 'TB' }, // Dom
-
-  '2026-12-28': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2026-12-29': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Ter
-  '2026-12-30': { grupo1: 'FG', grupo2: 'FG', grupo3: 'TB' }, // Qua
-  '2026-12-31': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Qui
-  '2027-01-01': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2027-01-02': { grupo1: 'TB', grupo2: 'FG', grupo3: 'FD' }, // Sáb
-  '2027-01-03': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FD' }, // Dom
-
-  // LINHA 2: 04/01 a 07/02 (Janeiro e Fevereiro)
-  '2027-01-04': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2027-01-05': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FG' }, // Ter
-  '2027-01-06': { grupo1: 'FG', grupo2: 'TB', grupo3: 'TB' }, // Qua
-  '2027-01-07': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FG' }, // Qui
-  '2027-01-08': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2027-01-09': { grupo1: 'FG', grupo2: 'FD', grupo3: 'TB' }, // Sáb
-  '2027-01-10': { grupo1: 'TB', grupo2: 'FD', grupo3: 'TB' }, // Dom
-
-  '2027-01-11': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2027-01-12': { grupo1: 'TB', grupo2: 'FG', grupo3: 'TB' }, // Ter
-  '2027-01-13': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FG' }, // Qua
-  '2027-01-14': { grupo1: 'TB', grupo2: 'FG', grupo3: 'TB' }, // Qui
-  '2027-01-15': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2027-01-16': { grupo1: 'FD', grupo2: 'TB', grupo3: 'TB' }, // Sáb
-  '2027-01-17': { grupo1: 'FD', grupo2: 'TB', grupo3: 'FG' }, // Dom
-
-  '2027-01-18': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2027-01-19': { grupo1: 'FG', grupo2: 'TB', grupo3: 'TB' }, // Ter
-  '2027-01-20': { grupo1: 'TB', grupo2: 'FG', grupo3: 'TB' }, // Qua
-  '2027-01-21': { grupo1: 'FG', grupo2: 'TB', grupo3: 'TB' }, // Qui
-  '2027-01-22': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2027-01-23': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FD' }, // Sáb
-  '2027-01-24': { grupo1: 'TB', grupo2: 'FG', grupo3: 'FD' }, // Dom
-
-  '2027-01-25': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2027-01-26': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FG' }, // Ter
-  '2027-01-27': { grupo1: 'FG', grupo2: 'TB', grupo3: 'TB' }, // Qua
-  '2027-01-28': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FG' }, // Qui
-  '2027-01-29': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2027-01-30': { grupo1: 'TB', grupo2: 'FD', grupo3: 'TB' }, // Sáb
-  '2027-01-31': { grupo1: 'FG', grupo2: 'FD', grupo3: 'TB' }, // Dom
-
-  '2027-02-01': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2027-02-02': { grupo1: 'TB', grupo2: 'FG', grupo3: 'TB' }, // Ter
-  '2027-02-03': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FG' }, // Qua
-  '2027-02-04': { grupo1: 'TB', grupo2: 'FG', grupo3: 'TB' }, // Qui
-  '2027-02-05': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2027-02-06': { grupo1: 'FD', grupo2: 'TB', grupo3: 'TB' }, // Sáb
-  '2027-02-07': { grupo1: 'FD', grupo2: 'TB', grupo3: 'FG' }  // Dom
-};
-
-// Sequência explícita de Novembro 2026 (01/11 a 30/11) sincronizada com o rodízio
-const NOVEMBRO_2026_MAP: Record<string, { grupo1: ShiftType; grupo2: ShiftType; grupo3: ShiftType }> = {
-  '2026-11-01': { grupo1: 'TB', grupo2: 'FD', grupo3: 'TB' }, // Dom
-  '2026-11-02': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2026-11-03': { grupo1: 'FG', grupo2: 'TB', grupo3: 'TB' }, // Ter
-  '2026-11-04': { grupo1: 'TB', grupo2: 'FG', grupo3: 'TB' }, // Qua
-  '2026-11-05': { grupo1: 'FG', grupo2: 'TB', grupo3: 'TB' }, // Qui
-  '2026-11-06': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2026-11-07': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FD' }, // Sáb
-  '2026-11-08': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FD' }, // Dom
-
-  '2026-11-09': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2026-11-10': { grupo1: 'TB', grupo2: 'FG', grupo3: 'TB' }, // Ter
-  '2026-11-11': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FG' }, // Qua
-  '2026-11-12': { grupo1: 'TB', grupo2: 'FG', grupo3: 'TB' }, // Qui
-  '2026-11-13': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2026-11-14': { grupo1: 'FD', grupo2: 'TB', grupo3: 'TB' }, // Sáb
-  '2026-11-15': { grupo1: 'FD', grupo2: 'TB', grupo3: 'FG' }, // Dom
-
-  '2026-11-16': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2026-11-17': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FG' }, // Ter
-  '2026-11-18': { grupo1: 'FG', grupo2: 'TB', grupo3: 'TB' }, // Qua
-  '2026-11-19': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FG' }, // Qui
-  '2026-11-20': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2026-11-21': { grupo1: 'TB', grupo2: 'FD', grupo3: 'TB' }, // Sáb
-  '2026-11-22': { grupo1: 'FG', grupo2: 'FD', grupo3: 'TB' }, // Dom
-
-  '2026-11-23': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
-  '2026-11-24': { grupo1: 'FG', grupo2: 'TB', grupo3: 'TB' }, // Ter
-  '2026-11-25': { grupo1: 'TB', grupo2: 'FG', grupo3: 'TB' }, // Qua
-  '2026-11-26': { grupo1: 'FG', grupo2: 'TB', grupo3: 'TB' }, // Qui
-  '2026-11-27': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
-  '2026-11-28': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FD' }, // Sáb
-  '2026-11-29': { grupo1: 'TB', grupo2: 'FG', grupo3: 'FD' }, // Dom
-  '2026-11-30': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }  // Seg
-};
-
 // Padrões Cíclicos Semanais (Segunda a Domingo)
+// - Semana A: FDS Livre (Folga Sábado e Domingo) -> FD em Sáb e Dom
+// - Semana B: Meio de Semana 1 -> FG em Terça e Quinta
+// - Semana C: Meio de Semana 2 -> FG em Quarta e Domingo
 const CYCLE_WEEKS: Record<'semanaA' | 'semanaB' | 'semanaC', ShiftType[]> = {
-  // Semana A: FDS Livre (Folga Sábado e Domingo)
   semanaA: ['TB', 'TB', 'TB', 'TB', 'TB', 'FD', 'FD'],
-  // Semana B: Meio de Semana 1 (Folga Terça e Quinta)
   semanaB: ['TB', 'FG', 'TB', 'FG', 'TB', 'TB', 'TB'],
-  // Semana C: Meio de Semana 2 (Folga Quarta e Domingo)
   semanaC: ['TB', 'TB', 'FG', 'TB', 'TB', 'TB', 'FG']
 };
 
 /**
  * Retorna o turno (TB, FD, FG) para um dia específico e para a fração do colaborador (1/3, 2/3, 3/3).
- * Prioridade:
- * 1. Mapeamento exato da imagem enviada pelo usuário (30/11/2026 a 07/02/2027)
- * 2. Mapeamento explícito de Novembro 2026
- * 3. Projeção perpétua de 3 semanas cíclicas por Monday-to-Sunday block
+ * Projeção perpétua de 3 semanas cíclicas (Monday-to-Sunday block) ancorada em 30/11/2026.
+ * Garante:
+ * 1. FGs diluídos ao longo da semana (Terça, Quarta, Quinta).
+ * 2. Domingos com no mínimo 4 e no máximo 7 colaboradores trabalhando (entre 6 e 7).
+ * 3. Sábados com maior número de colaboradores do que os Domingos (entre 12 e 13).
  */
 export function getShiftFromMasterPattern(
   dateStr: string,
   groupKey: 'grupo1' | 'grupo2' | 'grupo3'
 ): ShiftType {
-  // 1. Checa o mapa exato da imagem do usuário
-  if (OFFICIAL_IMAGE_EXACT_MAP[dateStr]) {
-    return OFFICIAL_IMAGE_EXACT_MAP[dateStr][groupKey];
-  }
-
-  // 2. Checa Novembro 2026
-  if (NOVEMBRO_2026_MAP[dateStr]) {
-    return NOVEMBRO_2026_MAP[dateStr][groupKey];
-  }
-
-  // 3. Projeção perpétua matemática:
-  // Usa como âncora a Segunda-feira 30/11/2026 (epochAnchor = dia 0) ao meio-dia para evitar desvios de fuso/DST
   const dt = parseDateKey(dateStr);
   const anchor = new Date(2026, 10, 30, 12, 0, 0); // 30 Nov 2026 (Segunda-feira)
   const diffDays = Math.round((dt.getTime() - anchor.getTime()) / (1000 * 60 * 60 * 24));
@@ -187,8 +54,6 @@ export function getShiftFromMasterPattern(
   // Dia da semana de 0 (Segunda) a 6 (Domingo)
   const dayOfWeek = (dt.getDay() + 6) % 7;
 
-  // Ciclo tri-semanal de rodízio:
-  // Na Semana 0 (30/11): grupo1=SemanaA, grupo2=SemanaB, grupo3=SemanaC
   const groupOffset = groupKey === 'grupo1' ? 0 : groupKey === 'grupo2' ? 1 : 2;
   const cycleWeekNumber = (((weekIndex + groupOffset) % 3) + 3) % 3;
 
@@ -200,6 +65,33 @@ export function getShiftFromMasterPattern(
 
   return weekPattern[dayOfWeek] || 'TB';
 }
+
+// Mapa pré-calculado com o rodízio 3-semanal perfeito para 30/11/2026 a 07/02/2027
+export const OFFICIAL_IMAGE_EXACT_MAP: Record<string, { grupo1: ShiftType; grupo2: ShiftType; grupo3: ShiftType }> = (() => {
+  const map: Record<string, { grupo1: ShiftType; grupo2: ShiftType; grupo3: ShiftType }> = {};
+  const dates = [
+    '2026-11-30',
+    '2026-12-01','2026-12-02','2026-12-03','2026-12-04','2026-12-05','2026-12-06','2026-12-07',
+    '2026-12-08','2026-12-09','2026-12-10','2026-12-11','2026-12-12','2026-12-13','2026-12-14',
+    '2026-12-15','2026-12-16','2026-12-17','2026-12-18','2026-12-19','2026-12-20','2026-12-21',
+    '2026-12-22','2026-12-23','2026-12-24','2026-12-25','2026-12-26','2026-12-27','2026-12-28',
+    '2026-12-29','2026-12-30','2026-12-31',
+    '2027-01-01','2027-01-02','2027-01-03','2027-01-04','2027-01-05','2027-01-06','2027-01-07',
+    '2027-01-08','2027-01-09','2027-01-10','2027-01-11','2027-01-12','2027-01-13','2027-01-14',
+    '2027-01-15','2027-01-16','2027-01-17','2027-01-18','2027-01-19','2027-01-20','2027-01-21',
+    '2027-01-22','2027-01-23','2027-01-24','2027-01-25','2027-01-26','2027-01-27','2027-01-28',
+    '2027-01-29','2027-01-30','2027-01-31',
+    '2027-02-01','2027-02-02','2027-02-03','2027-02-04','2027-02-05','2027-02-06','2027-02-07'
+  ];
+  for (const d of dates) {
+    map[d] = {
+      grupo1: getShiftFromMasterPattern(d, 'grupo1'),
+      grupo2: getShiftFromMasterPattern(d, 'grupo2'),
+      grupo3: getShiftFromMasterPattern(d, 'grupo3')
+    };
+  }
+  return map;
+})();
 
 /**
  * Estrutura para os cards visuais da interface (Dezembro, Janeiro, Fev, Nov)

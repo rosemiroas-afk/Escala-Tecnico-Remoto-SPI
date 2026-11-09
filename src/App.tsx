@@ -12,7 +12,7 @@ import {
 import { INITIAL_TECHNICIANS } from './data/defaultTechnicians';
 import { OFFICIAL_TECHNICIANS, OFFICIAL_SHIFTS_BY_TECH_NAME } from './data/officialScheduleNovDez';
 import { generateDateRange, MONTHS_PT, isSaturday, isSunday, parseDateKey, formatDateKey } from './utils/dateUtils';
-import { generateSchedule } from './utils/scheduler';
+import { generateSchedule, enforce5x2CoverageRules } from './utils/scheduler';
 import { validateSchedule, checkCltConsecutiveWorkViolation, isOffShift, isWorkingShift } from './utils/validator';
 import { exportScheduleToExcel } from './utils/exportUtils';
 import { parseScheduleLongCsv, normalizeName } from './utils/csvScheduleParser';
@@ -1472,6 +1472,9 @@ export default function App() {
       }
     }
 
+    // Garantia de Cobertura 5x2 (Domingo 4-7, Sábado > Domingo, Meio de semana diluído)
+    enforce5x2CoverageRules(restoredSchedules, dates, sortedTechs);
+
     setSchedules(restoredSchedules);
 
     try {
@@ -1559,6 +1562,11 @@ export default function App() {
             }
           }
         }
+      }
+
+      // Aplica regras rígidas de cobertura 5x2 (Domingos 4-7, Sábados > Domingos, Meio de semana diluído)
+      if (currentRegime === '5x2') {
+        enforce5x2CoverageRules(merged, targetDates, technicians);
       }
 
       // Purga preventivamente datas anteriores a 2026-11

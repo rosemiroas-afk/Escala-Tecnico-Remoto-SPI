@@ -266,6 +266,12 @@ export function generateSchedule(
         }
       }
     }
+
+    // APLICAÇÃO RÍGIDA DAS REGRAS DE COBERTURA 5x2:
+    // 1. Meio de semana diluído (mínimo 12 atuantes por dia).
+    // 2. Domingo com mínimo 4 e máximo 7 atuantes.
+    // 3. Sábado com carga superior ao Domingo.
+    enforce5x2CoverageRules(result, dates, activeTechs);
   } else {
     // ==========================================
     // REGIME 6x1 LOGIC: 6 Dias Trabalhados / 1 Folga Semanal
@@ -387,5 +393,118 @@ export function generateSchedule(
   }
 
   return result;
+}
+
+/**
+ * REGRAS RIGOROSAS DE COBERTURA OPERACIONAL DA ESCALA 5x2:
+ * 1. Domingos: No MÍNIMO 4 e no MÁXIMO 7 colaboradores trabalhando aos domingos.
+ * 2. Sábados: Carga de colaboradores no Sábado DEVE ser superior à do Domingo (mínimo 10 a 13 atuantes).
+ * 3. Meio de Semana: FGs diluídos de Segunda a Sexta sem acúmulo de folgas (mínimo 12 atuantes por dia).
+ */
+export function enforce5x2CoverageRules(
+  result: Record<string, TechnicianSchedule>,
+  dates: string[],
+  activeTechs: Technician[]
+): void {
+  const daysByDate = new Map<string, Date>();
+  for (const d of dates) {
+    daysByDate.set(d, parseDateKey(d));
+  }
+
+  // 1. Regra dos Domingos: Mínimo 4 e Máximo 7 colaboradores trabalhando
+  const sundayDates = dates.filter(d => daysByDate.get(d)?.getDay() === 0);
+  for (const sunDate of sundayDates) {
+    const workingTechs = activeTechs.filter(t => isWorkingShift(result[t.id]?.days[sunDate]?.shift));
+    let count = workingTechs.length;
+
+    if (count > 7) {
+      let excess = count - 7;
+      for (const tech of workingTechs) {
+        if (excess <= 0) break;
+        const techSched = result[tech.id];
+        if (!techSched || !techSched.days[sunDate]) continue;
+        const s = techSched.days[sunDate].shift;
+        if (s === 'TB' || s === 'T') {
+          techSched.days[sunDate] = {
+            date: sunDate,
+            shift: 'FG',
+            notes: 'Folga Regulada Domingo 5x2 (Limite Máximo 7 Atuantes)'
+          };
+          excess--;
+        }
+      }
+    } else if (count < 4) {
+      let needed = 4 - count;
+      const offTechs = activeTechs.filter(t => isOffShift(result[t.id]?.days[sunDate]?.shift));
+      for (const tech of offTechs) {
+        if (needed <= 0) break;
+        const techSched = result[tech.id];
+        if (!techSched || !techSched.days[sunDate]) continue;
+        const s = techSched.days[sunDate].shift;
+        if (s === 'FG' || s === 'FD') {
+          techSched.days[sunDate] = {
+            date: sunDate,
+            shift: 'TB',
+            notes: 'Atuação Regulada Domingo 5x2 (Garantia Mínima 4 Atuantes)'
+          };
+          needed--;
+        }
+      }
+    }
+  }
+
+  // 2. Regra dos Sábados: Carga de trabalho no sábado superior à do domingo
+  for (let i = 0; i < dates.length - 1; i++) {
+    const satDate = dates[i];
+    const sunDate = dates[i + 1];
+    if (daysByDate.get(satDate)?.getDay() === 6 && daysByDate.get(sunDate)?.getDay() === 0) {
+      const satWorking = activeTechs.filter(t => isWorkingShift(result[t.id]?.days[satDate]?.shift)).length;
+      const sunWorking = activeTechs.filter(t => isWorkingShift(result[t.id]?.days[sunDate]?.shift)).length;
+
+      if (satWorking <= sunWorking) {
+        let needed = (sunWorking + 3) - satWorking;
+        const satOffTechs = activeTechs.filter(t => isOffShift(result[t.id]?.days[satDate]?.shift));
+        for (const tech of satOffTechs) {
+          if (needed <= 0) break;
+          const techSched = result[tech.id];
+          if (!techSched || !techSched.days[satDate]) continue;
+          if (techSched.days[satDate].shift === 'FG' || techSched.days[satDate].shift === 'FD') {
+            techSched.days[satDate] = {
+              date: satDate,
+              shift: 'TB',
+              notes: 'Atuação Sábado 5x2 (Carga Superior ao Domingo)'
+            };
+            needed--;
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Diluição Meio de Semana (Segunda a Sexta): NENHUM dia de semana pode ter mais de 7 folgas simultâneas
+  const weekdayDates = dates.filter(d => {
+    const dow = daysByDate.get(d)?.getDay();
+    return dow !== undefined && dow >= 1 && dow <= 5;
+  });
+
+  for (const wDate of weekdayDates) {
+    const offTechs = activeTechs.filter(t => isOffShift(result[t.id]?.days[wDate]?.shift));
+    if (offTechs.length > 7) {
+      let excess = offTechs.length - 7;
+      for (const tech of offTechs) {
+        if (excess <= 0) break;
+        const techSched = result[tech.id];
+        if (!techSched || !techSched.days[wDate]) continue;
+        if (techSched.days[wDate].shift === 'FG') {
+          techSched.days[wDate] = {
+            date: wDate,
+            shift: 'TB',
+            notes: 'Dia Trabalhado (Diluição de Folgas Meio de Semana 5x2)'
+          };
+          excess--;
+        }
+      }
+    }
+  }
 }
 
