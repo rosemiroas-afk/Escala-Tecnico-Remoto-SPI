@@ -239,23 +239,23 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Profile / Selector Card */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 transition-colors">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-2xs">
-            <User className="w-6 h-6" />
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-2xs shrink-0">
+            <User className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
 
           <div>
             {isAdmin ? (
               <>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
+                <label className="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                   Selecione o Técnico para Visualização Individual:
                 </label>
                 <div className="flex items-center gap-2 flex-wrap">
                   <select
                     value={selectedTechId}
                     onChange={e => setSelectedTechId(e.target.value)}
-                    className="text-base font-normal text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 min-w-[280px]"
+                    className="text-sm sm:text-base font-normal text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 focus:ring-2 focus:ring-indigo-500 min-w-[240px] sm:min-w-[280px]"
                   >
                     {[...activeTechs]
                       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
@@ -265,7 +265,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                         </option>
                       ))}
                   </select>
-                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-xl flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                     Turno: {currentTech.shiftHours || '08:00 AS 16:20'}
                   </span>
@@ -273,22 +273,22 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
               </>
             ) : (
               <>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-300 uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/80 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
-                    Seu Painel Individual Privativo
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                  <span className="text-[10px] sm:text-xs font-bold text-indigo-600 dark:text-indigo-300 uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/80 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
+                    Seu Painel Individual
                   </span>
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                     DDD {currentTech.ddd}
                   </span>
-                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1">
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1">
                     <Clock className="w-3 h-3 text-indigo-500" />
                     {currentTech.shiftHours || '08:00 AS 16:20'}
                   </span>
                 </div>
-                <h2 className="text-lg font-black text-slate-900 dark:text-white mt-1">
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white mt-1">
                   {currentTech.name}
                 </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
                   {DDD_INFO[currentTech.ddd]?.region} • Escala 5x2 Pessoal
                 </p>
               </>
@@ -297,7 +297,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         </div>
 
         {/* WhatsApp Actions & Save */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
           {isAdmin && onSave && (
             <button
               onClick={() => {
@@ -305,7 +305,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                   onSave();
                 }
               }}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+              className="flex-1 sm:flex-none px-3.5 py-2 sm:px-4 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
               title="Salvar alterações na nuvem"
             >
               <Check className="w-4 h-4" />
@@ -315,7 +315,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
 
           <button
             onClick={handleCopyWhatsApp}
-            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs flex items-center gap-2 transition-colors cursor-pointer"
+            className="flex-1 sm:flex-none px-3 py-2 sm:px-4 sm:py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             {copied ? (
               <>
@@ -325,37 +325,37 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
             ) : (
               <>
                 <Copy className="w-4 h-4 text-slate-500" />
-                <span>Copiar para WhatsApp</span>
+                <span>Copiar</span>
               </>
             )}
           </button>
 
           <button
             onClick={handleOpenWhatsApp}
-            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
+            className="flex-1 sm:flex-none px-3 py-2 sm:px-4 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
           >
             <Send className="w-4 h-4" />
-            <span>Enviar no WhatsApp</span>
+            <span>WhatsApp</span>
           </button>
         </div>
       </div>
 
-      {/* Month Selector Bar - Individual Mês a Mês (Tanto para Admin quanto Colaborador) */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors">
+      {/* Month Selector Bar - Individual Mês a Mês */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 transition-colors">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-2xs">
-            <Calendar className="w-5 h-5" />
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-2xs">
+            <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Filtro de Mês (Visualização Individual):
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Filtro de Mês:
               </span>
-              <span className="text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+              <span className="text-[9px] sm:text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
                 1 Mês por vez
               </span>
             </div>
-            <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white capitalize mt-0.5">
+            <h3 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white capitalize mt-0.5">
               {formatMonthName(selectedMonth)}
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 ml-2">
                 ({displayDates.length} dias no mês)
@@ -364,8 +364,8 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           </div>
         </div>
 
-        {/* Botões dos Meses Disponíveis */}
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+        {/* Botões dos Meses Disponíveis - Horizontal scroll on mobile */}
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 sm:p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto max-w-full">
           {availableMonths.map(mKey => {
             const isSelected = selectedMonth === mKey;
             const count = dates.filter(d => d.startsWith(mKey)).length;
@@ -374,14 +374,14 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                 key={mKey}
                 type="button"
                 onClick={() => setSelectedMonth(mKey)}
-                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                   isSelected
                     ? 'bg-indigo-600 text-white shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 <span>{formatMonthName(mKey)}</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
+                <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.2 sm:py-0.5 rounded-full font-mono ${
                   isSelected ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
                 }`}>
                   {count}d
@@ -392,112 +392,111 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         </div>
       </div>
 
-      {/* Stats Summary Cards (Específicos do Mês Selecionado) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats Summary Cards (Específicos do Mês Selecionado) - 2x2 grid on mobile */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* Double Weekend / Folga Duplada Card */}
-        <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-5 text-white shadow-sm flex flex-col justify-between">
+        <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-3.5 sm:p-5 text-white shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-purple-100 uppercase tracking-wider">
+            <span className="text-[10px] sm:text-xs font-semibold text-purple-100 uppercase tracking-wider">
               Folga Duplada (FD)
             </span>
-            <Star className="w-5 h-5 text-amber-300 fill-amber-300" />
+            <Star className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300 fill-amber-300" />
           </div>
-          <div className="my-3">
-            <div className="text-3xl font-extrabold">
+          <div className="my-1.5 sm:my-3">
+            <div className="text-xl sm:text-3xl font-extrabold">
               {monthStats.doubleWeekendsCount} {monthStats.doubleWeekendsCount === 1 ? 'Garantida' : 'Garantidas'}
             </div>
-            <p className="text-xs text-purple-100 mt-1">
+            <p className="text-[10px] sm:text-xs text-purple-100 mt-0.5 truncate">
               {monthStats.doubleWeekendsCount > 0
-                ? `${monthStats.doubleWeekendsCount} fim de semana duplado em ${formatMonthName(selectedMonth)}`
-                : `Nenhum fim de semana duplado em ${formatMonthName(selectedMonth)}`}
+                ? `${monthStats.doubleWeekendsCount} fim de semana duplado`
+                : `Nenhum fim de semana duplado`}
             </p>
           </div>
-          <div className="text-[11px] bg-white/20 px-2.5 py-1 rounded-lg backdrop-blur-xs font-medium w-fit">
-            Sáb + Dom de Descanso
+          <div className="text-[9px] sm:text-[11px] bg-white/20 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg backdrop-blur-xs font-medium w-fit">
+            Sáb + Dom
           </div>
         </div>
 
         {/* Total Offs */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total de Folgas</span>
-            <Calendar className="w-5 h-5 text-blue-500" />
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Total Folgas</span>
+            <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
           </div>
-          <div className="my-3">
-            <div className="text-3xl font-extrabold text-slate-800 dark:text-slate-100">
+          <div className="my-1.5 sm:my-3">
+            <div className="text-xl sm:text-3xl font-extrabold text-slate-800 dark:text-slate-100">
               {monthStats.totalOffDays} dias
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Sendo {monthStats.weekendDaysOff} folgas em fins de semana ({formatMonthName(selectedMonth)})
+            <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+              {monthStats.weekendDaysOff} folgas em fins de semana
             </p>
           </div>
-          <div className="text-[11px] text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 px-2.5 py-1 rounded-lg font-medium w-fit">
+          <div className="text-[9px] sm:text-[11px] text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg font-medium w-fit">
             Descanso no Mês
           </div>
         </div>
 
         {/* Total Work Days (TB) */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Dias Trabalhados (TB)</span>
-            <Briefcase className="w-5 h-5 text-emerald-500" />
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Trabalhados (TB)</span>
+            <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
           </div>
-          <div className="my-3">
-            <div className="text-3xl font-extrabold text-emerald-700 dark:text-emerald-400">
+          <div className="my-1.5 sm:my-3">
+            <div className="text-xl sm:text-3xl font-extrabold text-emerald-700 dark:text-emerald-400">
               {monthStats.totalWorkDays} dias
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Atuação em {formatMonthName(selectedMonth)}
+            <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+              Atuação no Mês
             </p>
           </div>
-          <div className="text-[11px] text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-lg font-medium w-fit">
-            Produtividade Mensal
+          <div className="text-[9px] sm:text-[11px] text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg font-medium w-fit">
+            Produtividade
           </div>
         </div>
 
         {/* Consecutive Days Work Status */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between transition-colors">
           <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Dias Seguidos Máx.</span>
-            <ShieldCheck className="w-5 h-5 text-emerald-500" />
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider">Dias Seguidos</span>
+            <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
           </div>
-          <div className="my-3">
-            <div className={`text-3xl font-extrabold ${
+          <div className="my-1.5 sm:my-3">
+            <div className={`text-xl sm:text-3xl font-extrabold ${
               monthStats.maxConsecutiveWorkDays > 6 ? 'text-rose-600' : 'text-emerald-700 dark:text-emerald-400'
             }`}>
               {monthStats.maxConsecutiveWorkDays} dias
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              {monthStats.maxConsecutiveWorkDays <= 6
-                ? '✅ Conforme com o limite legal CLT'
-                : '⚠️ Atenção aos dias seguidos'}
+            <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+              {monthStats.maxConsecutiveWorkDays <= 6 ? '✅ Conforme CLT' : '⚠️ Atenção'}
             </p>
           </div>
-          <div className="text-[11px] text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-lg font-medium w-fit">
-            Máximo de trabalho contínuo
+          <div className="text-[9px] sm:text-[11px] text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg font-medium w-fit">
+            Máx. Contínuo
           </div>
         </div>
       </div>
 
       {/* Main Full Width Calendar Container */}
-      <div className="w-full bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
-          <div>
-            <h3 className="text-base font-semibold text-slate-800 dark:text-white">
+      <div className="w-full bg-white dark:bg-slate-900 rounded-2xl p-3.5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+        <div className="flex items-center justify-between mb-3 pb-2.5 sm:mb-4 sm:pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="min-w-0 flex-1 pr-2">
+            <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-white truncate">
               Calendário da Escala - <span className="font-normal">{currentTech.name}</span>
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">
               {isAdmin
-                ? `Clique em qualquer dia para alterar o status. Exibindo ${formatMonthName(selectedMonth)}.`
-                : `Suas folgas programadas e dias de trabalho em ${formatMonthName(selectedMonth)} (${displayDates.length} dias). Clique em "Solicitar Folga" no topo para enviar ou consultar pedidos.`}
+                ? `Clique em qualquer dia para alterar o status.`
+                : `Suas folgas programadas em ${formatMonthName(selectedMonth)}.`}
             </p>
           </div>
-          <span className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${DDD_INFO[currentTech.ddd]?.badge}`}>
+          <span className={`text-[10px] sm:text-xs px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full font-semibold border shrink-0 ${DDD_INFO[currentTech.ddd]?.badge}`}>
             DDD {currentTech.ddd}
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2.5">
+        {/* FIXO: 4 COLUNAS POR LINHA NO CELULAR (grid-cols-4) */}
+        <div className="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-1.5 sm:gap-2.5">
           {displayDates.map(d => {
             const day = currentSched.days[d];
             const rawShift = day?.shift || 'TB';
@@ -524,36 +523,36 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                   backgroundColor: shiftDef.isWork ? undefined : `${shiftDef.bgColor}22`,
                   borderColor: shiftDef.borderColor
                 }}
-                className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[90px] relative hover:shadow-md hover:scale-[1.01] bg-white dark:bg-slate-800`}
+                className={`p-1.5 sm:p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[65px] sm:min-h-[90px] relative hover:shadow-md hover:scale-[1.01] bg-white dark:bg-slate-800`}
               >
                 <div className="flex items-center justify-between">
-                  <span className={`text-xs font-semibold ${isSun ? 'text-amber-700 dark:text-amber-400 font-bold' : isSat ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-600 dark:text-slate-400'}`}>
+                  <span className={`text-[10px] sm:text-xs font-semibold ${isSun ? 'text-amber-700 dark:text-amber-400 font-bold' : isSat ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-600 dark:text-slate-400'}`}>
                     {isSun ? 'Dom' : isSat ? 'Sáb' : ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'][dObj.getDay() - 1]}
                   </span>
-                  <span className="text-base font-extrabold text-black dark:text-white">{dayNum}</span>
+                  <span className="text-xs sm:text-base font-extrabold text-black dark:text-white">{dayNum}</span>
                 </div>
 
-                <div className="mt-2 flex items-center justify-between gap-1">
+                <div className="mt-1 sm:mt-2 flex items-center justify-between gap-0.5 sm:gap-1">
                   <span
                     style={{
                       backgroundColor: shiftDef.bgColor,
                       borderColor: shiftDef.borderColor
                     }}
-                    className="text-[10px] px-2 py-0.5 rounded-sm uppercase tracking-wider font-black border shadow-2xs shrink-0 text-black"
+                    className="text-[9px] sm:text-[10px] px-1 sm:px-2 py-0.2 sm:py-0.5 rounded-sm uppercase tracking-wider font-black border shadow-2xs shrink-0 text-black"
                   >
                     {shiftDef.shortLabel}
                   </span>
 
-                  <span className="text-[10px] font-normal truncate text-black dark:text-white">
+                  <span className="hidden sm:inline text-[10px] font-normal truncate text-black dark:text-white">
                     {shiftDef.label}
                   </span>
 
-                  {shift === 'FD' && <Star className="w-3.5 h-3.5 fill-orange-500 text-orange-500 shrink-0" />}
+                  {shift === 'FD' && <Star className="w-3 sm:w-3.5 h-3 sm:h-3.5 fill-orange-500 text-orange-500 shrink-0" />}
                 </div>
 
                 {req && (
                   <div
-                    className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white dark:border-slate-900 shadow-2xs ${
+                    className={`absolute top-1 right-1 w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full border border-white dark:border-slate-900 shadow-2xs ${
                       (req.status === 'atendido' || req.status === 'aprovado')
                         ? 'bg-emerald-500 ring-1 ring-emerald-300'
                         : (req.status === 'reprovado' || req.status === 'recusado')
