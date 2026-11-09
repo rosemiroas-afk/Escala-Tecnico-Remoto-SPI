@@ -3,11 +3,16 @@ import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import './index.css';
 
-// Ensure browser never retains stale service worker caches on reload
+// Unregister stale development service workers to prevent dev-sw.js text/html MIME type errors
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then(registrations => {
     for (const registration of registrations) {
-      registration.update();
+      const scriptURL = registration.active?.scriptURL || registration.installing?.scriptURL || registration.waiting?.scriptURL || '';
+      if (import.meta.env.DEV || scriptURL.includes('dev-sw')) {
+        registration.unregister().catch(() => {});
+      } else {
+        registration.update().catch(() => {});
+      }
     }
   }).catch(() => {});
 }
