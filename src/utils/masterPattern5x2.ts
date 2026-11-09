@@ -48,7 +48,7 @@ export const OFFICIAL_IMAGE_EXACT_MAP: Record<string, { grupo1: ShiftType; grupo
   '2026-12-17': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Qui
   '2026-12-18': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
   '2026-12-19': { grupo1: 'TB', grupo2: 'FD', grupo3: 'TB' }, // Sáb
-  '2026-12-20': { grupo1: 'FG', grupo2: 'FD', grupo3: 'TB' }, // Dom
+  '2026-12-20': { grupo1: 'FG', grupo2: 'FD', grupo3: 'FG' }, // Dom
 
   '2026-12-21': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Seg
   '2026-12-22': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Ter
@@ -141,7 +141,7 @@ const NOVEMBRO_2026_MAP: Record<string, { grupo1: ShiftType; grupo2: ShiftType; 
   '2026-11-26': { grupo1: 'FG', grupo2: 'TB', grupo3: 'TB' }, // Qui
   '2026-11-27': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }, // Sex
   '2026-11-28': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FD' }, // Sáb
-  '2026-11-29': { grupo1: 'TB', grupo2: 'TB', grupo3: 'FD' }, // Dom
+  '2026-11-29': { grupo1: 'TB', grupo2: 'FG', grupo3: 'FD' }, // Dom
   '2026-11-30': { grupo1: 'TB', grupo2: 'TB', grupo3: 'TB' }  // Seg
 };
 
@@ -177,9 +177,9 @@ export function getShiftFromMasterPattern(
   }
 
   // 3. Projeção perpétua matemática:
-  // Usa como âncora a Segunda-feira 30/11/2026 (epochAnchor = dia 0)
+  // Usa como âncora a Segunda-feira 30/11/2026 (epochAnchor = dia 0) ao meio-dia para evitar desvios de fuso/DST
   const dt = parseDateKey(dateStr);
-  const anchor = new Date(2026, 10, 30); // 30 Nov 2026
+  const anchor = new Date(2026, 10, 30, 12, 0, 0); // 30 Nov 2026 (Segunda-feira)
   const diffDays = Math.round((dt.getTime() - anchor.getTime()) / (1000 * 60 * 60 * 24));
   
   // Semana (Seg-Dom) relativa à âncora

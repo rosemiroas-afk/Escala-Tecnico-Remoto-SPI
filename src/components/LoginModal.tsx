@@ -44,17 +44,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
 
     if (enteredPin !== currentUserData.pin) {
-      setErrorMsg('Senha/PIN incorreto. (Padrão inicial: 1234)');
+      setErrorMsg(selectedUserId === 'admin' ? 'Senha/PIN incorreto para Administrador.' : 'Senha/PIN incorreto. (Padrão inicial: 1234)');
       return;
     }
 
-    // Check if it's the first login with default PIN '1234' or primeiro_acesso
+    // Check if it's the first login with default PIN '1234' or primeiro_acesso (strictly excluded for admin)
     const pinVal = String(currentUserData.pin || '1234');
-    const isFirstAccess = pinVal === '1234' || (currentUserData.primeiro_acesso !== undefined
+    const isFirstAccess = selectedUserId !== 'admin' && (pinVal === '1234' || (currentUserData.primeiro_acesso !== undefined
       ? currentUserData.primeiro_acesso
-      : (currentUserData.isFirstLogin ?? true));
+      : (currentUserData.isFirstLogin ?? true)));
 
-    if (isFirstAccess || pinVal === '1234') {
+    if (isFirstAccess && selectedUserId !== 'admin') {
       setPendingUser(currentUserData);
       setIsChangingPassword(true);
       return;
@@ -184,7 +184,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                       setEnteredPin(e.target.value);
                       setErrorMsg('');
                     }}
-                    placeholder="Digite seu PIN (padrão: 1234)"
+                    placeholder={selectedUserId === 'admin' ? "Digite a senha do Administrador" : "Digite seu PIN (padrão: 1234)"}
                     className="w-full text-sm font-bold bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-3 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:bg-white dark:focus:bg-slate-800 tracking-widest transition-all"
                     autoFocus
                     required
@@ -216,7 +216,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
               <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
                 <p>🔒 <strong>Segurança Individual:</strong> Cada técnico visualiza exclusivamente sua própria escala e folgas.</p>
-                <p>🔑 <strong>Primeiro Acesso:</strong> Ao entrar pela primeira vez com o PIN <strong>1234</strong>, o sistema solicitará o cadastro de uma nova senha pessoal.</p>
+                <p>🔑 <strong>Primeiro Acesso:</strong> Para colaboradores, o PIN inicial padrão é <strong>1234</strong>.</p>
               </div>
             </form>
           ) : (

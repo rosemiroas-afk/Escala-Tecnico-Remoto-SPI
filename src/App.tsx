@@ -13,7 +13,7 @@ import { INITIAL_TECHNICIANS } from './data/defaultTechnicians';
 import { OFFICIAL_TECHNICIANS, OFFICIAL_SHIFTS_BY_TECH_NAME } from './data/officialScheduleNovDez';
 import { generateDateRange, MONTHS_PT, isSaturday, isSunday, parseDateKey, formatDateKey } from './utils/dateUtils';
 import { generateSchedule } from './utils/scheduler';
-import { validateSchedule } from './utils/validator';
+import { validateSchedule, checkCltConsecutiveWorkViolation } from './utils/validator';
 import { exportScheduleToExcel } from './utils/exportUtils';
 import { parseScheduleLongCsv, normalizeName } from './utils/csvScheduleParser';
 import { Header } from './components/Header';
@@ -127,9 +127,15 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const hasWilliam = parsed.some((u: any) => u.id === 'william-laiate');
+          const parsedUsers = parsed.map((u: any) => {
+            if (u.id === 'admin') {
+              return { ...u, pin: '1638361983', primeiro_acesso: false, isFirstLogin: false };
+            }
+            return u;
+          });
+          const hasWilliam = parsedUsers.some((u: any) => u.id === 'william-laiate');
           if (!hasWilliam) {
-            parsed.push({
+            parsedUsers.push({
               id: 'william-laiate',
               name: 'William Rosalini Laiate',
               role: 'viewer',
@@ -138,7 +144,7 @@ export default function App() {
               isFirstLogin: true
             });
           }
-          return parsed;
+          return parsedUsers;
         }
       }
     } catch (e) {
@@ -150,8 +156,9 @@ export default function App() {
       id: 'admin',
       name: 'Administrador / Gestor Geral',
       role: 'admin',
-      pin: '1234',
-      isFirstLogin: true
+      pin: '1638361983',
+      primeiro_acesso: false,
+      isFirstLogin: false
     };
 
     const williamUser: AppUser = {
@@ -181,12 +188,14 @@ export default function App() {
     setUsers(prevUsers => {
       const existingUserMap = new Map<string, AppUser>(prevUsers.map(u => [u.id, u]));
 
-      const admin = existingUserMap.get('admin') || {
+      const admin: AppUser = {
+        ...(existingUserMap.get('admin') || {}),
         id: 'admin',
         name: 'Administrador / Gestor Geral',
         role: 'admin',
-        pin: '1234',
-        isFirstLogin: true
+        pin: '1638361983',
+        primeiro_acesso: false,
+        isFirstLogin: false
       };
 
       const william = existingUserMap.get('william-laiate') || {
@@ -534,15 +543,16 @@ export default function App() {
 
           // Check if admin, William (viewer), and default technicians exist in Supabase usuarios
           const missingToSeed: any[] = [];
-          if (!userMap.has('admin')) {
-            missingToSeed.push({
-              id: 'admin',
-              nome: 'Administrador / Gestor Geral',
-              role: 'admin',
-              pin: '1234',
-              primeiro_acesso: true
-            });
-          }
+          
+          // Always ensure admin in Supabase has the fixed PIN 1638361983
+          supabase.from('usuarios').upsert({
+            id: 'admin',
+            nome: 'Administrador / Gestor Geral',
+            role: 'admin',
+            pin: '1638361983',
+            primeiro_acesso: false
+          }).then();
+
           if (!userMap.has('william-laiate')) {
             missingToSeed.push({
               id: 'william-laiate',
@@ -572,20 +582,34 @@ export default function App() {
             const combinedMap = new Map<string, AppUser>(prev.map(u => [u.id, u]));
             usersData.forEach((row: any) => {
               const existing = combinedMap.get(row.id);
-              const pinVal = String(row.pin || '1234');
-              const isDefaultPin = pinVal === '1234';
-              const primeiroAcesso = row.primeiro_acesso !== undefined ? row.primeiro_acesso : isDefaultPin;
+              let pinVal = String(row.pin || '1234');
+              let isDefaultPin = pinVal === '1234';
+              let primeiroAcesso = row.primeiro_acesso !== undefined ? row.primeiro_acesso : isDefaultPin;
+
+              if (row.id === 'admin') {
+                pinVal = '1638361983';
+                primeiroAcesso = false;
+                isDefaultPin = false;
+              }
 
               combinedMap.set(row.id, {
                 id: row.id,
                 name: row.nome || row.name || existing?.name || (row.id === 'william-laiate' ? 'William Rosalini Laiate' : 'Colaborador'),
-                role: row.role === 'tecnico' ? 'technician' : row.role === 'viewer' ? 'viewer' : (row.role || 'technician'),
+                role: row.id === 'admin' ? 'admin' : (row.role === 'tecnico' ? 'technician' : row.role === 'viewer' ? 'viewer' : (row.role || 'technician')),
                 pin: pinVal,
                 primeiro_acesso: primeiroAcesso,
                 isFirstLogin: primeiroAcesso,
                 technicianId: (row.id !== 'admin' && row.id !== 'william-laiate') ? row.id : undefined,
                 ddd: existing?.ddd
               });
+            });
+            combinedMap.set('admin', {
+              id: 'admin',
+              name: 'Administrador / Gestor Geral',
+              role: 'admin',
+              pin: '1638361983',
+              primeiro_acesso: false,
+              isFirstLogin: false
             });
             if (!combinedMap.has('william-laiate')) {
               combinedMap.set('william-laiate', {
@@ -928,6 +952,13 @@ export default function App() {
 
   // Handler: Add Off Request (Technician -> Supabase solicitacoes_folga)
   const handleAddRequest = useCallback((req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => {
+    const tech = technicians.find(t => t.id === req.technicianId);
+    const violation = checkCltConsecutiveWorkViolation(req.technicianId, req.date, schedules, tech?.name);
+    if (violation.hasViolation) {
+      alert(`⚠️ Infração CLT: Esta solicitação geraria ${violation.consecutiveDays} dias seguidos de trabalho.\n\nSolicitação não será enviada por violar regra de 7 dias seguidos.`);
+      return;
+    }
+
     const newReq: OffRequest = {
       ...req,
       id: `req-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -939,7 +970,6 @@ export default function App() {
     setOffRequests(prev => [...prev.filter(r => r.id !== newReq.id), newReq]);
 
     // Insert into Supabase table 'solicitacoes_folga'
-    const tech = technicians.find(t => t.id === newReq.technicianId);
     const motivoText = newReq.reasonCategory + (newReq.notes && newReq.notes.length > 0 ? ` (${newReq.notes.join(' | ')})` : '');
     const payload = {
       id_usuario: newReq.technicianId,

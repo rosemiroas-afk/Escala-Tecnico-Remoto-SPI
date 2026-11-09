@@ -139,6 +139,108 @@ export function generateSchedule(
         };
       }
     }
+
+    // =========================================================================
+    // GARANTIA OPERACIONAL CLT: MÍNIMO ABSOLUTO DE 8 FOLGAS POR MÊS NO 5x2
+    // =========================================================================
+    // Agrupa todas as datas geradas por mês de calendário (YYYY-MM)
+    const monthGroups: Record<string, string[]> = {};
+    for (const d of dates) {
+      const ym = d.substring(0, 7);
+      if (!monthGroups[ym]) monthGroups[ym] = [];
+      monthGroups[ym].push(d);
+    }
+
+    for (const [, monthDates] of Object.entries(monthGroups)) {
+      // Se for um mês completo com pelo menos 20 dias no período
+      if (monthDates.length >= 20) {
+        for (const tech of activeTechs) {
+          const techSched = result[tech.id];
+          if (!techSched) continue;
+
+          // Conta folgas existentes no mês
+          let offCount = 0;
+          for (const d of monthDates) {
+            const shift = techSched.days[d]?.shift;
+            if (shift && shift !== 'TB' && shift !== 'T') {
+              offCount++;
+            }
+          }
+
+          // Se tiver menos de 8 folgas no mês, adiciona folgas complementares
+          // nos dias com a maior sequência de TB consecutivos, preservando o modelo 5x2
+          while (offCount < 8) {
+            let maxStreak = 0;
+            let currentStreak = 0;
+            let streakEndIdx = -1;
+
+            for (let i = 0; i < monthDates.length; i++) {
+              const d = monthDates[i];
+              const s = techSched.days[d]?.shift;
+              if (s === 'TB' || s === 'T') {
+                currentStreak++;
+                if (currentStreak > maxStreak) {
+                  maxStreak = currentStreak;
+                  streakEndIdx = i;
+                }
+              } else {
+                currentStreak = 0;
+              }
+            }
+
+            if (maxStreak === 0 || streakEndIdx === -1) break;
+
+            // Escolhe o melhor dia da sequência para conceder folga (priorizando Quarta, Quinta, Terça ou Sexta)
+            let chosenDate = monthDates[streakEndIdx];
+            for (let j = streakEndIdx; j > streakEndIdx - maxStreak && j >= 0; j--) {
+              const checkD = monthDates[j];
+              const dow = parseDateKey(checkD).getDay();
+              if (dow === 3 || dow === 4 || dow === 5 || dow === 2) {
+                // Checa se há cobertura no DDD
+                const dddTechs = dddGroups[tech.ddd] || [];
+                const otherWorking = dddTechs.filter(t => t.id !== tech.id && result[t.id]?.days[checkD]?.shift === 'TB');
+                if (otherWorking.length > 0 || dddTechs.length <= 1) {
+                  chosenDate = checkD;
+                  break;
+                }
+              }
+            }
+
+            techSched.days[chosenDate] = {
+              date: chosenDate,
+              shift: 'FG',
+              notes: 'Folga Geral 5x2 (Garantia Mínima de 8 Folgas CLT)'
+            };
+            offCount++;
+          }
+        }
+      }
+    }
+
+    // Trava horizontal absoluta 5x2: Limite máximo de TB consecutivos é 6 (proibido 7 dias seguidos)
+    for (const tech of activeTechs) {
+      const techSched = result[tech.id];
+      if (!techSched) continue;
+
+      let consecutiveTB = 0;
+      for (let i = 0; i < dates.length; i++) {
+        const d = dates[i];
+        const s = techSched.days[d]?.shift;
+        if (s === 'TB' || s === 'T') {
+          consecutiveTB++;
+          if (consecutiveTB >= 7) {
+            techSched.days[d] = {
+              date: d,
+              shift: 'FG',
+              notes: 'Folga Geral (Prevenção Trava CLT 7 dias seguidos)'
+            };
+            consecutiveTB = 0;
+          }
+        } else {
+          consecutiveTB = 0;
+        }
+      }
+    }
   } else {
     // ==========================================
     // REGIME 6x1 LOGIC: 6 Dias Trabalhados / 1 Folga Semanal

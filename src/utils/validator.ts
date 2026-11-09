@@ -6,7 +6,7 @@ import {
   OffRequest
 } from '../types';
 import { DDD_INFO } from '../data/defaultTechnicians';
-import { isSaturday, isSunday, extractWeekends, parseDateKey } from './dateUtils';
+import { isSaturday, isSunday, extractWeekends, parseDateKey, formatDateKey, formatDisplayDate } from './dateUtils';
 
 export interface AuditResult {
   isValid: boolean;
@@ -219,5 +219,137 @@ export function validateSchedule(
       criticalViolationsCount: errorCount,
       requestsSatisfactionRate: totalReqs > 0 ? Math.round((totalFulfilled / totalReqs) * 100) : 100
     }
+  };
+}
+
+export interface CltViolationDetails {
+  hasViolation: boolean;
+  consecutiveDays: number;
+  startDate: string;
+  endDate: string;
+  targetDate: string;
+  ruleCode: string;
+  message: string;
+}
+
+/**
+ * Validação Trabalhista CLT Pré-Envio de Folga:
+ * Analisa 7 dias para trás e 7 dias para frente a partir da data solicitada.
+ * Simula a aprovação pelo administrador (troca de finais de semana ou concessão em dias úteis).
+ * Se resultar em 7 ou mais dias trabalhados seguidos (consecutive TB >= 7),
+ * bloqueia o envio e retorna os detalhes da infração trabalhista (Artigo 67 CLT e OJ 410 TST).
+ */
+export function checkCltConsecutiveWorkViolation(
+  technicianId: string,
+  requestedDate: string,
+  schedules: Record<string, { days: Record<string, { shift: string }> }>,
+  technicianName?: string
+): CltViolationDetails {
+  if (!technicianId || !requestedDate) {
+    return {
+      hasViolation: false,
+      consecutiveDays: 0,
+      startDate: '',
+      endDate: '',
+      targetDate: requestedDate,
+      ruleCode: '',
+      message: ''
+    };
+  }
+
+  const reqDt = parseDateKey(requestedDate);
+  const isReqSat = isSaturday(requestedDate);
+  const isReqSun = isSunday(requestedDate);
+
+  // Janela estrita de análise: 7 dias para trás e 7 dias para frente
+  const windowDates: string[] = [];
+  for (let offset = -7; offset <= 7; offset++) {
+    const dt = new Date(reqDt.getTime() + offset * 24 * 60 * 60 * 1000);
+    windowDates.push(formatDateKey(dt));
+  }
+
+  // Mapa de turnos simulados caso a solicitação seja aprovada pelo gestor
+  const techSched = schedules[technicianId];
+  const simulatedShifts: Record<string, string> = {};
+
+  for (const d of windowDates) {
+    if (d === requestedDate) {
+      simulatedShifts[d] = isReqSat || isReqSun ? 'FG' : 'FB';
+    } else if (isReqSat) {
+      // Regra de Aprovação de Sábado: Domingo vira TB
+      const satDate = parseDateKey(requestedDate);
+      const sunDate = new Date(satDate.getTime() + 24 * 60 * 60 * 1000);
+      const sundayKey = formatDateKey(sunDate);
+      if (d === sundayKey) {
+        simulatedShifts[d] = 'TB';
+      } else {
+        simulatedShifts[d] = techSched?.days[d]?.shift || 'TB';
+      }
+    } else if (isReqSun) {
+      // Regra de Aprovação de Domingo: Sábado anterior vira TB
+      const sunDate = parseDateKey(requestedDate);
+      const satDate = new Date(sunDate.getTime() - 24 * 60 * 60 * 1000);
+      const saturdayKey = formatDateKey(satDate);
+      if (d === saturdayKey) {
+        simulatedShifts[d] = 'TB';
+      } else {
+        simulatedShifts[d] = techSched?.days[d]?.shift || 'TB';
+      }
+    } else {
+      simulatedShifts[d] = techSched?.days[d]?.shift || 'TB';
+    }
+  }
+
+  // Verifica se há alguma sequência de 7 ou mais dias seguidos de TB
+  let currentStreak = 0;
+  let streakStart = '';
+  let maxStreak = 0;
+  let maxStreakStart = '';
+  let maxStreakEnd = '';
+
+  for (let i = 0; i < windowDates.length; i++) {
+    const d = windowDates[i];
+    const shift = simulatedShifts[d];
+    const isWorking = isWorkingShift(shift);
+
+    if (isWorking) {
+      if (currentStreak === 0) {
+        streakStart = d;
+      }
+      currentStreak++;
+      if (currentStreak > maxStreak) {
+        maxStreak = currentStreak;
+        maxStreakStart = streakStart;
+        maxStreakEnd = d;
+      }
+    } else {
+      currentStreak = 0;
+    }
+  }
+
+  if (maxStreak >= 7) {
+    const techDisplayName = technicianName || 'Colaborador';
+    const ruleCode = 'Artigo 67 da CLT e OJ 410 da SDI-1 do TST';
+    const message = `Atenção: Caso esta solicitação de folga para ${formatDisplayDate(requestedDate)} seja aceita pelo administrador, ${techDisplayName} terá ${maxStreak} dias trabalhados seguidos (de ${formatDisplayDate(maxStreakStart)} a ${formatDisplayDate(maxStreakEnd)}), infringindo regras trabalhistas da CLT.\n\nSolicitação não será enviada por violar regra de 7 dias seguidos.`;
+
+    return {
+      hasViolation: true,
+      consecutiveDays: maxStreak,
+      startDate: maxStreakStart,
+      endDate: maxStreakEnd,
+      targetDate: requestedDate,
+      ruleCode,
+      message
+    };
+  }
+
+  return {
+    hasViolation: false,
+    consecutiveDays: maxStreak,
+    startDate: '',
+    endDate: '',
+    targetDate: requestedDate,
+    ruleCode: '',
+    message: ''
   };
 }

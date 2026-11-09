@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Technician, OffRequest, AppUser } from '../types';
 import { formatDisplayDate, isWeekend } from '../utils/dateUtils';
+import { checkCltConsecutiveWorkViolation, CltViolationDetails } from '../utils/validator';
+import { CltViolationModal } from './CltViolationModal';
 import { X, Plus, Trash2, Calendar, CheckCircle2, Clock, Check, Ban } from 'lucide-react';
 
 interface OffRequestsModalProps {
@@ -41,6 +43,7 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
   const [filterTech, setFilterTech] = useState<string>(!isAdmin ? myTechId : 'all');
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('');
+  const [cltViolation, setCltViolation] = useState<CltViolationDetails | null>(null);
 
   useEffect(() => {
     if (!isAdmin && currentUser?.technicianId) {
@@ -73,6 +76,14 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
     e.preventDefault();
     const cleanObs = observations.map(o => o.trim()).filter(Boolean);
     if (!selectedTechId || !selectedDate) return;
+
+    // Trava CLT: Analisa 7 dias para trás e 7 dias para frente
+    const targetTech = technicians.find(t => t.id === selectedTechId);
+    const violationCheck = checkCltConsecutiveWorkViolation(selectedTechId, selectedDate, schedules, targetTech?.name);
+    if (violationCheck.hasViolation) {
+      setCltViolation(violationCheck);
+      return; // Bloqueia o envio imediatamente!
+    }
 
     onAddRequest({
       technicianId: selectedTechId,
@@ -466,6 +477,14 @@ export const OffRequestsModal: React.FC<OffRequestsModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Modal de Alerta de Infração Trabalhista CLT */}
+      <CltViolationModal
+        isOpen={!!cltViolation}
+        onClose={() => setCltViolation(null)}
+        violation={cltViolation}
+        technicianName={technicians.find(t => t.id === selectedTechId)?.name}
+      />
     </div>
   );
 };

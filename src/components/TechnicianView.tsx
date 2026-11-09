@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType, AppUser, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS, Atestado } from '../types';
 import { formatDisplayDate, formatFullDate, parseDateKey, isSaturday, isSunday, extractWeekends, MONTHS_PT } from '../utils/dateUtils';
-import { AuditResult } from '../utils/validator';
+import { AuditResult, checkCltConsecutiveWorkViolation, CltViolationDetails } from '../utils/validator';
 import { generateIndividualWhatsAppMessage } from '../utils/exportUtils';
 import { DDD_INFO } from '../data/defaultTechnicians';
 import { AtestadoViewerModal } from './AtestadoViewerModal';
+import { CltViolationModal } from './CltViolationModal';
 import {
   User,
   Calendar,
@@ -265,9 +266,19 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     window.open(url, '_blank');
   };
 
+  const [cltViolation, setCltViolation] = useState<CltViolationDetails | null>(null);
+
   const handleQuickAddRequest = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reqDate) return;
+    if (!reqDate || !currentTech) return;
+
+    // Trava Trabalhista CLT: Analisa 7 dias para trás e 7 dias para frente
+    const violationCheck = checkCltConsecutiveWorkViolation(currentTech.id, reqDate, schedules, currentTech.name);
+    if (violationCheck.hasViolation) {
+      setCltViolation(violationCheck);
+      return; // Bloqueia o envio imediatamente!
+    }
+
     onAddRequest({
       technicianId: currentTech.id,
       date: reqDate,
@@ -970,6 +981,14 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal de Alerta de Infração Trabalhista CLT */}
+      <CltViolationModal
+        isOpen={!!cltViolation}
+        onClose={() => setCltViolation(null)}
+        violation={cltViolation}
+        technicianName={currentTech?.name}
+      />
     </div>
   );
 };
