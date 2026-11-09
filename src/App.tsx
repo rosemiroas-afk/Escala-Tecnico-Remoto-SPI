@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Technician,
   TechnicianSchedule,
@@ -44,6 +44,8 @@ const STORAGE_KEY_THEME = 'escalamaster_theme_v2';
 const STORAGE_KEY_ATESTADOS = 'escalamaster_atestados_v1';
 
 export default function App() {
+  const isSavingCloudRef = useRef(false);
+
   // Dark Mode State (persisted to localStorage)
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     try {
@@ -789,6 +791,7 @@ export default function App() {
       })
       // Listener 2: escalas (Shift updates from Admin -> updates Tech calendar immediately)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'escalas' }, payload => {
+        if (isSavingCloudRef.current) return;
         const newRecord: any = payload.new;
         if (newRecord) {
           const techId = newRecord.id_usuario;
@@ -1359,6 +1362,7 @@ export default function App() {
     techsList: Technician[],
     usersList: AppUser[]
   ) => {
+    isSavingCloudRef.current = true;
     try {
       const rows: any[] = [];
       for (const tech of techsList) {
@@ -1404,6 +1408,8 @@ export default function App() {
       }
     } catch (err) {
       console.error('Error saving schedules to cloud:', err);
+    } finally {
+      isSavingCloudRef.current = false;
     }
   }, []);
 

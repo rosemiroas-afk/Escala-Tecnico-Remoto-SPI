@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType, AppUser, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS, Atestado } from '../types';
 import { formatDisplayDate, formatFullDate, parseDateKey, isSaturday, isSunday, extractWeekends, MONTHS_PT } from '../utils/dateUtils';
-import { AuditResult, checkCltConsecutiveWorkViolation, CltViolationDetails, isOffShift, isWorkingShift } from '../utils/validator';
+import { AuditResult, isOffShift, isWorkingShift } from '../utils/validator';
 import { generateIndividualWhatsAppMessage } from '../utils/exportUtils';
 import { DDD_INFO } from '../data/defaultTechnicians';
 import { AtestadoViewerModal } from './AtestadoViewerModal';
-import { CltViolationModal } from './CltViolationModal';
 import {
   User,
   Calendar,
@@ -82,9 +81,6 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   }, [currentUser, isAdmin]);
 
   // Quick request form states
-  const [reqDate, setReqDate] = useState<string>(dates[0] || '');
-  const [reqCategory, setReqCategory] = useState<'casamento' | 'medico' | 'aniversario' | 'pessoal' | 'outro'>('casamento');
-  const [reqNote, setReqNote] = useState<string>('');
   const [adminPickerDate, setAdminPickerDate] = useState<string | null>(null);
   const [viewerAtestado, setViewerAtestado] = useState<Atestado | null>(null);
 
@@ -156,34 +152,6 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     const m = Number(parts[1]) - 1;
     return `${MONTHS_PT[m]} de ${y}`;
   };
-
-  // Navegação entre meses
-  const currentMonthIndex = availableMonths.indexOf(selectedMonth);
-
-  const handlePrevMonth = () => {
-    if (availableMonths.length <= 1) return;
-    if (currentMonthIndex <= 0) {
-      setSelectedMonth(availableMonths[availableMonths.length - 1]);
-    } else {
-      setSelectedMonth(availableMonths[currentMonthIndex - 1]);
-    }
-  };
-
-  const handleNextMonth = () => {
-    if (availableMonths.length <= 1) return;
-    if (currentMonthIndex === -1 || currentMonthIndex >= availableMonths.length - 1) {
-      setSelectedMonth(availableMonths[0]);
-    } else {
-      setSelectedMonth(availableMonths[currentMonthIndex + 1]);
-    }
-  };
-
-  // Atualiza reqDate para a primeira data do mês quando mudar o mês
-  useEffect(() => {
-    if (displayDates.length > 0 && (!reqDate || !displayDates.includes(reqDate))) {
-      setReqDate(displayDates[0]);
-    }
-  }, [displayDates]);
 
   if (!currentTech || !currentSched) {
     return <div className="p-8 text-center text-slate-500">Nenhum técnico disponível.</div>;
@@ -268,29 +236,6 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     window.open(url, '_blank');
   };
 
-  const [cltViolation, setCltViolation] = useState<CltViolationDetails | null>(null);
-
-  const handleQuickAddRequest = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!reqDate || !currentTech) return;
-
-    // Trava Trabalhista CLT: Analisa 7 dias para trás e 7 dias para frente
-    const violationCheck = checkCltConsecutiveWorkViolation(currentTech.id, reqDate, schedules, currentTech.name);
-    if (violationCheck.hasViolation) {
-      setCltViolation(violationCheck);
-      return; // Bloqueia o envio imediatamente!
-    }
-
-    onAddRequest({
-      technicianId: currentTech.id,
-      date: reqDate,
-      reasonCategory: reqCategory,
-      priority: 'alta',
-      notes: reqNote.trim() ? [reqNote.trim()] : ['Compromisso pessoal agendado']
-    });
-    setReqNote('');
-  };
-
   return (
     <div className="space-y-6">
       {/* Top Profile / Selector Card */}
@@ -344,7 +289,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                   {currentTech.name}
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {DDD_INFO[currentTech.ddd]?.region} • Escala 6x1 Pessoal
+                  {DDD_INFO[currentTech.ddd]?.region} • Escala 5x2 Pessoal
                 </p>
               </>
             )}
@@ -361,7 +306,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                 }
               }}
               className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-2 shadow-xs transition-colors cursor-pointer"
-              title="Salvar alterações no Firebase"
+              title="Salvar alterações na nuvem"
             >
               <Check className="w-4 h-4" />
               <span>Salvar Escala</span>
@@ -534,214 +479,99 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         </div>
       </div>
 
-      {/* Main Grid: Calendar View + Requests */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Calendar Grid (8 cols) */}
-        <div className="lg:col-span-8 bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
-            <div>
-              <h3 className="text-base font-semibold text-slate-800 dark:text-white">
-                Calendário da Escala - <span className="font-normal">{currentTech.name}</span>
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {isAdmin
-                  ? `Clique em qualquer dia para alterar o status. Exibindo ${formatMonthName(selectedMonth)}.`
-                  : `Suas folgas programadas e dias de trabalho em ${formatMonthName(selectedMonth)} (${displayDates.length} dias).`}
-              </p>
-            </div>
-            <span className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${DDD_INFO[currentTech.ddd]?.badge}`}>
-              DDD {currentTech.ddd}
-            </span>
+      {/* Main Full Width Calendar Container */}
+      <div className="w-full bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <h3 className="text-base font-semibold text-slate-800 dark:text-white">
+              Calendário da Escala - <span className="font-normal">{currentTech.name}</span>
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {isAdmin
+                ? `Clique em qualquer dia para alterar o status. Exibindo ${formatMonthName(selectedMonth)}.`
+                : `Suas folgas programadas e dias de trabalho em ${formatMonthName(selectedMonth)} (${displayDates.length} dias). Clique em "Solicitar Folga" no topo para enviar ou consultar pedidos.`}
+            </p>
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-            {displayDates.map(d => {
-              const day = currentSched.days[d];
-              const rawShift = day?.shift || 'TB';
-              const shift = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
-              const isSat = isSaturday(d);
-              const isSun = isSunday(d);
-              const dObj = parseDateKey(d);
-              const dayNum = dObj.getDate();
-              const req = techRequests.find(r => r.date === d);
-
-              const shiftDef = SHIFT_TYPES[shift] || SHIFT_TYPES['TB'];
-
-              return (
-                <div
-                  key={d}
-                  onClick={() => {
-                    if (isAdmin) {
-                      setAdminPickerDate(d);
-                    } else {
-                      // Technician clicks: set as date for request
-                      setReqDate(d);
-                    }
-                  }}
-                  style={{
-                    backgroundColor: shiftDef.isWork ? undefined : `${shiftDef.bgColor}22`,
-                    borderColor: shiftDef.borderColor
-                  }}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[85px] relative hover:shadow-md hover:scale-[1.01] bg-white dark:bg-slate-800`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className={`text-xs font-semibold ${isSun ? 'text-amber-700 dark:text-amber-400 font-bold' : isSat ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-600 dark:text-slate-400'}`}>
-                      {isSun ? 'Dom' : isSat ? 'Sáb' : ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'][dObj.getDay() - 1]}
-                    </span>
-                    <span className="text-base font-extrabold text-black dark:text-white">{dayNum}</span>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between gap-1">
-                    <span
-                      style={{
-                        backgroundColor: shiftDef.bgColor,
-                        borderColor: shiftDef.borderColor
-                      }}
-                      className="text-[10px] px-2 py-0.5 rounded-sm uppercase tracking-wider font-black border shadow-2xs shrink-0 text-black"
-                    >
-                      {shiftDef.shortLabel}
-                    </span>
-
-                    <span className="text-[10px] font-normal truncate text-black dark:text-white">
-                      {shiftDef.label}
-                    </span>
-
-                    {shift === 'FD' && <Star className="w-3.5 h-3.5 fill-orange-500 text-orange-500 shrink-0" />}
-                  </div>
-
-                  {req && (
-                    <div
-                      className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white dark:border-slate-900 shadow-2xs ${
-                        (req.status === 'atendido' || req.status === 'aprovado')
-                          ? 'bg-emerald-500 ring-1 ring-emerald-300'
-                          : (req.status === 'reprovado' || req.status === 'recusado')
-                          ? 'bg-rose-500 ring-1 ring-rose-300'
-                          : 'bg-amber-400 animate-pulse ring-1 ring-amber-200'
-                      }`}
-                      title={
-                        (req.status === 'atendido' || req.status === 'aprovado')
-                          ? `Folga Aprovada (Verde): ${req.notes.join(', ')}`
-                          : (req.status === 'reprovado' || req.status === 'recusado')
-                          ? `Folga Reprovada (Vermelha): ${req.notes.join(', ')}`
-                          : `Folga em Análise (Amarela): ${req.notes.join(', ')}`
-                      }
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <span className={`text-xs px-2.5 py-1 rounded-full font-semibold border ${DDD_INFO[currentTech.ddd]?.badge}`}>
+            DDD {currentTech.ddd}
+          </span>
         </div>
 
-        {/* Right Column: Quick Add Off Request & Registered Requests (4 cols) */}
-        <div className="lg:col-span-4 space-y-6">
-          {/* Quick Request Box */}
-          {/* Quick Request Box */}
-          <div className="bg-slate-50 dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 transition-colors">
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-2 flex items-center gap-2">
-              <Plus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              Solicitar Folga (Compromisso / Casamento)
-            </h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-              Informe a data e adicione observações para avaliação pelo gestor.
-            </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2.5">
+          {displayDates.map(d => {
+            const day = currentSched.days[d];
+            const rawShift = day?.shift || 'TB';
+            const shift = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
+            const isSat = isSaturday(d);
+            const isSun = isSunday(d);
+            const dObj = parseDateKey(d);
+            const dayNum = dObj.getDate();
+            const req = techRequests.find(r => r.date === d);
 
-            <form onSubmit={handleQuickAddRequest} className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Data Desejada:</label>
-                <select
-                  value={reqDate}
-                  onChange={e => setReqDate(e.target.value)}
-                  className="w-full text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100"
-                >
-                  {displayDates.map(d => (
-                    <option key={d} value={d}>
-                      {formatDisplayDate(d)}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            const shiftDef = SHIFT_TYPES[shift] || SHIFT_TYPES['TB'];
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Motivo:</label>
-                <select
-                  value={reqCategory}
-                  onChange={e => setReqCategory(e.target.value as any)}
-                  className="w-full text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100"
-                >
-                  <option value="casamento">Casamento</option>
-                  <option value="medico">Consulta Médica</option>
-                  <option value="aniversario">Aniversário</option>
-                  <option value="pessoal">Pessoal / Família</option>
-                  <option value="outro">Outro Compromisso</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Observações do compromisso:</label>
-                <input
-                  type="text"
-                  value={reqNote}
-                  onChange={e => setReqNote(e.target.value)}
-                  placeholder="Ex: Casamento de familiar em Santos"
-                  className="w-full text-xs bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+            return (
+              <div
+                key={d}
+                onClick={() => {
+                  if (isAdmin) {
+                    setAdminPickerDate(d);
+                  } else if (onOpenRequestsModal && currentTech) {
+                    onOpenRequestsModal(currentTech.id);
+                  }
+                }}
+                style={{
+                  backgroundColor: shiftDef.isWork ? undefined : `${shiftDef.bgColor}22`,
+                  borderColor: shiftDef.borderColor
+                }}
+                className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[90px] relative hover:shadow-md hover:scale-[1.01] bg-white dark:bg-slate-800`}
               >
-                <Plus className="w-3.5 h-3.5" />
-                Cadastrar Pedido
-              </button>
-            </form>
-          </div>
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-semibold ${isSun ? 'text-amber-700 dark:text-amber-400 font-bold' : isSat ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-600 dark:text-slate-400'}`}>
+                    {isSun ? 'Dom' : isSat ? 'Sáb' : ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'][dObj.getDay() - 1]}
+                  </span>
+                  <span className="text-base font-extrabold text-black dark:text-white">{dayNum}</span>
+                </div>
 
-          {/* List of technician's requests */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 transition-colors">
-            <h4 className="text-sm font-bold text-slate-800 dark:text-white mb-3 flex items-center justify-between">
-              <span>Meus Pedidos Cadastrados</span>
-              <span className="text-xs bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
-                {techRequests.length}
-              </span>
-            </h4>
+                <div className="mt-2 flex items-center justify-between gap-1">
+                  <span
+                    style={{
+                      backgroundColor: shiftDef.bgColor,
+                      borderColor: shiftDef.borderColor
+                    }}
+                    className="text-[10px] px-2 py-0.5 rounded-sm uppercase tracking-wider font-black border shadow-2xs shrink-0 text-black"
+                  >
+                    {shiftDef.shortLabel}
+                  </span>
 
-            {techRequests.length === 0 ? (
-              <p className="text-xs text-slate-400 py-4 text-center">
-                Nenhum pedido de folga registrado para este período.
-              </p>
-            ) : (
-              <div className="space-y-2.5 max-h-64 overflow-y-auto">
-                {techRequests.map(r => {
-                  const isApproved = r.status === 'atendido' || r.status === 'aprovado';
-                  const isRejected = r.status === 'recusado';
+                  <span className="text-[10px] font-normal truncate text-black dark:text-white">
+                    {shiftDef.label}
+                  </span>
 
-                  return (
-                    <div key={r.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-                      <div className="flex items-center justify-between font-semibold text-slate-900 mb-1">
-                        <span>{formatDisplayDate(r.date)}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                          isApproved
-                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                            : isRejected
-                            ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                            : 'bg-amber-100 text-amber-800 border border-amber-300'
-                        }`}>
-                          {isApproved ? 'Folga Concedida' : isRejected ? 'Não Aprovado' : 'Folga em Análise'}
-                        </span>
-                      </div>
-                      <div className="text-slate-600">
-                        {r.notes.join(', ')}
-                      </div>
-                    </div>
-                  );
-                })}
+                  {shift === 'FD' && <Star className="w-3.5 h-3.5 fill-orange-500 text-orange-500 shrink-0" />}
+                </div>
+
+                {req && (
+                  <div
+                    className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white dark:border-slate-900 shadow-2xs ${
+                      (req.status === 'atendido' || req.status === 'aprovado')
+                        ? 'bg-emerald-500 ring-1 ring-emerald-300'
+                        : (req.status === 'reprovado' || req.status === 'recusado')
+                        ? 'bg-rose-500 ring-1 ring-rose-300'
+                        : 'bg-amber-400 animate-pulse ring-1 ring-amber-200'
+                    }`}
+                    title={
+                      (req.status === 'atendido' || req.status === 'aprovado')
+                        ? `Folga Aprovada (Verde): ${req.notes.join(', ')}`
+                        : (req.status === 'reprovado' || req.status === 'recusado')
+                        ? `Folga Reprovada (Vermelha): ${req.notes.join(', ')}`
+                        : `Folga em Análise (Amarela): ${req.notes.join(', ')}`
+                    }
+                  />
+                )}
               </div>
-            )}
-          </div>
-
+            );
+          })}
         </div>
       </div>
 
@@ -983,14 +813,6 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           </div>
         </div>
       )}
-
-      {/* Modal de Alerta de Infração Trabalhista CLT */}
-      <CltViolationModal
-        isOpen={!!cltViolation}
-        onClose={() => setCltViolation(null)}
-        violation={cltViolation}
-        technicianName={currentTech?.name}
-      />
     </div>
   );
 };
