@@ -7,7 +7,8 @@ import {
   ShiftType,
   GeneratorOptions,
   AppUser,
-  Atestado
+  Atestado,
+  BancoHorasRecord
 } from './types';
 import { INITIAL_TECHNICIANS } from './data/defaultTechnicians';
 import { OFFICIAL_TECHNICIANS, OFFICIAL_SHIFTS_BY_TECH_NAME } from './data/officialScheduleNovDez';
@@ -31,6 +32,8 @@ import { PendingRequestsNotificationWidget } from './components/PendingRequestsN
 import { WhatsAppPushAlertWidget } from './components/WhatsAppPushAlertWidget';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { AtestadoUploadModal } from './components/AtestadoUploadModal';
+import { BancoHorasModal } from './components/BancoHorasModal';
+import { BancoHorasView } from './components/BancoHorasView';
 import { Check, X } from 'lucide-react';
 import { supabase } from './supabase';
 
@@ -42,6 +45,7 @@ const STORAGE_KEY_USERS = 'escalamaster_users_v2';
 const STORAGE_KEY_AUTH_USER = 'escalamaster_auth_user_v2';
 const STORAGE_KEY_THEME = 'escalamaster_theme_v2';
 const STORAGE_KEY_ATESTADOS = 'escalamaster_atestados_v1';
+const STORAGE_KEY_BANCO_HORAS = 'escalamaster_banco_horas_v1';
 
 export default function App() {
   const isSavingCloudRef = useRef(false);
@@ -358,7 +362,7 @@ export default function App() {
   }, [schedules]);
 
   // Active View Tab: For technicians, always 'individual'
-  const [activeTab, setActiveTab] = useState<'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics'>('matrix');
+  const [activeTab, setActiveTab] = useState<'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics' | 'banco_horas'>('matrix');
 
   // Modals
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
@@ -367,8 +371,31 @@ export default function App() {
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
   const [selectedTechForRequests, setSelectedTechForRequests] = useState<string | undefined>(undefined);
   const [isAtestadoModalOpen, setIsAtestadoModalOpen] = useState(false);
+  const [isBancoHorasModalOpen, setIsBancoHorasModalOpen] = useState(false);
   const [techForAtestado, setTechForAtestado] = useState<Technician | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Banco de Horas State (Persisted locally and synced with Supabase)
+  const [bancoHorasRecords, setBancoHorasRecords] = useState<BancoHorasRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_BANCO_HORAS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed reading banco_horas from localStorage', e);
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_BANCO_HORAS, JSON.stringify(bancoHorasRecords));
+    } catch (e) {
+      console.error('Failed to save banco_horas', e);
+    }
+  }, [bancoHorasRecords]);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -484,6 +511,21 @@ export default function App() {
       : 'pendente'
   }), []);
 
+  const normalizeBancoHorasRecord = useCallback((row: any): BancoHorasRecord => ({
+    id: row.id ? String(row.id) : undefined,
+    matricula: String(row.matricula || row.id_usuario || row.colaborador_id || ''),
+    nome_colaborador: String(row.nome_colaborador || row.nome || row.colaborador || row.nome_funcionario || row.name || ''),
+    cargo: row.cargo || undefined,
+    status: String(row.status || 'DÉBITO').toUpperCase(),
+    descricao: row.descricao || undefined,
+    data_realizacao: row.data_realizacao || row.data || undefined,
+    data_vencimento: row.data_vencimento || row.vencimento || undefined,
+    saldo_a_compensar: String(row.saldo_a_compensar || row.saldo || row.saldo_horas || '00:00'),
+    a_vencer_em_dias: Number(row.a_vencer_em_dias ?? row.vencer_em_dias ?? row.dias_vencimento ?? row.dias_a_vencer ?? 0),
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  }), []);
+
   // Real-time synchronization using Supabase for 100% cloud sync across devices
   useEffect(() => {
     // 1. Fetch initial state
@@ -546,6 +588,12 @@ export default function App() {
               (b.createdAt || b.dataAtestado).localeCompare(a.createdAt || a.dataAtestado)
             );
           });
+        }
+
+        // A2. Fetch Banco de Horas records
+        const { data: bhData, error: bhError } = await supabase.from('banco_horas').select('*');
+        if (bhData && Array.isArray(bhData) && !bhError) {
+          setBancoHorasRecords(bhData.map(normalizeBancoHorasRecord));
         }
 
         // B. Fetch Users from usuarios & seed missing technicians and admin
@@ -641,7 +689,11 @@ export default function App() {
         // Limpa permanentemente registros anteriores a 2026-11 na nuvem Supabase
         supabase.from('escalas').delete().lt('data', '2026-11-01').then();
 
-        const { data: escalasData, error: escalasError } = await supabase.from('escalas').select('*');
+        const { data: escalasData, error: escalasError } = await supabase
+          .from('escalas')
+          .select('*')
+          .order('updated_at', { ascending: false });
+
         setSchedules(prev => {
           const next: Record<string, TechnicianSchedule> = { ...prev };
           const officialMap = getOfficialScheduleMap();
@@ -656,13 +708,19 @@ export default function App() {
           }
 
           let detectedRegime: '6x1' | '5x2' | undefined;
+          const seenTechDates = new Set<string>();
 
           if (escalasData && Array.isArray(escalasData) && escalasData.length > 0 && !escalasError) {
             escalasData.forEach((row: any) => {
               const techId = row.id_usuario;
               const date = row.data;
               // Ignora e não carrega datas de meses que já passaram (< 2026-11)
-              if (!date || date.slice(0, 7) < '2026-11') return;
+              if (!date || date.slice(0, 7) < '2026-11' || !techId) return;
+
+              const key = `${techId}__${date}`;
+              // Como a consulta está ordenada por updated_at DESC, a primeira ocorrência é a mais recente
+              if (seenTechDates.has(key)) return;
+              seenTechDates.add(key);
 
               const rawShift = row.legenda_dia || 'TB';
               const shift: ShiftType = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
@@ -671,17 +729,15 @@ export default function App() {
                 detectedRegime = row.tipo_escala;
               }
 
-              if (techId && date) {
-                if (!next[techId]) {
-                  next[techId] = { technicianId: techId, days: {} };
-                }
-                next[techId].days[date] = {
-                  date,
-                  shift,
-                  manualOverride: true,
-                  notes: row.horario || undefined
-                };
+              if (!next[techId]) {
+                next[techId] = { technicianId: techId, days: {} };
               }
+              next[techId].days[date] = {
+                date,
+                shift,
+                manualOverride: true,
+                notes: row.horario || undefined
+              };
             });
           }
 
@@ -834,6 +890,23 @@ export default function App() {
             primeiro_acesso: row.primeiro_acesso ?? false,
             isFirstLogin: row.primeiro_acesso ?? false
           } : u));
+        }
+      })
+      // Listener 4: banco_horas (real-time updates when CSV is uploaded)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'banco_horas' }, payload => {
+        if (payload.eventType === 'INSERT' && payload.new) {
+          const newRec = normalizeBancoHorasRecord(payload.new);
+          setBancoHorasRecords(prev => [newRec, ...prev.filter(r => r.id !== newRec.id)]);
+        } else if (payload.eventType === 'UPDATE' && payload.new) {
+          const updatedRec = normalizeBancoHorasRecord(payload.new);
+          setBancoHorasRecords(prev => prev.map(r => r.id === updatedRec.id ? updatedRec : r));
+        } else if (payload.eventType === 'DELETE' && payload.old) {
+          const deletedId = (payload.old as any).id;
+          setBancoHorasRecords(prev => prev.filter(r => r.id !== deletedId));
+        } else {
+          supabase.from('banco_horas').select('*').then(({ data }) => {
+            if (data) setBancoHorasRecords(data.map(normalizeBancoHorasRecord));
+          });
         }
       })
       .subscribe();
@@ -1375,7 +1448,8 @@ export default function App() {
             data: d,
             tipo_escala: currentRegime,
             legenda_dia: day?.shift || 'TB',
-            horario: tech.shiftHours || null
+            horario: tech.shiftHours || null,
+            updated_at: new Date().toISOString()
           });
         }
       }
@@ -1663,6 +1737,7 @@ export default function App() {
         onOpenTeam={() => setIsTeamOpen(true)}
         onOpenWhatsApp={() => setIsWhatsAppOpen(true)}
         onOpenAtestado={() => handleOpenAtestadoModal()}
+        onOpenBancoHorasModal={() => setIsBancoHorasModalOpen(true)}
         onExportExcel={handleExportExcel}
         onLogout={handleLogout}
       />
@@ -1735,6 +1810,7 @@ export default function App() {
             offRequests={offRequests}
             currentUser={currentUser}
             atestados={atestados}
+            bancoHorasRecords={bancoHorasRecords}
             onAddRequest={handleAddRequest}
             onUpdateShift={handleUpdateShift}
             onOpenRequestsModal={handleOpenRequestsModal}
@@ -1816,12 +1892,22 @@ export default function App() {
                 offRequests={offRequests}
                 currentUser={currentUser}
                 atestados={atestados}
+                bancoHorasRecords={bancoHorasRecords}
                 onAddRequest={handleAddRequest}
                 onUpdateShift={handleUpdateShift}
                 onOpenRequestsModal={handleOpenRequestsModal}
                 onOpenAtestadoModal={handleOpenAtestadoModal}
                 onDeleteAtestado={handleDeleteAtestado}
                 onSave={handleSave}
+                darkMode={darkMode}
+              />
+            )}
+
+            {activeTab === 'banco_horas' && (
+              <BancoHorasView
+                records={bancoHorasRecords}
+                currentUser={currentUser}
+                technicians={technicians}
                 darkMode={darkMode}
               />
             )}
@@ -1935,6 +2021,16 @@ export default function App() {
         }
         onSaveAtestado={handleSaveAtestado}
         darkMode={darkMode}
+      />
+
+      <BancoHorasModal
+        isOpen={isBancoHorasModalOpen}
+        onClose={() => setIsBancoHorasModalOpen(false)}
+        darkMode={darkMode}
+        onSuccess={(records: BancoHorasRecord[]) => {
+          setBancoHorasRecords(records);
+          showToast('✅ Banco de Horas atualizado com sucesso no Supabase!');
+        }}
       />
     </div>
   );

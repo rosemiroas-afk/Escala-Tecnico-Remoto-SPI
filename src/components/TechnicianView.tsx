@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType, AppUser, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS, Atestado } from '../types';
+import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType, AppUser, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS, Atestado, BancoHorasRecord } from '../types';
 import { formatDisplayDate, formatFullDate, parseDateKey, isSaturday, isSunday, extractWeekends, MONTHS_PT } from '../utils/dateUtils';
 import { AuditResult, isOffShift, isWorkingShift } from '../utils/validator';
 import { generateIndividualWhatsAppMessage } from '../utils/exportUtils';
 import { DDD_INFO } from '../data/defaultTechnicians';
 import { AtestadoViewerModal } from './AtestadoViewerModal';
+import { BancoHorasView } from './BancoHorasView';
 import {
   User,
   Calendar,
@@ -36,6 +37,7 @@ interface TechnicianViewProps {
   offRequests: OffRequest[];
   currentUser: AppUser | null;
   atestados?: Atestado[];
+  bancoHorasRecords?: BancoHorasRecord[];
   onAddRequest: (req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => void;
   onUpdateShift: (techId: string, date: string, shift: ShiftType) => void;
   onOpenRequestsModal?: (techId: string) => void;
@@ -54,6 +56,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   offRequests,
   currentUser,
   atestados = [],
+  bancoHorasRecords = [],
   onAddRequest,
   onUpdateShift,
   onOpenRequestsModal,
@@ -102,7 +105,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   // Agrupamento de atestados por mês para análise organizada
   const atestadosByMonth = useMemo(() => {
     const groups: Record<string, Atestado[]> = {};
-    techAtestados.forEach(att => {
+    techAtestados.forEach((att: Atestado) => {
       const monthKey = att.mesReferencia || att.dataAtestado.substring(0, 7);
       if (!groups[monthKey]) groups[monthKey] = [];
       groups[monthKey].push(att);
@@ -120,7 +123,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         }
       }
     }
-    const list = Object.keys(counts).filter(mKey => counts[mKey] >= 5).sort();
+    const list = Object.keys(counts).filter((mKey: string) => counts[mKey] >= 5).sort();
     return list.length > 0 ? list : Object.keys(counts).sort();
   }, [dates]);
 
@@ -366,7 +369,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
 
         {/* Botões dos Meses Disponíveis - Horizontal scroll on mobile */}
         <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 sm:p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto max-w-full">
-          {availableMonths.map(mKey => {
+          {availableMonths.map((mKey: string) => {
             const isSelected = selectedMonth === mKey;
             const count = dates.filter(d => d.startsWith(mKey)).length;
             return (
@@ -381,7 +384,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                 }`}
               >
                 <span>{formatMonthName(mKey)}</span>
-                <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.2 sm:py-0.5 rounded-full font-mono ${
+                <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
                   isSelected ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
                 }`}>
                   {count}d
@@ -497,7 +500,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
 
         {/* FIXO: 4 COLUNAS POR LINHA NO CELULAR (grid-cols-4) */}
         <div className="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-1.5 sm:gap-2.5">
-          {displayDates.map(d => {
+          {displayDates.map((d: string) => {
             const day = currentSched.days[d];
             const rawShift = day?.shift || 'TB';
             const shift = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
@@ -574,6 +577,14 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         </div>
       </div>
 
+      {/* NOVO: Banco de Horas do Colaborador (Saldo + Alertas de Vencimento CLT) */}
+      <BancoHorasView
+        records={bancoHorasRecords}
+        currentUser={currentUser}
+        technicians={technicians}
+        darkMode={darkMode}
+      />
+
       {/* NOVO: Atestados Médicos Anexados do Colaborador (Organizados por Mês e por Data) */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -619,7 +630,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           </div>
         ) : (
           <div className="space-y-6">
-            {Object.entries(atestadosByMonth).map(([monthName, items]) => (
+            {Object.entries(atestadosByMonth).map(([monthName, items]: [string, Atestado[]]) => (
               <div key={monthName} className="space-y-3">
                 <div className="flex items-center gap-2 pb-1 border-b border-slate-200 dark:border-slate-800">
                   <span className="text-xs font-black uppercase tracking-wider text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-900">
@@ -631,7 +642,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {items.map(att => {
+                  {items.map((att: Atestado) => {
                     const createdDateObj = att.createdAt ? new Date(att.createdAt) : null;
                     const timeStr = createdDateObj && !isNaN(createdDateObj.getTime())
                       ? createdDateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })

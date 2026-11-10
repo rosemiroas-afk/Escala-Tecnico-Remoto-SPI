@@ -22,7 +22,8 @@ import {
   Bell,
   BarChart3,
   Eye,
-  FileText
+  FileText,
+  Clock
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
@@ -31,16 +32,17 @@ interface HeaderProps {
   auditResult: AuditResult;
   offRequestsCount: number;
   pendingRequestsCount?: number;
-  activeTab: 'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics';
+  activeTab: 'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics' | 'banco_horas';
   currentUser: AppUser | null;
   darkMode: boolean;
   onToggleDarkMode: () => void;
-  onSelectTab: (tab: 'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics') => void;
+  onSelectTab: (tab: 'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics' | 'banco_horas') => void;
   onOpenGenerator: () => void;
   onOpenRequests: () => void;
   onOpenTeam: () => void;
   onOpenWhatsApp: () => void;
   onOpenAtestado?: () => void;
+  onOpenBancoHorasModal?: () => void;
   onExportExcel: () => void;
   onLogout: () => void;
 }
@@ -60,6 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenTeam,
   onOpenWhatsApp,
   onOpenAtestado,
+  onOpenBancoHorasModal,
   onExportExcel,
   onLogout
 }) => {
@@ -245,6 +248,22 @@ export const Header: React.FC<HeaderProps> = ({
                 <span>WhatsApp</span>
               </button>
 
+              {/* Banco de Horas Upload Modal Trigger */}
+              {onOpenBancoHorasModal && (
+                <button
+                  onClick={onOpenBancoHorasModal}
+                  className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl border text-[11px] sm:text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                    darkMode
+                      ? 'bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border-indigo-800'
+                      : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border-indigo-200'
+                  }`}
+                  title="Fazer Upload de Arquivo .CSV do Banco de Horas"
+                >
+                  <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Banco de Horas</span>
+                </button>
+              )}
+
               {/* Excel Export */}
               <button
                 onClick={onExportExcel}
@@ -400,6 +419,21 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <UserCheck className="w-3.5 h-3.5" />
               <span>Individual Técnico</span>
+            </button>
+
+            <button
+              onClick={() => onSelectTab('banco_horas')}
+              className={`py-1.5 px-3 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'banco_horas'
+                  ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
+                  : darkMode
+                  ? 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+              title="Controle e Extrato do Banco de Horas"
+            >
+              <Clock className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Banco de Horas</span>
             </button>
 
             <button

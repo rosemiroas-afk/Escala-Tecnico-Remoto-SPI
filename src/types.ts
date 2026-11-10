@@ -349,3 +349,19 @@ export interface AppUser {
   ddd?: DDDNumber;
 }
 
+export interface BancoHorasRecord {
+  id?: string;
+  matricula: string;
+  nome_colaborador: string;
+  cargo?: string;
+  status: string; // 'CRÉDITO' | 'DÉBITO' | 'COMPENSADO' | 'PENDENTE' etc.
+  descricao?: string;
+  data_realizacao?: string; // YYYY-MM-DD
+  data_vencimento?: string; // YYYY-MM-DD
+  saldo_a_compensar: string; // e.g. "08:00", "+02:30", "-01:15"
+  a_vencer_em_dias: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+
