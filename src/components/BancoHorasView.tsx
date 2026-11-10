@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { BancoHorasRecord, AppUser, Technician } from '../types';
 import { hmToMin, formatHM, normalizeBancoHorasRecord, isCollaboratorNameMatch } from '../utils/csvBancoHorasParser';
-import { normalizeName } from '../utils/csvScheduleParser';
 import { supabase } from '../supabase';
 import {
   Clock,
@@ -16,6 +15,15 @@ import {
   ShieldAlert,
   RefreshCw
 } from 'lucide-react';
+
+const normalizeName = (name?: string | null): string => {
+  if (!name) return "";
+  return name
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, ""); // Remove acentos de forma segura
+};
 
 interface BancoHorasViewProps {
   records: BancoHorasRecord[];
@@ -146,11 +154,13 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
   // Identifica o técnico logado se for visão de colaborador
   const loggedTech = useMemo(() => {
     if (isAdmin || !currentUser) return null;
+    const userNorm = normalizeName(currentUser.name);
     return (
       technicians.find(
         t =>
           (currentUser.technicianId && t.id === currentUser.technicianId) ||
           (currentUser.id && t.id === currentUser.id) ||
+          (userNorm && normalizeName(t.name) === userNorm) ||
           isCollaboratorNameMatch(t.name, currentUser.name || '')
       ) || null
     );
@@ -180,6 +190,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
     // 1. Processa todos os técnicos cadastrados
     technicians.forEach(tech => {
       const targetId = tech.id;
+      const techNameNorm = normalizeName(tech.name);
 
       let techCreditMins = 0;
       let techDebitMins = 0;
@@ -190,9 +201,11 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
       records.forEach((r, idx) => {
         const recId = r.id || `rec-${idx}`;
         const recMatricula = r.matricula || '';
+        const recNameNorm = normalizeName(r.nome_colaborador);
 
         const isMatch =
           (recMatricula && (recMatricula === targetId || recMatricula === tech.id)) ||
+          (techNameNorm && recNameNorm && techNameNorm === recNameNorm) ||
           isCollaboratorNameMatch(tech.name, r.nome_colaborador || '');
 
         if (isMatch) {
@@ -339,10 +352,15 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
     if (!currentTech && !currentUser) return [];
 
     const targetName = currentTech?.name || currentUser?.name || '';
+    const targetNameNorm = normalizeName(targetName);
     const targetMatricula = currentUser?.id || currentTech?.id || '';
 
     return records.filter(r => {
       if (r.matricula && (r.matricula === targetMatricula || r.matricula === currentTech?.id)) {
+        return true;
+      }
+      const recNameNorm = normalizeName(r.nome_colaborador);
+      if (targetNameNorm && recNameNorm && targetNameNorm === recNameNorm) {
         return true;
       }
       return isCollaboratorNameMatch(targetName, r.nome_colaborador || '');

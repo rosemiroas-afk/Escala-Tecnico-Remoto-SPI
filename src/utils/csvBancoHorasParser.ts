@@ -3,6 +3,15 @@ import * as XLSX from 'xlsx';
 import { BancoHorasRecord } from '../types';
 import { parseDateToIso } from './csvScheduleParser';
 
+export const normalizeName = (name?: string | null): string => {
+  if (!name) return "";
+  return String(name)
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, ""); // Remove acentos de forma segura
+};
+
 export interface ParseBancoHorasResult {
   records: BancoHorasRecord[];
   totalLines: number;
