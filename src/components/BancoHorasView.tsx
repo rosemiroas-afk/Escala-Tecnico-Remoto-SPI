@@ -26,18 +26,26 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
 
   const isAdmin = currentUser?.role === 'admin';
 
-  // Identify current target collaborator based on shared selectedTechId
-  const activeTechId = propSelectedTechId || (!isAdmin && currentUser?.technicianId ? currentUser.technicianId : technicians[0]?.id || '');
+  const loggedTech = useMemo(() => {
+    if (isAdmin || !currentUser) return null;
+    const targetName = normalizeName(currentUser.name || '');
+    return technicians.find(t =>
+      (currentUser.technicianId && t.id === currentUser.technicianId) ||
+      (currentUser.id && t.id === currentUser.id) ||
+      (targetName && normalizeName(t.name) === targetName) ||
+      (targetName && (normalizeName(t.name).includes(targetName) || targetName.includes(normalizeName(t.name))))
+    ) || null;
+  }, [technicians, currentUser, isAdmin]);
 
   const currentTech = useMemo(() => {
-    if (activeTechId) {
-      return technicians.find(t => t.id === activeTechId) || technicians[0];
+    if (!isAdmin) {
+      return loggedTech || technicians.find(t => t.id === currentUser?.technicianId || t.id === currentUser?.id) || null;
     }
-    if (!isAdmin && currentUser?.technicianId) {
-      return technicians.find(t => t.id === currentUser.technicianId) || null;
+    if (propSelectedTechId) {
+      return technicians.find(t => t.id === propSelectedTechId) || technicians[0] || null;
     }
     return technicians[0] || null;
-  }, [isAdmin, activeTechId, currentUser, technicians]);
+  }, [isAdmin, loggedTech, propSelectedTechId, currentUser, technicians]);
 
   // Filter records matching this collaborator (by matricula or name similarity)
   const userRecords = useMemo(() => {

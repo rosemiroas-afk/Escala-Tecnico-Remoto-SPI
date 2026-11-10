@@ -936,6 +936,18 @@ export default function App() {
   const handleLogin = useCallback((user: AppUser) => {
     setCurrentUser(user);
     if (user.role === 'technician') {
+      const targetName = normalizeName(user.name || '');
+      const matched = technicians.find(t =>
+        (user.technicianId && t.id === user.technicianId) ||
+        (user.id && t.id === user.id) ||
+        (targetName && normalizeName(t.name) === targetName) ||
+        (targetName && (normalizeName(t.name).includes(targetName) || targetName.includes(normalizeName(t.name))))
+      );
+      if (matched) {
+        setSelectedTechId(matched.id);
+      } else if (user.technicianId || user.id) {
+        setSelectedTechId(user.technicianId || user.id);
+      }
       setActiveTab('individual');
     } else if (user.role === 'viewer') {
       setActiveTab('analytics');
@@ -947,7 +959,7 @@ export default function App() {
         setHasTriggeredInitialAlert(true);
       }
     }
-  }, [offRequests]);
+  }, [offRequests, technicians]);
 
   // Handler: User Logout
   const handleLogout = useCallback(() => {

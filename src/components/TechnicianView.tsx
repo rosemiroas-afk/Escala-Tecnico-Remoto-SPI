@@ -6,6 +6,8 @@ import { generateIndividualWhatsAppMessage } from '../utils/exportUtils';
 import { DDD_INFO } from '../data/defaultTechnicians';
 import { AtestadoViewerModal } from './AtestadoViewerModal';
 import { BancoHorasView } from './BancoHorasView';
+import { normalizeName } from '../utils/csvScheduleParser';
+import { supabase } from '../supabase';
 import {
   User,
   Calendar,
@@ -77,15 +79,12 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   const activeTechs = technicians.filter(t => t.active);
   const isAdmin = currentUser?.role === 'admin';
 
-  // If user is technician, lock to their own ID strictly!
   const initialTechId = !isAdmin && currentUser?.technicianId
     ? currentUser.technicianId
     : activeTechs[0]?.id || '';
 
   const [localSelectedTechId, setLocalSelectedTechId] = useState<string>(initialTechId);
   const [copied, setCopied] = useState<boolean>(false);
-
-  const activeTechId = propSelectedTechId || localSelectedTechId;
 
   // Custom Dropdown Open/Close states & refs
   const [isTechDropdownOpen, setIsTechDropdownOpen] = useState(false);
@@ -106,19 +105,66 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Keep synced if user switches
-  useEffect(() => {
-    if (!isAdmin && currentUser?.technicianId) {
-      setLocalSelectedTechId(currentUser.technicianId);
-    }
-  }, [currentUser, isAdmin]);
-
   // Quick request form states
   const [adminPickerDate, setAdminPickerDate] = useState<string | null>(null);
   const [viewerAtestado, setViewerAtestado] = useState<Atestado | null>(null);
 
-  const currentTech = technicians.find(t => t.id === activeTechId) || activeTechs[0];
+  // Resolve logged-in technician strictly when non-admin
+  const loggedTech = useMemo(() => {
+    if (isAdmin || !currentUser) return null;
+    const targetName = normalizeName(currentUser.name || '');
+    return technicians.find(t =>
+      (currentUser.technicianId && t.id === currentUser.technicianId) ||
+      (currentUser.id && t.id === currentUser.id) ||
+      (targetName && normalizeName(t.name) === targetName) ||
+      (targetName && (normalizeName(t.name).includes(targetName) || targetName.includes(normalizeName(t.name))))
+    ) || null;
+  }, [technicians, currentUser, isAdmin]);
+
+  const activeTechId = loggedTech
+    ? loggedTech.id
+    : (propSelectedTechId || localSelectedTechId);
+
+  const currentTech = loggedTech || technicians.find(t => t.id === activeTechId) || activeTechs[0];
   const currentSched = currentTech ? schedules[currentTech.id] : null;
+
+  // Real-time direct query to Supabase 'escalas' table strictly for the active logged-in user (ordered by updated_at DESC)
+  const [userCloudShifts, setUserCloudShifts] = useState<Record<string, ShiftType>>({});
+
+  useEffect(() => {
+    const fetchUserEscala = async () => {
+      const targetUserId = currentTech?.id || currentUser?.technicianId || currentUser?.id;
+      if (!targetUserId) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('escalas')
+          .select('*')
+          .eq('id_usuario', targetUserId)
+          .order('updated_at', { ascending: false });
+
+        if (data && Array.isArray(data) && !error) {
+          const shiftMap: Record<string, ShiftType> = {};
+          const seenDates = new Set<string>();
+
+          data.forEach((row: any) => {
+            if (row.data && !seenDates.has(row.data)) {
+              seenDates.add(row.data);
+              const rawShift = row.legenda_dia;
+              shiftMap[row.data] = (rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift || 'TB') as ShiftType;
+            }
+          });
+
+          setUserCloudShifts(shiftMap);
+        }
+      } catch (err) {
+        console.error('Erro ao consultar escala no Supabase para o usuário logado:', err);
+      }
+    };
+
+    fetchUserEscala();
+  }, [currentTech?.id, currentUser?.id, currentUser?.technicianId]);
+
   const techRequests = currentTech
     ? offRequests
         .filter(r => r.technicianId === currentTech.id)
