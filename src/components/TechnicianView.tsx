@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType, AppUser, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS, Atestado, BancoHorasRecord } from '../types';
 import { formatDisplayDate, formatFullDate, parseDateKey, isSaturday, isSunday, extractWeekends, MONTHS_PT } from '../utils/dateUtils';
 import { AuditResult, isOffShift, isWorkingShift } from '../utils/validator';
@@ -128,42 +128,139 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   const currentTech = loggedTech || technicians.find(t => t.id === activeTechId) || activeTechs[0];
   const currentSched = currentTech ? schedules[currentTech.id] : null;
 
-  // Real-time direct query to Supabase 'escalas' table strictly for the active logged-in user (ordered by updated_at DESC)
+  // Helper para normalizar registros de banco_horas vindos do Supabase
+  const normalizeBancoHorasRecord = useCallback((row: any): BancoHorasRecord => ({
+    id: row.id ? String(row.id) : undefined,
+    matricula: String(row.matricula || row.id_usuario || row.colaborador_id || ''),
+    nome_colaborador: String(row.nome_colaborador || row.nome || row.colaborador || row.nome_funcionario || row.name || ''),
+    cargo: row.cargo || undefined,
+    status: String(row.status || 'DÉBITO').toUpperCase(),
+    descricao: row.descricao || undefined,
+    data_realizacao: row.data_realizacao || row.data || undefined,
+    data_vencimento: row.data_vencimento || row.vencimento || undefined,
+    saldo_a_compensar: String(row.saldo_a_compensar || row.saldo || row.saldo_horas || '00:00'),
+    a_vencer_em_dias: Number(row.a_vencer_em_dias ?? row.vencer_em_dias ?? row.dias_vencimento ?? row.dias_a_vencer ?? 0),
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  }), []);
+
+  // Estado local para turnos atualizados em tempo real via Supabase
   const [userCloudShifts, setUserCloudShifts] = useState<Record<string, ShiftType>>({});
+  // Estado local para banco de horas atualizado em tempo real via Supabase
+  const [userBancoHoras, setUserBancoHoras] = useState<BancoHorasRecord[]>(bancoHorasRecords || []);
 
   useEffect(() => {
-    const fetchUserEscala = async () => {
-      const targetUserId = currentTech?.id || currentUser?.technicianId || currentUser?.id;
-      if (!targetUserId) return;
+    if (bancoHorasRecords && bancoHorasRecords.length > 0) {
+      setUserBancoHoras(bancoHorasRecords);
+    }
+  }, [bancoHorasRecords]);
 
-      try {
-        const { data, error } = await supabase
-          .from('escalas')
-          .select('*')
-          .eq('id_usuario', targetUserId)
-          .order('updated_at', { ascending: false });
+  // Função para buscar dados da escala atualizados diretamente na tabela 'escalas'
+  const buscarDadosDaEscala = useCallback(async () => {
+    const targetUserId = currentTech?.id || currentUser?.technicianId || currentUser?.id;
+    if (!targetUserId) return;
 
-        if (data && Array.isArray(data) && !error) {
-          const shiftMap: Record<string, ShiftType> = {};
-          const seenDates = new Set<string>();
+    try {
+      const { data, error } = await supabase
+        .from('escalas')
+        .select('*')
+        .eq('id_usuario', targetUserId)
+        .order('updated_at', { ascending: false });
 
-          data.forEach((row: any) => {
-            if (row.data && !seenDates.has(row.data)) {
-              seenDates.add(row.data);
-              const rawShift = row.legenda_dia;
-              shiftMap[row.data] = (rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift || 'TB') as ShiftType;
-            }
-          });
+      if (data && Array.isArray(data) && !error) {
+        const shiftMap: Record<string, ShiftType> = {};
+        const seenDates = new Set<string>();
 
-          setUserCloudShifts(shiftMap);
-        }
-      } catch (err) {
-        console.error('Erro ao consultar escala no Supabase para o usuário logado:', err);
+        data.forEach((row: any) => {
+          if (row.data && !seenDates.has(row.data)) {
+            seenDates.add(row.data);
+            const rawShift = row.legenda_dia;
+            shiftMap[row.data] = (rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift || 'TB') as ShiftType;
+          }
+        });
+
+        setUserCloudShifts(shiftMap);
       }
-    };
-
-    fetchUserEscala();
+    } catch (err) {
+      console.error('Erro ao consultar escala no Supabase para o usuário logado:', err);
+    }
   }, [currentTech?.id, currentUser?.id, currentUser?.technicianId]);
+
+  // Função para buscar lançamentos atualizados do Banco de Horas
+  const buscarBancoHoras = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('banco_horas')
+        .select('*');
+
+      if (data && Array.isArray(data) && !error) {
+        setUserBancoHoras(data.map(normalizeBancoHorasRecord));
+      }
+    } catch (err) {
+      console.error('Erro ao consultar banco_horas no Supabase:', err);
+    }
+  }, [normalizeBancoHorasRecord]);
+
+  // ATIVAÇÃO DO REALTIME CHANNEL DO SUPABASE:
+  // Escuta alterações em tempo real nas tabelas 'escalas' e 'banco_horas'
+  useEffect(() => {
+    const targetUserId = currentTech?.id || currentUser?.technicianId || currentUser?.id;
+    if (!targetUserId) return;
+
+    // Busca inicial imediata
+    buscarDadosDaEscala();
+    buscarBancoHoras();
+
+    const channelName = `mudancas-escala-${targetUserId}-${Math.random().toString(36).substring(2, 7)}`;
+    const channel = supabase
+      .channel(channelName)
+      // Ouvinte 1: Escuta todas as mudanças na tabela 'escalas' filtradas pelo id_usuario logado
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'escalas',
+          filter: `id_usuario=eq.${targetUserId}`
+        },
+        () => {
+          buscarDadosDaEscala();
+        }
+      )
+      // Ouvinte 2: Escuta também deleções ou recriações em massa na tabela 'escalas'
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'escalas'
+        },
+        (payload) => {
+          const row: any = payload.new || payload.old;
+          if (!row || !row.id_usuario || row.id_usuario === targetUserId) {
+            buscarDadosDaEscala();
+          }
+        }
+      )
+      // Ouvinte 3: Escuta todas as mudanças na tabela 'banco_horas'
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'banco_horas'
+        },
+        () => {
+          buscarBancoHoras();
+        }
+      )
+      .subscribe();
+
+    // 3. Limpeza (unsubscribe) na desmontagem para evitar vazamento de memória
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentTech?.id, currentUser?.id, currentUser?.technicianId, buscarDadosDaEscala, buscarBancoHoras]);
 
   const techRequests = currentTech
     ? offRequests
@@ -239,7 +336,28 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     return `${MONTHS_PT[m]} de ${y}`;
   };
 
-  if (!currentTech || !currentSched) {
+  // Combina a escala base com as alterações recebidas em tempo real do Supabase
+  const effectiveSched = useMemo((): TechnicianSchedule | null => {
+    if (!currentTech) return null;
+    const baseSched = currentSched || { technicianId: currentTech.id, days: {} };
+    const mergedDays = { ...(baseSched.days || {}) };
+
+    for (const [d, shift] of Object.entries(userCloudShifts)) {
+      mergedDays[d] = {
+        date: d,
+        shift: shift,
+        manualOverride: true,
+        notes: mergedDays[d]?.notes || currentTech.shiftHours
+      };
+    }
+
+    return {
+      technicianId: currentTech.id,
+      days: mergedDays
+    };
+  }, [currentTech, currentSched, userCloudShifts]);
+
+  if (!currentTech || (!currentSched && !effectiveSched)) {
     return <div className="p-8 text-center text-slate-500">Nenhum técnico disponível.</div>;
   }
 
@@ -252,9 +370,21 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     let currentConsecutive = 0;
     let inversionsCount = 0;
 
+    const schedToUse = effectiveSched || currentSched;
+    if (!schedToUse) {
+      return {
+        totalOffDays: 0,
+        doubleWeekendsCount: 0,
+        totalWorkDays: 0,
+        weekendDaysOff: 0,
+        maxConsecutiveWorkDays: 0,
+        inversionsCount: 0
+      };
+    }
+
     for (let i = 0; i < displayDates.length; i++) {
       const d = displayDates[i];
-      const shift = currentSched.days[d]?.shift || 'TB';
+      const shift = schedToUse.days[d]?.shift || 'TB';
       const isOff = isOffShift(shift);
       if (isOff) {
         totalOffDays++;
@@ -276,8 +406,8 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
 
     const monthWeekends = extractWeekends(displayDates);
     const doubleWeekendsCount = monthWeekends.filter(wk => {
-      const sat = currentSched.days[wk.saturday]?.shift;
-      const sun = currentSched.days[wk.sunday]?.shift;
+      const sat = schedToUse.days[wk.saturday]?.shift;
+      const sun = schedToUse.days[wk.sunday]?.shift;
       const isSatOff = sat === 'FD' || sat === 'FG' || sat === 'F';
       const isSunOff = sun === 'FD' || sun === 'FG' || sun === 'F';
       return isSatOff && isSunOff;
@@ -291,12 +421,14 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
       maxConsecutiveWorkDays,
       inversionsCount
     };
-  }, [currentSched, displayDates]);
+  }, [effectiveSched, currentSched, displayDates]);
 
   const handleCopyWhatsApp = () => {
+    const schedToUse = effectiveSched || currentSched;
+    if (!schedToUse) return;
     const text = generateIndividualWhatsAppMessage(
       currentTech,
-      currentSched,
+      schedToUse,
       displayDates,
       { ...period, name: formatMonthName(selectedMonth) },
       offRequests
@@ -307,9 +439,11 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   };
 
   const handleOpenWhatsApp = () => {
+    const schedToUse = effectiveSched || currentSched;
+    if (!schedToUse) return;
     const text = generateIndividualWhatsAppMessage(
       currentTech,
-      currentSched,
+      schedToUse,
       displayDates,
       { ...period, name: formatMonthName(selectedMonth) },
       offRequests
@@ -656,7 +790,8 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         {/* FIXO: 4 COLUNAS POR LINHA NO CELULAR (grid-cols-4) */}
         <div className="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-1.5 sm:gap-2.5">
           {displayDates.map((d: string) => {
-            const day = currentSched.days[d];
+            const schedToUse = effectiveSched || currentSched;
+            const day = schedToUse?.days[d];
             const rawShift = day?.shift || 'TB';
             const shift = rawShift === 'T' ? 'TB' : rawShift === 'F' ? 'FG' : rawShift;
             const isSat = isSaturday(d);
@@ -734,7 +869,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
 
       {/* NOVO: Banco de Horas do Colaborador (Saldo + Alertas de Vencimento CLT) */}
       <BancoHorasView
-        records={bancoHorasRecords}
+        records={userBancoHoras}
         currentUser={currentUser}
         technicians={technicians}
         selectedTechId={currentTech?.id}
