@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { BancoHorasRecord, AppUser, Technician } from '../types';
-import { hmToMin, formatHM } from '../utils/csvBancoHorasParser';
+import { hmToMin, formatHM, normalizeBancoHorasRecord } from '../utils/csvBancoHorasParser';
 import { normalizeName } from '../utils/csvScheduleParser';
+import { supabase } from '../supabase';
 import {
   Clock,
   AlertTriangle,
@@ -12,7 +13,8 @@ import {
   Users,
   UserCheck,
   ArrowRight,
-  ShieldAlert
+  ShieldAlert,
+  RefreshCw
 } from 'lucide-react';
 
 interface BancoHorasViewProps {
@@ -38,13 +40,15 @@ export interface CollaboratorBancoSummary {
 }
 
 export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
-  records,
+  records: initialRecords,
   currentUser,
   technicians,
   selectedTechId: propSelectedTechId,
   onSelectTechId,
   darkMode
 }) => {
+  const [records, setRecords] = useState<BancoHorasRecord[]>(initialRecords || []);
+  const [isLoadingCloud, setIsLoadingCloud] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [colabSearchTerm, setColabSearchTerm] = useState<string>('');
@@ -52,7 +56,64 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
 
   const isAdmin = currentUser?.role === 'admin';
 
-  // Identify logged technician if collaborator
+  // 1. CARREGAMENTO DIRETO DO SUPABASE E ATUALIZAÇÃO EM TEMPO REAL
+  const carregarBancoHorasSupabase = useCallback(async () => {
+    setIsLoadingCloud(true);
+    try {
+      const { data, error } = await supabase
+        .from('banco_horas')
+        .select('*');
+
+      if (data && Array.isArray(data) && !error) {
+        const normalized = data.map(normalizeBancoHorasRecord);
+        setRecords(normalized);
+      } else if (initialRecords && initialRecords.length > 0) {
+        setRecords(initialRecords);
+      }
+    } catch (err) {
+      console.warn('Erro ao carregar banco_horas diretamente do Supabase:', err);
+      if (initialRecords && initialRecords.length > 0) {
+        setRecords(initialRecords);
+      }
+    } finally {
+      setIsLoadingCloud(false);
+    }
+  }, [initialRecords]);
+
+  // Sincroniza com initialRecords quando recebido via props
+  useEffect(() => {
+    if (initialRecords && initialRecords.length > 0) {
+      setRecords(initialRecords);
+    }
+  }, [initialRecords]);
+
+  // Carregamento inicial do banco e inscrição no Realtime Channel do Supabase
+  useEffect(() => {
+    carregarBancoHorasSupabase();
+
+    const channelName = `realtime-banco-horas-${Math.random().toString(36).substring(2, 8)}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'banco_horas'
+        },
+        () => {
+          // Atualiza instantaneamente a tela com os dados mais recentes do Supabase
+          carregarBancoHorasSupabase();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [carregarBancoHorasSupabase]);
+
+  // Identifica o técnico logado se for visão de colaborador
   const loggedTech = useMemo(() => {
     if (isAdmin || !currentUser) return null;
     const targetName = normalizeName(currentUser.name || '');
@@ -67,7 +128,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
     );
   }, [technicians, currentUser, isAdmin]);
 
-  // Selected technician for individual detail view
+  // Técnico selecionado no filtro global
   const currentTech = useMemo(() => {
     if (!isAdmin) {
       return loggedTech || technicians.find(t => t.id === currentUser?.technicianId || t.id === currentUser?.id) || null;
@@ -78,14 +139,17 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
     return technicians[0] || null;
   }, [isAdmin, loggedTech, propSelectedTechId, currentUser, technicians]);
 
-  // ==========================================
-  // PARTE 1: AGREGAÇÃO POR COLABORADOR (MOTOR)
-  // ==========================================
+  // =========================================================================
+  // REGRA DE OURO: SEPARAÇÃO MATEMÁTICA NA COLUNA 'DESCRICAO' NO LOOP SUPABASE
+  // =========================================================================
+  // - Se 'descricao' tiver 'DEBITO', converte 'saldo_compensar' para minutos e acumula no totalDebitos.
+  // - Se 'descricao' tiver 'CREDITO', converte 'saldo_compensar' para minutos e acumula no totalCreditos.
+  // =========================================================================
   const collaboratorsSummary = useMemo<CollaboratorBancoSummary[]>(() => {
     const list: CollaboratorBancoSummary[] = [];
     const matchedRecordIds = new Set<string>();
 
-    // 1. Process all known technicians
+    // 1. Processa todos os técnicos cadastrados
     technicians.forEach(tech => {
       const targetNameNorm = normalizeName(tech.name || '');
       const targetId = tech.id;
@@ -97,7 +161,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
       let cargo = '';
 
       records.forEach((r, idx) => {
-        const recId = r.id || `idx-${idx}`;
+        const recId = r.id || `rec-${idx}`;
         const recMatricula = r.matricula || '';
         const recNameNorm = normalizeName(r.nome_colaborador || '');
 
@@ -110,12 +174,29 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
           matchedCount++;
           if (r.cargo && !cargo) cargo = r.cargo;
 
-          // Convert HH:MM to integer minutes using hmToMin
-          const mins = hmToMin(r.saldo_a_compensar, r.status);
-          if (mins > 0) {
-            techCreditMins += mins;
-          } else if (mins < 0) {
-            techDebitMins += Math.abs(mins);
+          // LEITURA DA COLUNA 'DESCRICAO' E 'SALDO_COMPENSAR'
+          const descText = String(r.descricao || r.status || '').toUpperCase();
+          const valorString = String(r.saldo_compensar || r.saldo_a_compensar || '00:00');
+          const match = valorString.match(/(\d+):(\d+)/);
+          let minutosAbs = 0;
+
+          if (match) {
+            const hrs = parseInt(match[1], 10) || 0;
+            const mins = parseInt(match[2], 10) || 0;
+            minutosAbs = hrs * 60 + mins;
+          } else {
+            minutosAbs = Math.abs(hmToMin(valorString));
+          }
+
+          // APLICAÇÃO DA REGRA DE OURO:
+          if (descText.includes('DEBITO') || descText.includes('DÉBITO')) {
+            techDebitMins += minutosAbs;
+          } else if (descText.includes('CREDITO') || descText.includes('CRÉDITO')) {
+            techCreditMins += minutosAbs;
+          } else if (valorString.startsWith('-') || String(r.status || '').toUpperCase().includes('DEBITO')) {
+            techDebitMins += minutosAbs;
+          } else {
+            techCreditMins += minutosAbs;
           }
 
           if (r.a_vencer_em_dias > 0 && r.a_vencer_em_dias <= 30) {
@@ -140,12 +221,12 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
       });
     });
 
-    // 2. Add any collaborators present in CSV records that might not be in technicians array
+    // 2. Colaboradores adicionais identificados no CSV do banco
     const unmatchedByName = new Map<string, BancoHorasRecord[]>();
     records.forEach((r, idx) => {
-      const recId = r.id || `idx-${idx}`;
+      const recId = r.id || `rec-${idx}`;
       if (!matchedRecordIds.has(recId)) {
-        const key = r.matricula || r.nome_colaborador || `colab-${idx}`;
+        const key = r.matricula || r.nome_colaborador || `extra-${idx}`;
         const group = unmatchedByName.get(key) || [];
         group.push(r);
         unmatchedByName.set(key, group);
@@ -159,9 +240,28 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
       let criticalCount = 0;
 
       groupRecords.forEach(r => {
-        const mins = hmToMin(r.saldo_a_compensar, r.status);
-        if (mins > 0) creditMins += mins;
-        else if (mins < 0) debitMins += Math.abs(mins);
+        const descText = String(r.descricao || r.status || '').toUpperCase();
+        const valorString = String(r.saldo_compensar || r.saldo_a_compensar || '00:00');
+        const match = valorString.match(/(\d+):(\d+)/);
+        let minutosAbs = 0;
+
+        if (match) {
+          const hrs = parseInt(match[1], 10) || 0;
+          const mins = parseInt(match[2], 10) || 0;
+          minutosAbs = hrs * 60 + mins;
+        } else {
+          minutosAbs = Math.abs(hmToMin(valorString));
+        }
+
+        if (descText.includes('DEBITO') || descText.includes('DÉBITO')) {
+          debitMins += minutosAbs;
+        } else if (descText.includes('CREDITO') || descText.includes('CRÉDITO')) {
+          creditMins += minutosAbs;
+        } else if (valorString.startsWith('-') || String(r.status || '').toUpperCase().includes('DEBITO')) {
+          debitMins += minutosAbs;
+        } else {
+          creditMins += minutosAbs;
+        }
 
         if (r.a_vencer_em_dias > 0 && r.a_vencer_em_dias <= 30) {
           criticalCount++;
@@ -185,7 +285,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
   }, [technicians, records]);
 
   // ==========================================
-  // CONSOLIDADO GERAL (SOMA DE TODOS OS COLABORADORES)
+  // CONSOLIDADO GERAL DA EQUIPE
   // ==========================================
   const consolidatedStats = useMemo(() => {
     let totalGeralCreditosMin = 0;
@@ -208,7 +308,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
     };
   }, [collaboratorsSummary]);
 
-  // Records filtered for current selected technician
+  // Registros do colaborador individual selecionado
   const userRecords = useMemo(() => {
     if (!currentTech && !currentUser) return [];
 
@@ -231,7 +331,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
     });
   }, [records, currentTech, currentUser]);
 
-  // Calculations for current selected technician
+  // Cálculos do extrato individual com a regra de ouro na coluna 'descricao'
   const userStats = useMemo(() => {
     let totalCreditMins = 0;
     let totalDebitMins = 0;
@@ -239,16 +339,33 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
     let criticalMins = 0;
 
     userRecords.forEach(r => {
-      const mins = hmToMin(r.saldo_a_compensar, r.status);
-      if (mins > 0) {
-        totalCreditMins += mins;
-      } else if (mins < 0) {
-        totalDebitMins += Math.abs(mins);
+      const descText = String(r.descricao || r.status || '').toUpperCase();
+      const valorString = String(r.saldo_compensar || r.saldo_a_compensar || '00:00');
+      const match = valorString.match(/(\d+):(\d+)/);
+      let minutosAbs = 0;
+
+      if (match) {
+        const hrs = parseInt(match[1], 10) || 0;
+        const mins = parseInt(match[2], 10) || 0;
+        minutosAbs = hrs * 60 + mins;
+      } else {
+        minutosAbs = Math.abs(hmToMin(valorString));
+      }
+
+      // Regra de ouro da coluna 'descricao':
+      if (descText.includes('DEBITO') || descText.includes('DÉBITO')) {
+        totalDebitMins += minutosAbs;
+      } else if (descText.includes('CREDITO') || descText.includes('CRÉDITO')) {
+        totalCreditMins += minutosAbs;
+      } else if (valorString.startsWith('-') || String(r.status || '').toUpperCase().includes('DEBITO')) {
+        totalDebitMins += minutosAbs;
+      } else {
+        totalCreditMins += minutosAbs;
       }
 
       if (r.a_vencer_em_dias > 0 && r.a_vencer_em_dias <= 30) {
         criticalCount++;
-        criticalMins += Math.abs(mins);
+        criticalMins += minutosAbs;
       }
     });
 
@@ -263,26 +380,33 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
     };
   }, [userRecords]);
 
-  // Filtered detailed entries for selected technician
+  // Filtros de busca no extrato detalhado
   const filteredRecords = useMemo(() => {
     return userRecords.filter(r => {
+      const descText = String(r.descricao || '').toLowerCase();
+      const statusText = String(r.status || '').toLowerCase();
+      const saldoText = String(r.saldo_compensar || r.saldo_a_compensar || '').toLowerCase();
+
       const matchesSearch =
         !searchTerm ||
-        r.descricao?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.saldo_a_compensar.includes(searchTerm);
+        descText.includes(searchTerm.toLowerCase()) ||
+        statusText.includes(searchTerm.toLowerCase()) ||
+        saldoText.includes(searchTerm.toLowerCase());
+
+      const isDeb = descText.includes('debito') || descText.includes('débito') || statusText.includes('debito');
+      const isCred = descText.includes('credito') || descText.includes('crédito') || statusText.includes('credito');
 
       const matchesStatus =
         statusFilter === 'ALL' ||
-        (statusFilter === 'CREDITO' && (r.status.includes('CREDITO') || r.status.includes('CRÉDITO'))) ||
-        (statusFilter === 'DEBITO' && (r.status.includes('DEBITO') || r.status.includes('DÉBITO'))) ||
+        (statusFilter === 'CREDITO' && isCred) ||
+        (statusFilter === 'DEBITO' && isDeb) ||
         (statusFilter === 'CRITICO' && r.a_vencer_em_dias <= 30);
 
       return matchesSearch && matchesStatus;
     });
   }, [userRecords, searchTerm, statusFilter]);
 
-  // Filtered collaborator summary list for admin table
+  // Filtro de colaboradores no painel admin
   const filteredCollaborators = useMemo(() => {
     return collaboratorsSummary.filter(c => {
       const matchesSearch =
@@ -301,10 +425,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
     });
   }, [collaboratorsSummary, colabSearchTerm, colabFilter]);
 
-  // Color condition for general consolidated balance:
   const isGeralPositive = consolidatedStats.totalGeralSaldoMin >= 0;
-
-  // Color condition for individual user balance:
   const isUserPositive = userStats.saldoRealMin >= 0;
 
   return (
@@ -318,17 +439,29 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
             <div>
               <h2 className="text-lg font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                 <Users className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                <span>Banco de Horas Geral — Consolidado da Equipe</span>
+                <span>Banco de Horas Geral — Consolidado Supabase Cloud</span>
               </h2>
               <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                Cálculo em minutos inteiros de todos os colaboradores ({collaboratorsSummary.length} técnicos mapeados)
+                Indexação direta da coluna 'descricao' em tempo real ({collaboratorsSummary.length} técnicos mapeados)
               </p>
             </div>
+
+            <button
+              type="button"
+              onClick={carregarBancoHorasSupabase}
+              disabled={isLoadingCloud}
+              className={`px-3 py-1.5 rounded-xl border font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs ${
+                darkMode ? 'border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+              }`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingCloud ? 'animate-spin text-indigo-500' : ''}`} />
+              <span>{isLoadingCloud ? 'Atualizando...' : 'Recarregar Nuvem'}</span>
+            </button>
           </div>
 
           {/* KPI CARDS: GERAL CONSOLIDADO */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* CARD 'SALDO ATUAL' (Bloco Geral Consolidado) com coloração dinâmica Verde/Vermelho */}
+            {/* CARD 'SALDO ATUAL' (Bloco Geral Consolidado) */}
             <div
               className={`p-5 rounded-3xl border shadow-sm relative overflow-hidden flex flex-col justify-between transition-all ${
                 isGeralPositive
@@ -391,7 +524,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
                   {formatHM(consolidatedStats.totalGeralCreditosMin)}
                 </div>
                 <p className={`text-xs mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Soma de todas as horas extras registradas no sistema
+                  Acumulado de horas crédito identificadas pela coluna 'descricao'
                 </p>
               </div>
             </div>
@@ -413,7 +546,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
                   -{formatHM(consolidatedStats.totalGeralDebitosMin).replace(/^[+-]/, '')}
                 </div>
                 <p className={`text-xs mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Soma de todas as saídas antecipadas e folgas usufruídas
+                  Acumulado de horas débito identificadas pela coluna 'descricao'
                 </p>
               </div>
             </div>
@@ -432,7 +565,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
                   <span>Tabela de Detalhamento por Colaborador</span>
                 </h3>
                 <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Visão comparativa com coloração dinâmica por linha (Verde para Crédito e Vermelho para Débito)
+                  Visão individualizada sincronizada diretamente do banco de dados
                 </p>
               </div>
 
@@ -610,7 +743,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
             </div>
             <div>
               <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                {isAdmin ? 'Visualizando Técnico Selecionado (Sincronizado):' : 'Seu Extrato Individual:'}
+                {isAdmin ? 'Visualizando Técnico Selecionado (Sincronizado Supabase):' : 'Seu Extrato Individual (Supabase Cloud):'}
               </span>
               <span className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white flex items-center gap-2">
                 <span>Extrato do Banco de Horas — {currentTech ? currentTech.name : (currentUser?.name || 'Colaborador')}</span>
@@ -759,7 +892,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
                 <span>Extrato Detalhado de Lançamentos</span>
               </h3>
               <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                Lançamentos individuais importados do sistema corporativo com coloração dinâmica por status
+                Lançamentos registrados no Supabase com coloração baseada na coluna 'descricao'
               </p>
             </div>
 
@@ -817,8 +950,19 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-200/10">
                   {filteredRecords.map((r, idx) => {
-                    const mins = hmToMin(r.saldo_a_compensar, r.status);
-                    const isCredit = mins >= 0;
+                    const descText = String(r.descricao || r.status || '').toUpperCase();
+                    const valorString = String(r.saldo_compensar || r.saldo_a_compensar || '00:00');
+                    const match = valorString.match(/(\d+):(\d+)/);
+                    let minutosAbs = 0;
+
+                    if (match) {
+                      minutosAbs = (parseInt(match[1], 10) || 0) * 60 + (parseInt(match[2], 10) || 0);
+                    } else {
+                      minutosAbs = Math.abs(hmToMin(valorString));
+                    }
+
+                    const isDebit = descText.includes('DEBITO') || descText.includes('DÉBITO') || valorString.startsWith('-');
+                    const isCredit = !isDebit;
                     const isCritico = r.a_vencer_em_dias > 0 && r.a_vencer_em_dias <= 30;
 
                     return (
@@ -852,14 +996,14 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
                                 : 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
                             }`}
                           >
-                            {r.status}
+                            {isCredit ? 'CRÉDITO' : 'DÉBITO'}
                           </span>
                         </td>
 
                         {/* Coluna Saldo com Verde (#16a34a) ou Vermelho (#dc2626) */}
                         <td className="p-3 font-mono font-black text-sm whitespace-nowrap">
                           <span className={isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
-                            {formatHM(mins)}
+                            {isCredit ? `+${formatHM(minutosAbs).replace(/^[+-]/, '')}` : `-${formatHM(minutosAbs).replace(/^[+-]/, '')}`}
                           </span>
                         </td>
 

@@ -86,17 +86,17 @@ export function formatSaldoString(raw: string): string {
 
 /**
  * Converte o formato 'HH:MM' (da coluna saldo_compensar/saldo_a_compensar) para minutos inteiros.
- * Se o registro for do tipo 'DEBITO', o valor em minutos é tratado como negativo.
+ * Se o registro/descrição for do tipo 'DEBITO', o valor em minutos é tratado como negativo.
  * Se for 'CREDITO', é tratado como positivo.
  */
-export function hmToMin(valorString: string, status?: string): number {
+export function hmToMin(valorString: string, statusOrDescricao?: string): number {
   if (!valorString) return 0;
   const clean = String(valorString).trim();
   if (!clean) return 0;
 
-  const statusUpper = (status || '').toUpperCase().trim();
-  const isDebitoStatus = statusUpper.includes('DEBITO') || statusUpper.includes('DÉBITO');
-  const isCreditoStatus = statusUpper.includes('CREDITO') || statusUpper.includes('CRÉDITO');
+  const descUpper = (statusOrDescricao || '').toUpperCase().trim();
+  const isDebito = descUpper.includes('DEBITO') || descUpper.includes('DÉBITO');
+  const isCredito = descUpper.includes('CREDITO') || descUpper.includes('CRÉDITO');
 
   const startsWithMinus = clean.startsWith('-');
   const startsWithPlus = clean.startsWith('+');
@@ -116,10 +116,10 @@ export function hmToMin(valorString: string, status?: string): number {
     }
   }
 
-  if (isDebitoStatus) {
+  if (isDebito) {
     return -absMinutes;
   }
-  if (isCreditoStatus) {
+  if (isCredito) {
     return absMinutes;
   }
   if (startsWithMinus || clean.includes('-')) {
@@ -130,6 +130,57 @@ export function hmToMin(valorString: string, status?: string): number {
   }
 
   return absMinutes;
+}
+
+/**
+ * REGRA DE OURO DO SISTEMA:
+ * Ao ler as linhas da tabela 'banco_horas' no Supabase:
+ * - Se 'descricao' tiver a palavra 'DEBITO', converte 'saldo_compensar' para minutos e classifica como DÉBITO.
+ * - Se 'descricao' tiver a palavra 'CREDITO', converte 'saldo_compensar' para minutos e classifica como CRÉDITO.
+ */
+export function parseBancoHorasRowMinutes(row: {
+  descricao?: string;
+  saldo_compensar?: string;
+  saldo_a_compensar?: string;
+  status?: string;
+}): { minutos: number; isDebito: boolean; isCredito: boolean } {
+  const descRaw = String(row.descricao || '').toUpperCase();
+  const statusRaw = String(row.status || '').toUpperCase();
+  const fullText = `${descRaw} ${statusRaw}`.trim();
+
+  const valorStr = String(row.saldo_compensar || row.saldo_a_compensar || '00:00').trim();
+  const match = valorStr.match(/(\d+):(\d+)/);
+  let absMinutes = 0;
+
+  if (match) {
+    const hrs = parseInt(match[1], 10) || 0;
+    const mins = parseInt(match[2], 10) || 0;
+    absMinutes = hrs * 60 + mins;
+  } else {
+    const numericOnly = valorStr.replace(/[^0-9.,-]/g, '').replace(',', '.');
+    const floatVal = parseFloat(numericOnly);
+    if (!isNaN(floatVal)) {
+      absMinutes = Math.round(Math.abs(floatVal) * 60);
+    }
+  }
+
+  // 1. Se 'descricao' tiver 'DEBITO'
+  if (fullText.includes('DEBITO') || fullText.includes('DÉBITO')) {
+    return { minutos: absMinutes, isDebito: true, isCredito: false };
+  }
+
+  // 2. Se 'descricao' tiver 'CREDITO'
+  if (fullText.includes('CREDITO') || fullText.includes('CRÉDITO')) {
+    return { minutos: absMinutes, isDebito: false, isCredito: true };
+  }
+
+  // Fallback seguro baseado no sinal do saldo
+  const isNegative = valorStr.startsWith('-');
+  return {
+    minutos: absMinutes,
+    isDebito: isNegative,
+    isCredito: !isNegative
+  };
 }
 
 /**
@@ -156,10 +207,48 @@ export function formatHM(minutosTotais: number): string {
 }
 
 /**
+ * Normaliza qualquer linha vinda da tabela 'banco_horas' do Supabase garantindo
+ * a presença das colunas 'descricao' e 'saldo_compensar' devidamente indexadas.
+ */
+export function normalizeBancoHorasRecord(row: any): BancoHorasRecord {
+  const descRaw = String(row.descricao || row.motivo || row.description || '').trim();
+  const statusRaw = String(row.status || '').trim().toUpperCase();
+  const saldoRaw = String(row.saldo_compensar || row.saldo_a_compensar || row.saldo || row.saldo_horas || '00:00').trim();
+
+  let descFinal = descRaw;
+  if (!descFinal) {
+    descFinal = statusRaw ? `BANCO DE HORAS - ${statusRaw}` : 'BANCO DE HORAS';
+  } else if (!descFinal.toUpperCase().includes('DEBITO') && !descFinal.toUpperCase().includes('CREDITO')) {
+    if (statusRaw) {
+      descFinal = `${descFinal} (${statusRaw})`;
+    }
+  }
+
+  return {
+    id: row.id ? String(row.id) : undefined,
+    matricula: String(row.matricula || row.id_usuario || row.colaborador_id || ''),
+    nome_colaborador: String(row.nome_colaborador || row.nome || row.colaborador || row.nome_funcionario || row.name || ''),
+    cargo: row.cargo || undefined,
+    status: statusRaw || (descFinal.toUpperCase().includes('CREDITO') ? 'CRÉDITO' : 'DÉBITO'),
+    descricao: descFinal,
+    data_realizacao: row.data_realizacao || row.data || undefined,
+    data_vencimento: row.data_vencimento || row.vencimento || undefined,
+    saldo_a_compensar: saldoRaw,
+    saldo_compensar: saldoRaw,
+    a_vencer_em_dias: Number(row.a_vencer_em_dias ?? row.vencer_em_dias ?? row.dias_vencimento ?? row.dias_a_vencer ?? 0),
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
+}
+
+/**
  * Compatibilidade legada apontando para o motor central
  */
 export const saldoToMinutes = (saldo: string, status?: string): number => hmToMin(saldo, status);
 export const minutesToSaldo = (totalMinutes: number): string => formatHM(totalMinutes);
+
+
+
 
 
 export function parseBancoHorasCsv(content: string): ParseBancoHorasResult {
@@ -245,15 +334,27 @@ export function parseBancoHorasCsv(content: string): ParseBancoHorasResult {
       parsedDias = 0;
     }
 
+    const statusUpper = rawStatus.trim().toUpperCase();
+    let descIndexed = rawDescricao.trim();
+    if (!descIndexed) {
+      descIndexed = `BANCO DE HORAS - ${statusUpper}`;
+    } else {
+      const descUp = descIndexed.toUpperCase();
+      if (!descUp.includes('DEBITO') && !descUp.includes('CREDITO')) {
+        descIndexed = `${descIndexed} (${statusUpper})`;
+      }
+    }
+
     records.push({
       matricula: rawMatricula.trim(),
       nome_colaborador: rawNome.trim(),
       cargo: rawCargo.trim() || undefined,
-      status: rawStatus.trim().toUpperCase(),
-      descricao: rawDescricao.trim() || undefined,
+      status: statusUpper,
+      descricao: descIndexed,
       data_realizacao: isoRealizacao,
       data_vencimento: isoVencimento,
       saldo_a_compensar: formattedSaldo,
+      saldo_compensar: formattedSaldo,
       a_vencer_em_dias: parsedDias,
       created_at: new Date().toISOString()
     });

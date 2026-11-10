@@ -359,6 +359,7 @@ export interface BancoHorasRecord {
   data_realizacao?: string; // YYYY-MM-DD
   data_vencimento?: string; // YYYY-MM-DD
   saldo_a_compensar: string; // e.g. "08:00", "+02:30", "-01:15"
+  saldo_compensar?: string; // Coluna nativa no Supabase
   a_vencer_em_dias: number;
   created_at?: string;
   updated_at?: string;

@@ -74,26 +74,45 @@ export const BancoHorasModal: React.FC<BancoHorasModalProps> = ({
         await supabase
           .from('banco_horas')
           .delete()
-          .neq('id', '00000000-0000-0000-0000-000000000000');
+          .not('id', 'is', null);
       } catch (delErr) {
-        console.warn('Delete old banco_horas error:', delErr);
+        console.warn('Delete not null error, attempting neq fallback:', delErr);
+        try {
+          await supabase
+            .from('banco_horas')
+            .delete()
+            .neq('id', '00000000-0000-0000-0000-000000000000');
+        } catch (e2) {
+          console.warn('Fallback delete also failed:', e2);
+        }
       }
 
       setUploadProgress(`Inserindo ${parsedRecords.length} lançamentos no banco de dados...`);
 
-      // 2. Prepare payload for batch insert
-      const rowsToInsert = parsedRecords.map(r => ({
-        matricula: r.matricula,
-        nome_colaborador: r.nome_colaborador,
-        cargo: r.cargo || null,
-        status: r.status,
-        descricao: r.descricao || null,
-        data_realizacao: r.data_realizacao || null,
-        data_vencimento: r.data_vencimento || null,
-        saldo_a_compensar: r.saldo_a_compensar,
-        a_vencer_em_dias: r.a_vencer_em_dias,
-        updated_at: new Date().toISOString()
-      }));
+      // 2. Prepare payload for batch insert indexado por 'descricao' e 'saldo_compensar'
+      const rowsToInsert = parsedRecords.map(r => {
+        let desc = (r.descricao || '').trim();
+        const statusClean = (r.status || 'DÉBITO').trim().toUpperCase();
+        if (!desc) {
+          desc = `BANCO DE HORAS - ${statusClean}`;
+        } else if (!desc.toUpperCase().includes('DEBITO') && !desc.toUpperCase().includes('CREDITO')) {
+          desc = `${desc} (${statusClean})`;
+        }
+
+        return {
+          matricula: r.matricula,
+          nome_colaborador: r.nome_colaborador,
+          cargo: r.cargo || null,
+          status: statusClean,
+          descricao: desc,
+          data_realizacao: r.data_realizacao || null,
+          data_vencimento: r.data_vencimento || null,
+          saldo_compensar: r.saldo_a_compensar,
+          saldo_a_compensar: r.saldo_a_compensar,
+          a_vencer_em_dias: r.a_vencer_em_dias,
+          updated_at: new Date().toISOString()
+        };
+      });
 
       // Adaptive insert helper function
       const insertWithAdaptiveColumns = async (chunk: any[]) => {
@@ -113,31 +132,31 @@ export const BancoHorasModal: React.FC<BancoHorasModalProps> = ({
             const missingCol = match ? match[1] : null;
 
             if (missingCol === 'nome_colaborador') {
-              // Swap 'nome_colaborador' -> 'nome'
               currentRows = currentRows.map(r => {
                 const { nome_colaborador, ...rest } = r;
                 return { ...rest, nome: nome_colaborador };
               });
             } else if (missingCol === 'nome') {
-              // Swap 'nome' -> 'colaborador'
               currentRows = currentRows.map(r => {
                 const { nome, ...rest } = r;
                 return { ...rest, colaborador: (r as any).nome_colaborador || nome };
               });
+            } else if (missingCol === 'saldo_compensar') {
+              currentRows = currentRows.map(r => {
+                const { saldo_compensar, ...rest } = r;
+                return { ...rest, saldo_a_compensar: (r as any).saldo_compensar || (r as any).saldo_a_compensar };
+              });
             } else if (missingCol === 'saldo_a_compensar') {
-              // Swap 'saldo_a_compensar' -> 'saldo'
               currentRows = currentRows.map(r => {
                 const { saldo_a_compensar, ...rest } = r;
-                return { ...rest, saldo: saldo_a_compensar };
+                return { ...rest, saldo_compensar: (r as any).saldo_a_compensar || (r as any).saldo_compensar || (r as any).saldo };
               });
             } else if (missingCol === 'a_vencer_em_dias') {
-              // Swap 'a_vencer_em_dias' -> 'dias_vencimento'
               currentRows = currentRows.map(r => {
                 const { a_vencer_em_dias, ...rest } = r;
                 return { ...rest, dias_vencimento: a_vencer_em_dias };
               });
             } else if (missingCol) {
-              // Remove unmapped column from all rows to allow insert to succeed
               currentRows = currentRows.map(r => {
                 const copy = { ...r };
                 delete copy[missingCol];
@@ -174,14 +193,31 @@ export const BancoHorasModal: React.FC<BancoHorasModalProps> = ({
     }
   };
 
-  // Stats calculation for preview
-  const totalCreditosMins = parsedRecords
-    .filter(r => hmToMin(r.saldo_a_compensar, r.status) > 0)
-    .reduce((acc, r) => acc + hmToMin(r.saldo_a_compensar, r.status), 0);
+  // Stats calculation for preview utilizando a regra de ouro na coluna 'descricao'
+  let totalCreditosMins = 0;
+  let totalDebitosMins = 0;
 
-  const totalDebitosMins = parsedRecords
-    .filter(r => hmToMin(r.saldo_a_compensar, r.status) < 0)
-    .reduce((acc, r) => acc + Math.abs(hmToMin(r.saldo_a_compensar, r.status)), 0);
+  parsedRecords.forEach(r => {
+    const desc = ((r.descricao || '') + ' ' + (r.status || '')).toUpperCase();
+    const saldoStr = r.saldo_compensar || r.saldo_a_compensar || '00:00';
+    const match = saldoStr.match(/(\d+):(\d+)/);
+    let mins = 0;
+    if (match) {
+      mins = (parseInt(match[1], 10) || 0) * 60 + (parseInt(match[2], 10) || 0);
+    } else {
+      mins = Math.abs(hmToMin(saldoStr));
+    }
+
+    if (desc.includes('DEBITO') || desc.includes('DÉBITO')) {
+      totalDebitosMins += mins;
+    } else if (desc.includes('CREDITO') || desc.includes('CRÉDITO')) {
+      totalCreditosMins += mins;
+    } else if (saldoStr.startsWith('-')) {
+      totalDebitosMins += mins;
+    } else {
+      totalCreditosMins += mins;
+    }
+  });
 
   const criticosCount = parsedRecords.filter(r => r.a_vencer_em_dias > 0 && r.a_vencer_em_dias <= 30).length;
 

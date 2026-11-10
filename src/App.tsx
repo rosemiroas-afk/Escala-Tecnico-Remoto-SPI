@@ -34,6 +34,7 @@ import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { AtestadoUploadModal } from './components/AtestadoUploadModal';
 import { BancoHorasModal } from './components/BancoHorasModal';
 import { BancoHorasView } from './components/BancoHorasView';
+import { normalizeBancoHorasRecord } from './utils/csvBancoHorasParser';
 import { Check, X } from 'lucide-react';
 import { supabase } from './supabase';
 
@@ -515,20 +516,7 @@ export default function App() {
       : 'pendente'
   }), []);
 
-  const normalizeBancoHorasRecord = useCallback((row: any): BancoHorasRecord => ({
-    id: row.id ? String(row.id) : undefined,
-    matricula: String(row.matricula || row.id_usuario || row.colaborador_id || ''),
-    nome_colaborador: String(row.nome_colaborador || row.nome || row.colaborador || row.nome_funcionario || row.name || ''),
-    cargo: row.cargo || undefined,
-    status: String(row.status || 'DÉBITO').toUpperCase(),
-    descricao: row.descricao || undefined,
-    data_realizacao: row.data_realizacao || row.data || undefined,
-    data_vencimento: row.data_vencimento || row.vencimento || undefined,
-    saldo_a_compensar: String(row.saldo_a_compensar || row.saldo || row.saldo_horas || '00:00'),
-    a_vencer_em_dias: Number(row.a_vencer_em_dias ?? row.vencer_em_dias ?? row.dias_vencimento ?? row.dias_a_vencer ?? 0),
-    created_at: row.created_at,
-    updated_at: row.updated_at
-  }), []);
+
 
   // Real-time synchronization using Supabase for 100% cloud sync across devices
   useEffect(() => {
