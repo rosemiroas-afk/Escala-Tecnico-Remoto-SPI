@@ -5,9 +5,8 @@ import { AuditResult, isOffShift, isWorkingShift } from '../utils/validator';
 import { generateIndividualWhatsAppMessage } from '../utils/exportUtils';
 import { DDD_INFO } from '../data/defaultTechnicians';
 import { AtestadoViewerModal } from './AtestadoViewerModal';
-import { BancoHorasView } from './BancoHorasView';
 import { normalizeName } from '../utils/csvScheduleParser';
-import { normalizeBancoHorasRecord } from '../utils/csvBancoHorasParser';
+import { normalizeBancoHorasRecord, formatHM, hmToMin } from '../utils/csvBancoHorasParser';
 import { supabase } from '../supabase';
 import {
   User,
@@ -29,7 +28,9 @@ import {
   Eye,
   Trash2,
   Stethoscope,
-  ChevronDown
+  ChevronDown,
+  TrendingUp,
+  TrendingDown
 } from 'lucide-react';
 
 interface TechnicianViewProps {
@@ -248,6 +249,70 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
       supabase.removeChannel(channel);
     };
   }, [currentTech?.id, currentUser?.id, currentUser?.technicianId, buscarDadosDaEscala, buscarBancoHoras]);
+
+  // Atualização instantânea em caso de evento global de upload
+  useEffect(() => {
+    const handleBancoHorasUpdated = () => {
+      buscarBancoHoras();
+    };
+    window.addEventListener('banco-horas-updated', handleBancoHorasUpdated);
+    return () => {
+      window.removeEventListener('banco-horas-updated', handleBancoHorasUpdated);
+    };
+  }, [buscarBancoHoras]);
+
+  // Estatísticas resumidas de Banco de Horas do técnico selecionado (calculadas em minutos com base na coluna 'descricao')
+  const techBancoStats = useMemo(() => {
+    if (!currentTech) return { totalCreditMins: 0, totalDebitMins: 0, saldoRealMin: 0, criticalCount: 0 };
+
+    const targetNameNorm = normalizeName(currentTech.name || '');
+    const targetId = currentTech.id;
+
+    let totalCreditMins = 0;
+    let totalDebitMins = 0;
+    let criticalCount = 0;
+
+    userBancoHoras.forEach(r => {
+      const recMatricula = r.matricula || '';
+      const recNameNorm = normalizeName(r.nome_colaborador || '');
+      const isMatch =
+        (recMatricula && (recMatricula === targetId || recMatricula === currentTech.id)) ||
+        (recNameNorm && targetNameNorm && (recNameNorm === targetNameNorm || recNameNorm.includes(targetNameNorm) || targetNameNorm.includes(recNameNorm)));
+
+      if (isMatch) {
+        const descUpper = String(r.descricao || '').toUpperCase();
+        const valorString = String(r.saldo_compensar || r.saldo_a_compensar || '00:00');
+        const match = valorString.match(/(\d+):(\d+)/);
+        let mins = 0;
+
+        if (match) {
+          mins = (parseInt(match[1], 10) || 0) * 60 + (parseInt(match[2], 10) || 0);
+        } else {
+          mins = Math.abs(hmToMin(valorString));
+        }
+
+        // Regra estrita baseada na coluna 'descricao':
+        if (descUpper.includes('DEBITO') || descUpper.includes('DÉBITO') || valorString.startsWith('-')) {
+          totalDebitMins += mins;
+        } else {
+          totalCreditMins += mins;
+        }
+
+        if (r.a_vencer_em_dias > 0 && r.a_vencer_em_dias <= 30) {
+          criticalCount++;
+        }
+      }
+    });
+
+    const saldoRealMin = totalCreditMins - totalDebitMins;
+
+    return {
+      totalCreditMins,
+      totalDebitMins,
+      saldoRealMin,
+      criticalCount
+    };
+  }, [currentTech, userBancoHoras]);
 
   const techRequests = currentTech
     ? offRequests
@@ -671,6 +736,97 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         </div>
       </div>
 
+      {/* DESTAQUE NO TOPO: CARDS RESUMIDOS DE BANCO DE HORAS DO TÉCNICO */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+        {/* Card 1: SALDO ATUAL DO BANCO */}
+        <div
+          className={`p-4 sm:p-5 rounded-2xl border shadow-xs relative overflow-hidden flex flex-col justify-between transition-all ${
+            techBancoStats.saldoRealMin >= 0
+              ? darkMode
+                ? 'bg-emerald-950/40 border-emerald-600/80 text-emerald-200'
+                : 'bg-emerald-50/90 border-emerald-400 text-emerald-950'
+              : darkMode
+              ? 'bg-rose-950/40 border-rose-600/80 text-rose-200'
+              : 'bg-rose-50/90 border-rose-400 text-rose-950'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] uppercase font-extrabold tracking-wider opacity-90">
+              SALDO ATUAL DO BANCO
+            </span>
+            <div
+              className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-white shadow-xs ${
+                techBancoStats.saldoRealMin >= 0 ? 'bg-emerald-600' : 'bg-rose-600'
+              }`}
+            >
+              {techBancoStats.saldoRealMin >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+            </div>
+          </div>
+          <div>
+            <div
+              className={`text-2xl sm:text-3xl font-black font-mono tracking-tight ${
+                techBancoStats.saldoRealMin >= 0
+                  ? darkMode
+                    ? 'text-emerald-400'
+                    : 'text-emerald-600'
+                  : darkMode
+                  ? 'text-rose-400'
+                  : 'text-rose-600'
+              }`}
+            >
+              {formatHM(techBancoStats.saldoRealMin)}
+            </div>
+            <p className="text-[11px] mt-1 opacity-90 font-medium">
+              {techBancoStats.saldoRealMin >= 0 ? 'Crédito positivo a usufruir' : 'Débito pendente de compensação'}
+            </p>
+          </div>
+        </div>
+
+        {/* Card 2: TOTAL CRÉDITOS */}
+        <div
+          className={`p-4 sm:p-5 rounded-2xl border shadow-xs flex flex-col justify-between ${
+            darkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] uppercase font-bold text-slate-400">TOTAL CRÉDITOS</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+              ENTRADAS
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+              +{formatHM(techBancoStats.totalCreditMins).replace(/^[+-]/, '')}
+            </div>
+            <p className={`text-[11px] mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+              Horas extras acumuladas
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: TOTAL DÉBITOS */}
+        <div
+          className={`p-4 sm:p-5 rounded-2xl border shadow-xs flex flex-col justify-between ${
+            darkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] uppercase font-bold text-slate-400">TOTAL DÉBITOS</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-600 dark:text-rose-400">
+              SAÍDAS
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-black font-mono text-rose-600 dark:text-rose-400">
+              -{formatHM(techBancoStats.totalDebitMins).replace(/^[+-]/, '')}
+            </div>
+            <p className={`text-[11px] mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+              Folgas e saídas antecipadas
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Stats Summary Cards (Específicos do Mês Selecionado) - 2x2 grid on mobile */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* Double Weekend / Folga Duplada Card */}
@@ -854,15 +1010,6 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         </div>
       </div>
 
-      {/* NOVO: Banco de Horas do Colaborador (Saldo + Alertas de Vencimento CLT) */}
-      <BancoHorasView
-        records={userBancoHoras}
-        currentUser={currentUser}
-        technicians={technicians}
-        selectedTechId={currentTech?.id}
-        onSelectTechId={onSelectTechId}
-        darkMode={darkMode}
-      />
 
       {/* NOVO: Atestados Médicos Anexados do Colaborador (Organizados por Mês e por Data) */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">

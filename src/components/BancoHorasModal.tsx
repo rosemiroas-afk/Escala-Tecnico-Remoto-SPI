@@ -89,31 +89,35 @@ export const BancoHorasModal: React.FC<BancoHorasModalProps> = ({
 
       setUploadProgress(`Inserindo ${parsedRecords.length} lançamentos no banco de dados...`);
 
-      // 2. Mapeamento direto das colunas:
+      // 2. Mapeamento direto das colunas com todas as chaves em letras minúsculas:
       // Coluna 0 (FUNC_ID) -> matricula
       // Coluna 1 (NOME) -> nome_colaborador
-      // Coluna 3 (STATUS) -> Ativo (convertido no status tipo DEBITO/CREDITO pela coluna 4)
+      // Coluna 3 (STATUS) -> Ativo (convertido em status tipo DEBITO/CREDITO pela coluna 4)
       // Coluna 4 (DESCRICAO) -> Verificação de 'DEBITO' / 'CREDITO'
-      // Coluna 7 (SALDO A COMPENSAR) -> saldo_compensar em formato HH:MM
-      const rowsToInsert = parsedRecords.map(r => {
+      // Coluna 7 (SALDO A COMPENSAR) -> saldo_compensar e saldo_a_compensar em formato HH:MM
+      const dadosMapeados = parsedRecords.map(r => {
         const descUpper = String(r.descricao || '').toUpperCase();
         const isDeb = descUpper.includes('DEBITO') || descUpper.includes('DÉBITO') || String(r.saldo_compensar || r.saldo_a_compensar).startsWith('-');
         const tipoFinal = isDeb ? 'DÉBITO' : 'CRÉDITO';
+        const saldoVal = r.saldo_compensar || r.saldo_a_compensar || '00:00';
 
         return {
-          matricula: r.matricula,
-          nome_colaborador: r.nome_colaborador,
-          cargo: r.cargo || null,
+          matricula: String(r.matricula || '').trim(),
+          nome_colaborador: String(r.nome_colaborador || '').trim(),
+          cargo: r.cargo ? String(r.cargo).trim() : null,
           status: tipoFinal,
-          descricao: r.descricao,
+          descricao: String(r.descricao || '').trim(),
           data_realizacao: r.data_realizacao || null,
           data_vencimento: r.data_vencimento || null,
-          saldo_compensar: r.saldo_compensar || r.saldo_a_compensar,
-          saldo_a_compensar: r.saldo_a_compensar || r.saldo_compensar,
-          a_vencer_em_dias: r.a_vencer_em_dias,
+          saldo_compensar: saldoVal,
+          saldo_a_compensar: saldoVal,
+          a_vencer_em_dias: Number(r.a_vencer_em_dias || 0),
           updated_at: new Date().toISOString()
         };
       });
+
+      // Console.log antes do insert
+      console.log('Enviando dados:', dadosMapeados);
 
       // Adaptive insert helper function
       const insertWithAdaptiveColumns = async (chunk: any[]) => {
@@ -177,16 +181,20 @@ export const BancoHorasModal: React.FC<BancoHorasModalProps> = ({
       };
 
       // Insert in chunks of 100
-      for (let i = 0; i < rowsToInsert.length; i += 100) {
-        const chunk = rowsToInsert.slice(i, i + 100);
+      for (let i = 0; i < dadosMapeados.length; i += 100) {
+        const chunk = dadosMapeados.slice(i, i + 100);
         await insertWithAdaptiveColumns(chunk);
       }
 
+      // Alerta nativo visual
+      alert('Dados sincronizados com sucesso!');
+
+      // Notifica e força a chamada obrigatória da atualização da tela principal
       onSuccess(parsedRecords);
-      alert(`✅ Sucesso! ${parsedRecords.length} registros de Banco de Horas foram importados e salvos no Supabase.`);
+      window.dispatchEvent(new CustomEvent('banco-horas-updated'));
       onClose();
     } catch (err) {
-      console.error('Failed uploading banco_horas:', err);
+      console.error('Erro ao salvar no Supabase:', err);
       alert('Erro ao salvar Banco de Horas no Supabase. Verifique a conexão ou tabela.');
     } finally {
       setIsUploading(false);

@@ -516,13 +516,35 @@ export default function App() {
       : 'pendente'
   }), []);
 
+  // Busca e sincronização imediata do Banco de Horas do Supabase
+  const fetchBancoHoras = useCallback(async () => {
+    try {
+      const { data: bhData, error: bhError } = await supabase.from('banco_horas').select('*');
+      if (bhData && Array.isArray(bhData) && !bhError) {
+        setBancoHorasRecords(bhData.map(normalizeBancoHorasRecord));
+      }
+    } catch (err) {
+      console.error('Erro ao buscar banco_horas no Supabase:', err);
+    }
+  }, []);
 
+  // Ouvinte global para atualização instantânea sem F5
+  useEffect(() => {
+    const handleBancoHorasUpdated = () => {
+      fetchBancoHoras();
+    };
+    window.addEventListener('banco-horas-updated', handleBancoHorasUpdated);
+    return () => {
+      window.removeEventListener('banco-horas-updated', handleBancoHorasUpdated);
+    };
+  }, [fetchBancoHoras]);
 
   // Real-time synchronization using Supabase for 100% cloud sync across devices
   useEffect(() => {
     // 1. Fetch initial state
     const fetchData = async () => {
       try {
+        fetchBancoHoras();
         // A. Fetch Off Requests & Atestados from solicitacoes_folga
         const { data: folgas, error: folgasError } = await supabase.from('solicitacoes_folga').select('*');
         if (folgas && Array.isArray(folgas) && !folgasError) {
