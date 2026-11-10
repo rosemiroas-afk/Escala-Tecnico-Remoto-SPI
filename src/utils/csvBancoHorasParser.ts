@@ -1,3 +1,5 @@
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { BancoHorasRecord } from '../types';
 import { parseDateToIso } from './csvScheduleParser';
 
@@ -8,77 +10,38 @@ export interface ParseBancoHorasResult {
   errors: string[];
 }
 
-function detectDelimiter(lines: string[]): string {
-  let semicolonCount = 0;
-  let commaCount = 0;
-  let tabCount = 0;
-
-  for (const line of lines.slice(0, 15)) {
-    semicolonCount += (line.match(/;/g) || []).length;
-    commaCount += (line.match(/,/g) || []).length;
-    tabCount += (line.match(/\t/g) || []).length;
-  }
-
-  if (tabCount > semicolonCount && tabCount > commaCount) return '\t';
-  if (semicolonCount >= commaCount && semicolonCount > 0) return ';';
-  return ',';
-}
-
-function parseCsvLine(line: string, delimiter: string): string[] {
-  if (!line.includes('"')) {
-    return line.split(delimiter).map(s => s.trim());
-  }
-
-  const result: string[] = [];
-  let cur = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (c === delimiter && !inQuotes) {
-      result.push(cur.trim());
-      cur = '';
-    } else {
-      cur += c;
-    }
-  }
-  result.push(cur.trim());
-  return result;
-}
-
 /**
- * Normalizes saldo a compensar string into formatted HH:MM or sign + HH:MM
+ * Normaliza string de saldo em formato padronizado com sinal (+HH:MM ou -HH:MM)
  */
-export function formatSaldoString(raw: string): string {
+export function formatSaldoString(raw: string, forcedNegative?: boolean): string {
   if (!raw) return '00:00';
-  const clean = raw.trim().replace(/^["']|["']$/g, '');
+  const clean = String(raw).trim().replace(/^["']|["']$/g, '');
   if (!clean) return '00:00';
 
-  const isNegative = clean.includes('-') || clean.toLowerCase().includes('debito') || clean.toLowerCase().includes('débito');
-  const numericOnly = clean.replace(/[^0-9:.,]/g, '');
+  const isNegative =
+    forcedNegative ||
+    clean.includes('-') ||
+    clean.toLowerCase().includes('debito') ||
+    clean.toLowerCase().includes('débito');
 
-  if (numericOnly.includes(':')) {
-    const parts = numericOnly.split(':');
-    const hours = Math.abs(parseInt(parts[0], 10) || 0);
-    const mins = Math.abs(parseInt(parts[1], 10) || 0);
+  const match = clean.match(/(\d+):(\d+)/);
+  if (match) {
+    const hours = Math.abs(parseInt(match[1], 10) || 0);
+    const mins = Math.abs(parseInt(match[2], 10) || 0);
     const sign = isNegative ? '-' : '+';
-    return `${sign}${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+    const formattedHours = hours < 10 ? `0${hours}` : `${hours}`;
+    return `${sign}${formattedHours}:${String(mins).padStart(2, '0')}`;
   }
 
-  const floatVal = parseFloat(numericOnly.replace(',', '.'));
+  const numericOnly = clean.replace(/[^0-9:.,-]/g, '').replace(',', '.');
+  const floatVal = parseFloat(numericOnly);
   if (!isNaN(floatVal)) {
     const absVal = Math.abs(floatVal);
     const hours = Math.floor(absVal);
     const mins = Math.round((absVal - hours) * 60);
     const sign = isNegative || floatVal < 0 ? '-' : '+';
-    return `${sign}${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+    const formattedHours = hours < 10 ? `0${hours}` : `${hours}`;
+    return `${sign}${formattedHours}:${String(mins).padStart(2, '0')}`;
   }
 
   return clean;
@@ -247,28 +210,43 @@ export function normalizeBancoHorasRecord(row: any): BancoHorasRecord {
 export const saldoToMinutes = (saldo: string, status?: string): number => hmToMin(saldo, status);
 export const minutesToSaldo = (totalMinutes: number): string => formatHM(totalMinutes);
 
-
-
-
-
-export function parseBancoHorasCsv(content: string): ParseBancoHorasResult {
-  const cleanContent = content.charCodeAt(0) === 0xFEFF ? content.slice(1) : content;
-  const rawLines = cleanContent.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-
-  if (rawLines.length === 0) {
+/**
+ * PARSER DE PLANILHA / MATRIZ DE COLUNAS SEPARADAS (PADRÃO PLANILHA)
+ * Mapeamento direto das colunas:
+ * - Coluna 0 (ou 'FUNC_ID'): ID do funcionário
+ * - Coluna 1 (ou 'NOME'): Nome do colaborador
+ * - Coluna 2 (ou 'CARGO'): Cargo do colaborador
+ * - Coluna 3 (ou 'STATUS'): Status do colaborador (ex: Ativo)
+ * - Coluna 4 (ou 'DESCRICAO'): Descrição do lançamento (onde checaremos se contém 'DEBITO' ou 'CREDITO')
+ * - Coluna 5 (ou 'DATA REALIZAÇÃO'): Data de realização
+ * - Coluna 6 (ou 'DATA VENCIMENTO'): Data de vencimento
+ * - Coluna 7 (ou 'SALDO A COMPENSAR'): Horário em formato HH:MM
+ * - Coluna 8 (ou 'A_VENCER_EM_DIAS'): Dias a vencer
+ */
+export function parseMatrixToBancoHoras(rawMatrix: (string | number | any)[][]): ParseBancoHorasResult {
+  if (!rawMatrix || rawMatrix.length === 0) {
     return {
       records: [],
       totalLines: 0,
       validCount: 0,
-      errors: ['O arquivo selecionado está vazio.']
+      errors: ['O arquivo de planilha está vazio.']
     };
   }
 
-  const delimiter = detectDelimiter(rawLines);
-  const records: BancoHorasRecord[] = [];
-  const errors: string[] = [];
+  // Limpa linhas em branco ou vazias
+  const matrix = rawMatrix.filter(row => row && Array.isArray(row) && row.some(cell => String(cell ?? '').trim() !== ''));
 
-  let matriculaIdx = 0;
+  if (matrix.length === 0) {
+    return {
+      records: [],
+      totalLines: 0,
+      validCount: 0,
+      errors: ['O arquivo de planilha não contém linhas válidas.']
+    };
+  }
+
+  // Índices padrão conforme regra estrita do usuário:
+  let funcIdIdx = 0;
   let nomeIdx = 1;
   let cargoIdx = 2;
   let statusIdx = 3;
@@ -279,78 +257,105 @@ export function parseBancoHorasCsv(content: string): ParseBancoHorasResult {
   let aVencerDiasIdx = 8;
 
   let startIndex = 0;
-  const firstLineCols = parseCsvLine(rawLines[0], delimiter).map(c => c.toLowerCase().trim());
+  const firstRowCols = matrix[0].map(c => String(c ?? '').toLowerCase().trim());
 
-  const isHeader = firstLineCols.some(c =>
+  // Detecta se a primeira linha é cabeçalho
+  const isHeader = firstRowCols.some(c =>
+    c.includes('func') ||
     c.includes('matricula') ||
     c.includes('matrícula') ||
+    c.includes('id') ||
     c.includes('nome') ||
     c.includes('status') ||
+    c.includes('descricao') ||
+    c.includes('descrição') ||
     c.includes('saldo') ||
+    c.includes('compensar') ||
     c.includes('vencer')
   );
 
   if (isHeader) {
     startIndex = 1;
-    firstLineCols.forEach((col, idx) => {
-      if (col.includes('matricula') || col.includes('matrícula') || col.includes('id_colaborador')) matriculaIdx = idx;
-      else if (col.includes('nome') || col.includes('colaborador') || col.includes('funcionario')) nomeIdx = idx;
-      else if (col.includes('cargo') || col.includes('funcao')) cargoIdx = idx;
-      else if (col.includes('status') || col.includes('tipo')) statusIdx = idx;
-      else if (col.includes('descricao') || col.includes('descrição') || col.includes('motivo') || col.includes('obs')) descricaoIdx = idx;
-      else if (col.includes('realizacao') || col.includes('realização') || (col.includes('data') && !col.includes('vencimento'))) dataRealizacaoIdx = idx;
-      else if (col.includes('vencimento')) dataVencimentoIdx = idx;
-      else if (col.includes('saldo') || col.includes('compensar') || col.includes('horas')) saldoIdx = idx;
-      else if (col.includes('vencer') || col.includes('dias')) aVencerDiasIdx = idx;
+    firstRowCols.forEach((col, idx) => {
+      if (col.includes('func') || col.includes('matricula') || col.includes('matrícula') || col === 'id' || col.includes('id_colaborador')) {
+        funcIdIdx = idx;
+      } else if (col.includes('nome') || col.includes('colaborador') || col.includes('funcionario') || col.includes('funcionário')) {
+        nomeIdx = idx;
+      } else if (col.includes('cargo') || col.includes('funcao') || col.includes('função')) {
+        cargoIdx = idx;
+      } else if (col.includes('status') || col.includes('situacao') || col.includes('situação')) {
+        statusIdx = idx;
+      } else if (col.includes('descricao') || col.includes('descrição') || col.includes('motivo') || col.includes('lancamento') || col.includes('lançamento') || col.includes('obs')) {
+        descricaoIdx = idx;
+      } else if (col.includes('realizacao') || col.includes('realização') || (col.includes('data') && !col.includes('vencimento'))) {
+        dataRealizacaoIdx = idx;
+      } else if (col.includes('vencimento')) {
+        dataVencimentoIdx = idx;
+      } else if (col.includes('saldo') || col.includes('compensar') || col.includes('horas')) {
+        saldoIdx = idx;
+      } else if (col.includes('vencer') || col.includes('dias')) {
+        aVencerDiasIdx = idx;
+      }
     });
   }
 
-  for (let i = startIndex; i < rawLines.length; i++) {
-    const line = rawLines[i];
-    const cols = parseCsvLine(line, delimiter);
-    if (cols.length < 2) continue;
+  const records: BancoHorasRecord[] = [];
+  const errors: string[] = [];
 
-    const rawMatricula = cols[matriculaIdx] ?? (cols[0] || `MAT-${i}`);
-    const rawNome = cols[nomeIdx] ?? cols[1] ?? '';
-    const rawCargo = cols[cargoIdx] ?? '';
-    const rawStatus = cols[statusIdx] ?? 'DÉBITO';
-    const rawDescricao = cols[descricaoIdx] ?? '';
-    const rawDataRealizacao = cols[dataRealizacaoIdx] ?? '';
-    const rawDataVencimento = cols[dataVencimentoIdx] ?? '';
-    const rawSaldo = cols[saldoIdx] ?? '00:00';
-    const rawAVencerDias = cols[aVencerDiasIdx] ?? '0';
+  for (let i = startIndex; i < matrix.length; i++) {
+    const row = matrix[i];
+    if (!row || row.length < 2) continue;
 
-    if (!rawNome.trim() && !rawMatricula.trim()) {
-      errors.push(`Linha ${i + 1}: Colaborador não identificado`);
+    const rawFuncId = String(row[funcIdIdx] ?? row[0] ?? '').trim();
+    const rawNome = String(row[nomeIdx] ?? row[1] ?? '').trim();
+    const rawCargo = String(row[cargoIdx] ?? (row[2] !== undefined ? row[2] : '') ?? '').trim();
+    const rawStatusAtivo = String(row[statusIdx] ?? (row[3] !== undefined ? row[3] : 'Ativo') ?? 'Ativo').trim();
+    const rawDescricao = String(row[descricaoIdx] ?? (row[4] !== undefined ? row[4] : '') ?? '').trim();
+    const rawDataRealizacao = String(row[dataRealizacaoIdx] ?? (row[5] !== undefined ? row[5] : '') ?? '').trim();
+    const rawDataVencimento = String(row[dataVencimentoIdx] ?? (row[6] !== undefined ? row[6] : '') ?? '').trim();
+    const rawSaldo = String(row[saldoIdx] ?? (row[7] !== undefined ? row[7] : '00:00') ?? '00:00').trim();
+    const rawDias = String(row[aVencerDiasIdx] ?? (row[8] !== undefined ? row[8] : '0') ?? '0').trim();
+
+    if (!rawNome && !rawFuncId) {
       continue;
+    }
+
+    // REGRA DE OURO NA COLUNA 4 ('DESCRICAO'):
+    // Checamos se contém 'DEBITO' ou 'CREDITO'
+    const descUpper = rawDescricao.toUpperCase();
+    const isDebito = descUpper.includes('DEBITO') || descUpper.includes('DÉBITO') || rawSaldo.startsWith('-');
+    const isCredito = descUpper.includes('CREDITO') || descUpper.includes('CRÉDITO') || (!isDebito && (rawSaldo.startsWith('+') || !rawSaldo.startsWith('-')));
+
+    const tipoFinal: 'DÉBITO' | 'CRÉDITO' = isDebito ? 'DÉBITO' : 'CRÉDITO';
+
+    // Formatação precisa do saldo HH:MM respeitando o tipo
+    const formattedSaldo = formatSaldoString(rawSaldo, isDebito);
+
+    // Garante que a coluna 'descricao' contenha a palavra chave 'DEBITO' ou 'CREDITO'
+    let finalDescricao = rawDescricao;
+    if (isDebito && !descUpper.includes('DEBITO')) {
+      finalDescricao = finalDescricao ? `${finalDescricao} - DÉBITO` : 'BANCO DE HORAS - DÉBITO';
+    } else if (isCredito && !descUpper.includes('CREDITO')) {
+      finalDescricao = finalDescricao ? `${finalDescricao} - CRÉDITO` : 'BANCO DE HORAS - CRÉDITO';
+    }
+    if (!finalDescricao) {
+      finalDescricao = `BANCO DE HORAS - ${tipoFinal}`;
     }
 
     const isoRealizacao = parseDateToIso(rawDataRealizacao) || new Date().toISOString().slice(0, 10);
     const isoVencimento = parseDateToIso(rawDataVencimento) || undefined;
-    const formattedSaldo = formatSaldoString(rawSaldo);
 
-    let parsedDias = parseInt(rawAVencerDias.replace(/\D/g, ''), 10);
+    let parsedDias = parseInt(rawDias.replace(/\D/g, ''), 10);
     if (isNaN(parsedDias)) {
       parsedDias = 0;
     }
 
-    const statusUpper = rawStatus.trim().toUpperCase();
-    let descIndexed = rawDescricao.trim();
-    if (!descIndexed) {
-      descIndexed = `BANCO DE HORAS - ${statusUpper}`;
-    } else {
-      const descUp = descIndexed.toUpperCase();
-      if (!descUp.includes('DEBITO') && !descUp.includes('CREDITO')) {
-        descIndexed = `${descIndexed} (${statusUpper})`;
-      }
-    }
-
     records.push({
-      matricula: rawMatricula.trim(),
-      nome_colaborador: rawNome.trim(),
-      cargo: rawCargo.trim() || undefined,
-      status: statusUpper,
-      descricao: descIndexed,
+      matricula: rawFuncId || `FUNC-${i}`,
+      nome_colaborador: rawNome,
+      cargo: rawCargo || (rawStatusAtivo !== 'Ativo' && rawStatusAtivo !== 'A' ? rawStatusAtivo : undefined),
+      status: tipoFinal,
+      descricao: finalDescricao,
       data_realizacao: isoRealizacao,
       data_vencimento: isoVencimento,
       saldo_a_compensar: formattedSaldo,
@@ -362,8 +367,51 @@ export function parseBancoHorasCsv(content: string): ParseBancoHorasResult {
 
   return {
     records,
-    totalLines: rawLines.length - startIndex,
+    totalLines: matrix.length - startIndex,
     validCount: records.length,
     errors
   };
+}
+
+/**
+ * Lê string de CSV utilizando PapaParse em modo matriz de colunas nativas (sem juntar em texto único)
+ */
+export function parseBancoHorasCsv(content: string): ParseBancoHorasResult {
+  const cleanContent = content.charCodeAt(0) === 0xFEFF ? content.slice(1) : content;
+
+  // PapaParse mapeia o arquivo automaticamente como matriz de colunas separadas
+  const parsed = Papa.parse<(string | number)[]>(cleanContent, {
+    header: false,
+    skipEmptyLines: 'greedy',
+    delimiter: '', // auto-detecta: tabulação, ponto e vírgula, vírgula, pipe
+    dynamicTyping: false
+  });
+
+  const matrix = parsed.data || [];
+  return parseMatrixToBancoHoras(matrix);
+}
+
+/**
+ * Lê qualquer arquivo (.csv, .xlsx, .xls, .tsv, .txt) diretamente como matriz de colunas
+ */
+export async function parseBancoHorasFile(file: File): Promise<ParseBancoHorasResult> {
+  const fileName = file.name.toLowerCase();
+
+  // Se for planilha binária do Excel (.xlsx ou .xls)
+  if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const matrix = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as (string | number)[][];
+      return parseMatrixToBancoHoras(matrix);
+    } catch (err) {
+      console.warn('Falha no parser binário XLSX, tentando ler como texto:', err);
+    }
+  }
+
+  // Arquivo de texto CSV / TSV / TXT lido via PapaParse
+  const text = await file.text();
+  return parseBancoHorasCsv(text);
 }

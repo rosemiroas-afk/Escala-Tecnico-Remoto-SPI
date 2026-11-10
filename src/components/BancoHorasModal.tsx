@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Upload, FileSpreadsheet, Check, AlertCircle, Download, Database } from 'lucide-react';
 import { BancoHorasRecord } from '../types';
-import { parseBancoHorasCsv, hmToMin, formatHM, saldoToMinutes, minutesToSaldo } from '../utils/csvBancoHorasParser';
+import { parseBancoHorasCsv, parseBancoHorasFile, hmToMin, formatHM, saldoToMinutes, minutesToSaldo } from '../utils/csvBancoHorasParser';
 import { supabase } from '../supabase';
 
 interface BancoHorasModalProps {
@@ -36,24 +36,24 @@ export const BancoHorasModal: React.FC<BancoHorasModalProps> = ({
     setFile(selectedFile);
     setParseErrors([]);
     try {
-      const text = await selectedFile.text();
-      const result = parseBancoHorasCsv(text);
+      // Lê o arquivo como matriz nativa de colunas (PapaParse para CSV/TSV e XLSX para planilhas)
+      const result = await parseBancoHorasFile(selectedFile);
       setParsedRecords(result.records);
       setParseErrors(result.errors);
     } catch (err) {
-      console.error('Error reading CSV:', err);
-      setParseErrors(['Falha ao ler o arquivo CSV. Certifique-se de que é um formato de texto válido.']);
+      console.error('Error reading spreadsheet:', err);
+      setParseErrors(['Falha ao processar arquivo. Certifique-se de que é uma planilha válida (.csv ou .xlsx).']);
     }
   };
 
   const handleDownloadTemplate = () => {
     const csvContent =
-      'Matricula do Colaborador,NOME,CARGO,STATUS,DESCRICAO,DATA REALIZAÇÃO,DATA VENCIMENTO,SALDO A COMPENSAR,A_VENCER_EM_DIAS\n' +
-      '1001,Adilson Jose da Silva,Técnico Remoto,CRÉDITO,Horas extras plantão final de semana,2026-10-15,2027-01-15,+08:00,65\n' +
-      '1002,Andre Luiz de Araujo,Técnico Remoto,DÉBITO,Folga antecipada compensação,2026-11-01,2026-12-01,-04:30,21\n' +
-      '1003,Paulo Sergio Carrara,Técnico Remoto,CRÉDITO,Atendimento emergencial noturno,2026-10-20,2027-01-20,+06:15,70\n';
+      'FUNC_ID\tNOME\tCARGO\tSTATUS\tDESCRICAO\tDATA REALIZAÇÃO\tDATA VENCIMENTO\tSALDO A COMPENSAR\tA_VENCER_EM_DIAS\n' +
+      '1001\tAdilson Jose da Silva\tTécnico Remoto\tAtivo\tHORAS EXTRAS PLANTÃO - CREDITO\t15/10/2026\t15/01/2027\t08:00\t65\n' +
+      '1002\tAndre Luiz de Araujo\tTécnico Remoto\tAtivo\tFOLGA ANTECIPADA - DEBITO\t01/11/2026\t01/12/2026\t-04:30\t21\n' +
+      '1003\tPaulo Sergio Carrara\tTécnico Remoto\tAtivo\tCOMPENSAÇÃO DE JORNADA - DEBITO\t20/10/2026\t20/01/2027\t-02:15\t70\n';
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csvContent], { type: 'text/tab-separated-values;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -89,26 +89,27 @@ export const BancoHorasModal: React.FC<BancoHorasModalProps> = ({
 
       setUploadProgress(`Inserindo ${parsedRecords.length} lançamentos no banco de dados...`);
 
-      // 2. Prepare payload for batch insert indexado por 'descricao' e 'saldo_compensar'
+      // 2. Mapeamento direto das colunas:
+      // Coluna 0 (FUNC_ID) -> matricula
+      // Coluna 1 (NOME) -> nome_colaborador
+      // Coluna 3 (STATUS) -> Ativo (convertido no status tipo DEBITO/CREDITO pela coluna 4)
+      // Coluna 4 (DESCRICAO) -> Verificação de 'DEBITO' / 'CREDITO'
+      // Coluna 7 (SALDO A COMPENSAR) -> saldo_compensar em formato HH:MM
       const rowsToInsert = parsedRecords.map(r => {
-        let desc = (r.descricao || '').trim();
-        const statusClean = (r.status || 'DÉBITO').trim().toUpperCase();
-        if (!desc) {
-          desc = `BANCO DE HORAS - ${statusClean}`;
-        } else if (!desc.toUpperCase().includes('DEBITO') && !desc.toUpperCase().includes('CREDITO')) {
-          desc = `${desc} (${statusClean})`;
-        }
+        const descUpper = String(r.descricao || '').toUpperCase();
+        const isDeb = descUpper.includes('DEBITO') || descUpper.includes('DÉBITO') || String(r.saldo_compensar || r.saldo_a_compensar).startsWith('-');
+        const tipoFinal = isDeb ? 'DÉBITO' : 'CRÉDITO';
 
         return {
           matricula: r.matricula,
           nome_colaborador: r.nome_colaborador,
           cargo: r.cargo || null,
-          status: statusClean,
-          descricao: desc,
+          status: tipoFinal,
+          descricao: r.descricao,
           data_realizacao: r.data_realizacao || null,
           data_vencimento: r.data_vencimento || null,
-          saldo_compensar: r.saldo_a_compensar,
-          saldo_a_compensar: r.saldo_a_compensar,
+          saldo_compensar: r.saldo_compensar || r.saldo_a_compensar,
+          saldo_a_compensar: r.saldo_a_compensar || r.saldo_compensar,
           a_vencer_em_dias: r.a_vencer_em_dias,
           updated_at: new Date().toISOString()
         };
@@ -285,16 +286,16 @@ export const BancoHorasModal: React.FC<BancoHorasModalProps> = ({
           }`}>
             <input
               type="file"
-              accept=".csv,.txt"
+              accept=".csv,.xlsx,.xls,.tsv,.txt"
               onChange={handleFileChange}
               className="hidden"
             />
             <Upload className={`w-10 h-10 mb-2 ${file ? 'text-emerald-500' : 'text-indigo-500'}`} />
             <span className="font-bold text-sm">
-              {file ? file.name : 'Clique para selecionar o arquivo .CSV do Banco de Horas'}
+              {file ? file.name : 'Clique para selecionar a planilha do Banco de Horas (.CSV ou .XLSX)'}
             </span>
             <span className={`text-xs mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-              Suporta formato exportado pela empresa com separador por vírgula ou ponto e vírgula
+              Suporta formato nativo de colunas (separadas por tabulação, vírgula, ponto e vírgula ou Excel)
             </span>
           </label>
 
