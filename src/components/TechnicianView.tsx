@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType, AppUser, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS, Atestado, BancoHorasRecord } from '../types';
 import { formatDisplayDate, formatFullDate, parseDateKey, isSaturday, isSunday, extractWeekends, MONTHS_PT } from '../utils/dateUtils';
 import { AuditResult, isOffShift, isWorkingShift } from '../utils/validator';
@@ -25,7 +25,8 @@ import {
   Download,
   Eye,
   Trash2,
-  Stethoscope
+  Stethoscope,
+  ChevronDown
 } from 'lucide-react';
 
 interface TechnicianViewProps {
@@ -38,6 +39,10 @@ interface TechnicianViewProps {
   currentUser: AppUser | null;
   atestados?: Atestado[];
   bancoHorasRecords?: BancoHorasRecord[];
+  selectedTechId?: string;
+  onSelectTechId?: (id: string) => void;
+  selectedMonth?: string;
+  onSelectMonth?: (monthKey: string) => void;
   onAddRequest: (req: Omit<OffRequest, 'id' | 'createdAt' | 'status'>) => void;
   onUpdateShift: (techId: string, date: string, shift: ShiftType) => void;
   onOpenRequestsModal?: (techId: string) => void;
@@ -57,6 +62,10 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   currentUser,
   atestados = [],
   bancoHorasRecords = [],
+  selectedTechId: propSelectedTechId,
+  onSelectTechId,
+  selectedMonth: propSelectedMonth,
+  onSelectMonth,
   onAddRequest,
   onUpdateShift,
   onOpenRequestsModal,
@@ -73,13 +82,34 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     ? currentUser.technicianId
     : activeTechs[0]?.id || '';
 
-  const [selectedTechId, setSelectedTechId] = useState<string>(initialTechId);
+  const [localSelectedTechId, setLocalSelectedTechId] = useState<string>(initialTechId);
   const [copied, setCopied] = useState<boolean>(false);
+
+  const activeTechId = propSelectedTechId || localSelectedTechId;
+
+  // Custom Dropdown Open/Close states & refs
+  const [isTechDropdownOpen, setIsTechDropdownOpen] = useState(false);
+  const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
+  const techDropdownRef = useRef<HTMLDivElement>(null);
+  const monthDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (techDropdownRef.current && !techDropdownRef.current.contains(event.target as Node)) {
+        setIsTechDropdownOpen(false);
+      }
+      if (monthDropdownRef.current && !monthDropdownRef.current.contains(event.target as Node)) {
+        setIsMonthDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Keep synced if user switches
   useEffect(() => {
     if (!isAdmin && currentUser?.technicianId) {
-      setSelectedTechId(currentUser.technicianId);
+      setLocalSelectedTechId(currentUser.technicianId);
     }
   }, [currentUser, isAdmin]);
 
@@ -87,7 +117,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   const [adminPickerDate, setAdminPickerDate] = useState<string | null>(null);
   const [viewerAtestado, setViewerAtestado] = useState<Atestado | null>(null);
 
-  const currentTech = technicians.find(t => t.id === selectedTechId) || activeTechs[0];
+  const currentTech = technicians.find(t => t.id === activeTechId) || activeTechs[0];
   const currentSched = currentTech ? schedules[currentTech.id] : null;
   const techRequests = currentTech
     ? offRequests
@@ -128,7 +158,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   }, [dates]);
 
   // Filtro de mês estrito (exibe exclusivamente um único mês por vez)
-  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+  const [localSelectedMonth, setLocalSelectedMonth] = useState<string>(() => {
     const targetKey = `${period.startYear}-${String(period.startMonth + 1).padStart(2, '0')}`;
     const set = new Set(dates.map(d => d.slice(0, 7)).filter(mKey => mKey >= '2026-11'));
     if (set.has(targetKey) && targetKey >= '2026-11') return targetKey;
@@ -136,10 +166,17 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
     return sorted[0] || '2026-11';
   });
 
+  const selectedMonth = propSelectedMonth || localSelectedMonth;
+
+  const handleSelectMonth = (mKey: string) => {
+    setLocalSelectedMonth(mKey);
+    onSelectMonth?.(mKey);
+  };
+
   // Mantém selectedMonth sincronizado se availableMonths mudar
   useEffect(() => {
     if (availableMonths.length > 0 && !availableMonths.includes(selectedMonth)) {
-      setSelectedMonth(availableMonths[0]);
+      handleSelectMonth(availableMonths[0]);
     }
   }, [availableMonths, selectedMonth]);
 
@@ -242,34 +279,27 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Profile / Selector Card */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">
-        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap flex-1 min-w-0">
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-2xs shrink-0">
             <User className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
 
-          <div>
+          <div className="flex-1 min-w-0">
             {isAdmin ? (
               <>
-                <label className="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
-                  Selecione o Técnico para Visualização Individual:
-                </label>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <select
-                    value={selectedTechId}
-                    onChange={e => setSelectedTechId(e.target.value)}
-                    className="text-sm sm:text-base font-normal text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 focus:ring-2 focus:ring-indigo-500 min-w-[240px] sm:min-w-[280px]"
-                  >
-                    {[...activeTechs]
-                      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
-                      .map(t => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
-                      ))}
-                  </select>
-                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-0.5">
+                  SELEÇÃO DE COLABORADOR:
+                </span>
+                <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
+                  {currentTech.name}
+                </h2>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                    DDD {currentTech.ddd}
+                  </span>
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1 border border-slate-200 dark:border-slate-700">
+                    <Clock className="w-3 h-3 text-indigo-500" />
                     Turno: {currentTech.shiftHours || '08:00 AS 16:20'}
                   </span>
                 </div>
@@ -299,8 +329,63 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
           </div>
         </div>
 
+        {/* Dropdown Flutuante dos Técnicos (Para Admin) */}
+        {isAdmin && (
+          <div className="relative w-full md:w-72 shrink-0" ref={techDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsTechDropdownOpen(prev => !prev)}
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-left flex items-center justify-between text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-750 transition-colors shadow-2xs cursor-pointer focus:ring-2 focus:ring-indigo-500"
+            >
+              <div className="flex items-center gap-2 truncate">
+                <User className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span className="truncate">{currentTech.name}</span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                  DDD {currentTech.ddd}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isTechDropdownOpen ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
+
+            {isTechDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-full max-h-52 overflow-y-auto p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl z-50 space-y-1 animate-in fade-in zoom-in-95">
+                {[...activeTechs]
+                  .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+                  .map(t => {
+                    const isSelected = activeTechId === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          setLocalSelectedTechId(t.id);
+                          onSelectTechId?.(t.id);
+                          setIsTechDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center justify-between ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <span className="truncate">{t.name}</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-2 shrink-0 ${
+                          isSelected ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                        }`}>
+                          DDD {t.ddd}
+                        </span>
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* WhatsApp Actions & Save */}
-        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+        <div className="flex items-center gap-2 sm:gap-3 w-full md:w-auto">
           {isAdmin && onSave && (
             <button
               onClick={() => {
@@ -343,55 +428,79 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         </div>
       </div>
 
-      {/* Month Selector Bar - Individual Mês a Mês */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 sm:p-5 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 transition-colors">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-2xs">
-            <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
+      {/* Month Selector Bar - Custom Dropdown Flutuante */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap flex-1 min-w-0">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-2xs">
+            <Calendar className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
               <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Filtro de Mês:
+                FILTRO DE MÊS:
               </span>
               <span className="text-[9px] sm:text-[10px] bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
                 1 Mês por vez
               </span>
             </div>
-            <h3 className="text-sm sm:text-lg font-black text-slate-900 dark:text-white capitalize mt-0.5">
+            <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white capitalize">
               {formatMonthName(selectedMonth)}
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 ml-2">
-                ({displayDates.length} dias no mês)
-              </span>
             </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {displayDates.length} dias no mês selecionado
+            </p>
           </div>
         </div>
 
-        {/* Botões dos Meses Disponíveis - Horizontal scroll on mobile */}
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 sm:p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto max-w-full">
-          {availableMonths.map((mKey: string) => {
-            const isSelected = selectedMonth === mKey;
-            const count = dates.filter(d => d.startsWith(mKey)).length;
-            return (
-              <button
-                key={mKey}
-                type="button"
-                onClick={() => setSelectedMonth(mKey)}
-                className={`px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
-                  isSelected
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                <span>{formatMonthName(mKey)}</span>
-                <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
-                  isSelected ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
-                }`}>
-                  {count}d
-                </span>
-              </button>
-            );
-          })}
+        {/* Dropdown Flutuante dos Meses */}
+        <div className="relative w-full md:w-72 shrink-0" ref={monthDropdownRef}>
+          <button
+            type="button"
+            onClick={() => setIsMonthDropdownOpen(prev => !prev)}
+            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-left flex items-center justify-between text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-750 transition-colors shadow-2xs cursor-pointer focus:ring-2 focus:ring-indigo-500"
+          >
+            <div className="flex items-center gap-2 truncate">
+              <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <span className="truncate capitalize">{formatMonthName(selectedMonth)}</span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0 ml-1">
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                {displayDates.length}d
+              </span>
+              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isMonthDropdownOpen ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+
+          {isMonthDropdownOpen && (
+            <div className="absolute right-0 top-full mt-1.5 w-full max-h-52 overflow-y-auto p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl z-50 space-y-1 animate-in fade-in zoom-in-95">
+              {availableMonths.map((mKey: string) => {
+                const isSelected = selectedMonth === mKey;
+                const count = dates.filter(d => d.startsWith(mKey)).length;
+                return (
+                  <button
+                    key={mKey}
+                    type="button"
+                    onClick={() => {
+                      handleSelectMonth(mKey);
+                      setIsMonthDropdownOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center justify-between ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white shadow-xs font-bold'
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="truncate">{formatMonthName(mKey)}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ml-2 shrink-0 ${
+                      isSelected ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}>
+                      {count}d
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -582,6 +691,8 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         records={bancoHorasRecords}
         currentUser={currentUser}
         technicians={technicians}
+        selectedTechId={currentTech?.id}
+        onSelectTechId={onSelectTechId}
         darkMode={darkMode}
       />
 

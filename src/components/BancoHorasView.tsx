@@ -8,6 +8,8 @@ interface BancoHorasViewProps {
   records: BancoHorasRecord[];
   currentUser: AppUser | null;
   technicians: Technician[];
+  selectedTechId?: string;
+  onSelectTechId?: (id: string) => void;
   darkMode: boolean;
 }
 
@@ -15,28 +17,27 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
   records,
   currentUser,
   technicians,
+  selectedTechId: propSelectedTechId,
+  onSelectTechId,
   darkMode
 }) => {
-  const [selectedTechId, setSelectedTechId] = useState<string>(() => {
-    if (currentUser?.technicianId) return currentUser.technicianId;
-    return technicians[0]?.id || '';
-  });
-
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
   const isAdmin = currentUser?.role === 'admin';
 
-  // Identify current target collaborator
+  // Identify current target collaborator based on shared selectedTechId
+  const activeTechId = propSelectedTechId || (!isAdmin && currentUser?.technicianId ? currentUser.technicianId : technicians[0]?.id || '');
+
   const currentTech = useMemo(() => {
-    if (isAdmin) {
-      return technicians.find(t => t.id === selectedTechId) || technicians[0];
+    if (activeTechId) {
+      return technicians.find(t => t.id === activeTechId) || technicians[0];
     }
-    if (currentUser?.technicianId) {
+    if (!isAdmin && currentUser?.technicianId) {
       return technicians.find(t => t.id === currentUser.technicianId) || null;
     }
-    return null;
-  }, [isAdmin, selectedTechId, currentUser, technicians]);
+    return technicians[0] || null;
+  }, [isAdmin, activeTechId, currentUser, technicians]);
 
   // Filter records matching this collaborator (by matricula or name similarity)
   const userRecords = useMemo(() => {
@@ -52,7 +53,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
       }
       // Match on normalized name
       const recNameNorm = normalizeName(r.nome_colaborador || '');
-      if (recNameNorm === targetNameNorm || recNameNorm.includes(targetNameNorm) || targetNameNorm.includes(recNameNorm)) {
+      if (recNameNorm && targetNameNorm && (recNameNorm === targetNameNorm || recNameNorm.includes(targetNameNorm) || targetNameNorm.includes(recNameNorm))) {
         return true;
       }
       return false;
@@ -113,30 +114,29 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Selector for Admin */}
-      {isAdmin && (
-        <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
-          darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        }`}>
-          <div className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-indigo-500" />
-            <span className="font-bold text-sm">Visualizando Banco de Horas do Técnico:</span>
+      {/* Header Info Banner confirming current technician (Sincronizado) */}
+      <div className={`p-4 rounded-2xl border flex items-center justify-between gap-3 ${
+        darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
+            <Clock className="w-5 h-5" />
           </div>
-          <select
-            value={selectedTechId}
-            onChange={(e) => setSelectedTechId(e.target.value)}
-            className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
-              darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-800'
-            }`}
-          >
-            {technicians.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.name} (DDD {t.ddd})
-              </option>
-            ))}
-          </select>
+          <div>
+            <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+              Sincronizado com o Filtro do Topo:
+            </span>
+            <span className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white flex items-center gap-2">
+              <span>Extrato do Banco de Horas — {currentTech ? currentTech.name : (currentUser?.name || 'Colaborador')}</span>
+              {currentTech?.ddd && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                  DDD {currentTech.ddd}
+                </span>
+              )}
+            </span>
+          </div>
         </div>
-      )}
+      </div>
 
       {/* Main KPI Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

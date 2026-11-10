@@ -364,6 +364,10 @@ export default function App() {
   // Active View Tab: For technicians, always 'individual'
   const [activeTab, setActiveTab] = useState<'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics' | 'banco_horas'>('matrix');
 
+  // Shared Global Selection States for Collaborator and Month
+  const [selectedTechId, setSelectedTechId] = useState<string>('tech-14-1');
+  const [selectedMonth, setSelectedMonth] = useState<string>('2026-11');
+
   // Modals
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [isRequestsOpen, setIsRequestsOpen] = useState(false);
@@ -1811,6 +1815,10 @@ export default function App() {
             currentUser={currentUser}
             atestados={atestados}
             bancoHorasRecords={bancoHorasRecords}
+            selectedTechId={selectedTechId}
+            onSelectTechId={setSelectedTechId}
+            selectedMonth={selectedMonth}
+            onSelectMonth={setSelectedMonth}
             onAddRequest={handleAddRequest}
             onUpdateShift={handleUpdateShift}
             onOpenRequestsModal={handleOpenRequestsModal}
@@ -1893,6 +1901,10 @@ export default function App() {
                 currentUser={currentUser}
                 atestados={atestados}
                 bancoHorasRecords={bancoHorasRecords}
+                selectedTechId={selectedTechId}
+                onSelectTechId={setSelectedTechId}
+                selectedMonth={selectedMonth}
+                onSelectMonth={setSelectedMonth}
                 onAddRequest={handleAddRequest}
                 onUpdateShift={handleUpdateShift}
                 onOpenRequestsModal={handleOpenRequestsModal}
@@ -1908,6 +1920,8 @@ export default function App() {
                 records={bancoHorasRecords}
                 currentUser={currentUser}
                 technicians={technicians}
+                selectedTechId={selectedTechId}
+                onSelectTechId={setSelectedTechId}
                 darkMode={darkMode}
               />
             )}
