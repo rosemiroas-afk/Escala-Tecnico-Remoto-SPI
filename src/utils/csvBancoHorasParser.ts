@@ -189,7 +189,7 @@ export function normalizeBancoHorasRecord(row: any): BancoHorasRecord {
 
   return {
     id: row.id ? String(row.id) : undefined,
-    matricula: String(row.matricula || row.id_usuario || row.colaborador_id || ''),
+    matricula: String(row.matricula || row.id_usuario || row.colaborador_id || row.func_id || ''),
     nome_colaborador: String(row.nome_colaborador || row.nome || row.colaborador || row.nome_funcionario || row.name || ''),
     cargo: row.cargo || undefined,
     status: statusRaw || (descFinal.toUpperCase().includes('CREDITO') ? 'CRÉDITO' : 'DÉBITO'),
@@ -199,9 +199,50 @@ export function normalizeBancoHorasRecord(row: any): BancoHorasRecord {
     saldo_a_compensar: saldoRaw,
     saldo_compensar: saldoRaw,
     a_vencer_em_dias: Number(row.a_vencer_em_dias ?? row.vencer_em_dias ?? row.dias_vencimento ?? row.dias_a_vencer ?? 0),
-    created_at: row.created_at,
+    created_at: row.created_at || row.updated_at,
     updated_at: row.updated_at
   };
+}
+
+/**
+ * Comparador inteligente de nomes de colaboradores
+ * Suporta abreviações do meio (ex: 'Ayrton Cesar S. Pereira' -> 'AYRTON CESAR DOS SANTOS PEREIRA')
+ */
+export function isCollaboratorNameMatch(nameA: string, nameB: string): boolean {
+  if (!nameA || !nameB) return false;
+  const normA = normalizeName(nameA);
+  const normB = normalizeName(nameB);
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+  if (normA.includes(normB) || normB.includes(normA)) return true;
+
+  const stopWords = ['DE', 'DA', 'DO', 'DOS', 'DAS', 'E'];
+  const tokensA = normA.split(' ').filter(t => t.length > 0 && !stopWords.includes(t));
+  const tokensB = normB.split(' ').filter(t => t.length > 0 && !stopWords.includes(t));
+
+  if (tokensA.length === 0 || tokensB.length === 0) return false;
+
+  const firstA = tokensA[0];
+  const firstB = tokensB[0];
+  const lastA = tokensA[tokensA.length - 1];
+  const lastB = tokensB[tokensB.length - 1];
+
+  // Se o primeiro e o último nome batem exatamente
+  if (firstA === firstB && lastA === lastB) {
+    return true;
+  }
+
+  // Se o primeiro nome bate e há correspondência nas iniciais ou tokens do meio
+  if (firstA === firstB) {
+    const hasCommonMiddle = tokensA.slice(1).some(tA =>
+      tokensB.slice(1).some(tB => tA === tB || (tA.length === 1 && tB.startsWith(tA)) || (tB.length === 1 && tA.startsWith(tB)))
+    );
+    if (hasCommonMiddle && (lastA === lastB || tokensB.includes(lastA) || tokensA.includes(lastB))) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -257,46 +298,49 @@ export function parseMatrixToBancoHoras(rawMatrix: (string | number | any)[][]):
   let aVencerDiasIdx = 8;
 
   let startIndex = 0;
-  const firstRowCols = matrix[0].map(c => String(c ?? '').toLowerCase().trim());
 
-  // Detecta se a primeira linha é cabeçalho
-  const isHeader = firstRowCols.some(c =>
-    c.includes('func') ||
-    c.includes('matricula') ||
-    c.includes('matrícula') ||
-    c.includes('id') ||
-    c.includes('nome') ||
-    c.includes('status') ||
-    c.includes('descricao') ||
-    c.includes('descrição') ||
-    c.includes('saldo') ||
-    c.includes('compensar') ||
-    c.includes('vencer')
-  );
+  // Varre as primeiras 5 linhas para encontrar a linha de cabeçalho real
+  for (let r = 0; r < Math.min(5, matrix.length); r++) {
+    const rowCols = matrix[r].map(c => String(c ?? '').toLowerCase().trim());
+    const isHeader = rowCols.some(c =>
+      c.includes('func') ||
+      c.includes('matricula') ||
+      c.includes('matrícula') ||
+      c.includes('id') ||
+      c.includes('nome') ||
+      c.includes('status') ||
+      c.includes('descricao') ||
+      c.includes('descrição') ||
+      c.includes('saldo') ||
+      c.includes('compensar') ||
+      c.includes('vencer')
+    );
 
-  if (isHeader) {
-    startIndex = 1;
-    firstRowCols.forEach((col, idx) => {
-      if (col.includes('func') || col.includes('matricula') || col.includes('matrícula') || col === 'id' || col.includes('id_colaborador')) {
-        funcIdIdx = idx;
-      } else if (col.includes('nome') || col.includes('colaborador') || col.includes('funcionario') || col.includes('funcionário')) {
-        nomeIdx = idx;
-      } else if (col.includes('cargo') || col.includes('funcao') || col.includes('função')) {
-        cargoIdx = idx;
-      } else if (col.includes('status') || col.includes('situacao') || col.includes('situação')) {
-        statusIdx = idx;
-      } else if (col.includes('descricao') || col.includes('descrição') || col.includes('motivo') || col.includes('lancamento') || col.includes('lançamento') || col.includes('obs')) {
-        descricaoIdx = idx;
-      } else if (col.includes('realizacao') || col.includes('realização') || (col.includes('data') && !col.includes('vencimento'))) {
-        dataRealizacaoIdx = idx;
-      } else if (col.includes('vencimento')) {
-        dataVencimentoIdx = idx;
-      } else if (col.includes('saldo') || col.includes('compensar') || col.includes('horas')) {
-        saldoIdx = idx;
-      } else if (col.includes('vencer') || col.includes('dias')) {
-        aVencerDiasIdx = idx;
-      }
-    });
+    if (isHeader) {
+      startIndex = r + 1;
+      rowCols.forEach((col, idx) => {
+        if (col.includes('func') || col.includes('matricula') || col.includes('matrícula') || col === 'id' || col.includes('id_colaborador')) {
+          funcIdIdx = idx;
+        } else if (col.includes('nome') || col.includes('colaborador') || col.includes('funcionario') || col.includes('funcionário')) {
+          nomeIdx = idx;
+        } else if (col.includes('cargo') || col.includes('funcao') || col.includes('função')) {
+          cargoIdx = idx;
+        } else if (col.includes('status') || col.includes('situacao') || col.includes('situação')) {
+          statusIdx = idx;
+        } else if (col.includes('descricao') || col.includes('descrição') || col.includes('motivo') || col.includes('lancamento') || col.includes('lançamento') || col.includes('obs')) {
+          descricaoIdx = idx;
+        } else if (col.includes('realizacao') || col.includes('realização') || (col.includes('data') && !col.includes('vencimento'))) {
+          dataRealizacaoIdx = idx;
+        } else if (col.includes('vencimento')) {
+          dataVencimentoIdx = idx;
+        } else if (col.includes('saldo') || col.includes('compensar') || col.includes('horas')) {
+          saldoIdx = idx;
+        } else if (col.includes('vencer') || col.includes('dias')) {
+          aVencerDiasIdx = idx;
+        }
+      });
+      break;
+    }
   }
 
   const records: BancoHorasRecord[] = [];
@@ -317,6 +361,21 @@ export function parseMatrixToBancoHoras(rawMatrix: (string | number | any)[][]):
     const rawDias = String(row[aVencerDiasIdx] ?? (row[8] !== undefined ? row[8] : '0') ?? '0').trim();
 
     if (!rawNome && !rawFuncId) {
+      continue;
+    }
+
+    // Descarta linhas repetidas de cabeçalho
+    const isHeaderRow =
+      rawNome.toLowerCase() === 'nome' ||
+      rawNome.toLowerCase().includes('colaborador') ||
+      rawFuncId.toLowerCase().includes('matricula') ||
+      rawFuncId.toLowerCase().includes('matrícula') ||
+      rawFuncId.toLowerCase().includes('func_id') ||
+      rawSaldo.toLowerCase().includes('saldo') ||
+      rawSaldo.toLowerCase().includes('compensar') ||
+      rawDescricao.toLowerCase().includes('descricao') ||
+      rawDescricao.toLowerCase().includes('descrição');
+    if (isHeaderRow) {
       continue;
     }
 

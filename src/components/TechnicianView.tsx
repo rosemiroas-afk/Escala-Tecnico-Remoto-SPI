@@ -6,7 +6,7 @@ import { generateIndividualWhatsAppMessage } from '../utils/exportUtils';
 import { DDD_INFO } from '../data/defaultTechnicians';
 import { AtestadoViewerModal } from './AtestadoViewerModal';
 import { normalizeName } from '../utils/csvScheduleParser';
-import { normalizeBancoHorasRecord, formatHM, hmToMin } from '../utils/csvBancoHorasParser';
+import { normalizeBancoHorasRecord, formatHM, hmToMin, isCollaboratorNameMatch } from '../utils/csvBancoHorasParser';
 import { supabase } from '../supabase';
 import {
   User,

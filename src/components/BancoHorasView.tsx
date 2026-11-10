@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { BancoHorasRecord, AppUser, Technician } from '../types';
-import { hmToMin, formatHM, normalizeBancoHorasRecord } from '../utils/csvBancoHorasParser';
+import { hmToMin, formatHM, normalizeBancoHorasRecord, isCollaboratorNameMatch } from '../utils/csvBancoHorasParser';
 import { normalizeName } from '../utils/csvScheduleParser';
 import { supabase } from '../supabase';
 import {
@@ -47,7 +47,19 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
   onSelectTechId,
   darkMode
 }) => {
-  const [records, setRecords] = useState<BancoHorasRecord[]>(initialRecords || []);
+  const [records, setRecords] = useState<BancoHorasRecord[]>(() => {
+    if (initialRecords && initialRecords.length > 0) return initialRecords;
+    try {
+      const saved = localStorage.getItem('escalamaster_banco_horas_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Erro ao inicializar banco de horas do localStorage', e);
+    }
+    return [];
+  });
   const [isLoadingCloud, setIsLoadingCloud] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -64,11 +76,23 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
         .from('banco_horas')
         .select('*');
 
-      if (data && Array.isArray(data) && !error) {
+      if (data && Array.isArray(data) && !error && data.length > 0) {
         const normalized = data.map(normalizeBancoHorasRecord);
         setRecords(normalized);
       } else if (initialRecords && initialRecords.length > 0) {
         setRecords(initialRecords);
+      } else {
+        try {
+          const saved = localStorage.getItem('escalamaster_banco_horas_v1');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setRecords(parsed.map(normalizeBancoHorasRecord));
+            }
+          }
+        } catch (e) {
+          console.warn('Erro ao ler localStorage', e);
+        }
       }
     } catch (err) {
       console.warn('Erro ao carregar banco_horas diretamente do Supabase:', err);
@@ -91,6 +115,11 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
   useEffect(() => {
     carregarBancoHorasSupabase();
 
+    const handleCustomUpdate = () => {
+      carregarBancoHorasSupabase();
+    };
+    window.addEventListener('banco-horas-updated', handleCustomUpdate);
+
     const channelName = `realtime-banco-horas-${Math.random().toString(36).substring(2, 8)}`;
     const channel = supabase
       .channel(channelName)
@@ -109,6 +138,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
       .subscribe();
 
     return () => {
+      window.removeEventListener('banco-horas-updated', handleCustomUpdate);
       supabase.removeChannel(channel);
     };
   }, [carregarBancoHorasSupabase]);
@@ -116,14 +146,12 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
   // Identifica o técnico logado se for visão de colaborador
   const loggedTech = useMemo(() => {
     if (isAdmin || !currentUser) return null;
-    const targetName = normalizeName(currentUser.name || '');
     return (
       technicians.find(
         t =>
           (currentUser.technicianId && t.id === currentUser.technicianId) ||
           (currentUser.id && t.id === currentUser.id) ||
-          (targetName && normalizeName(t.name) === targetName) ||
-          (targetName && (normalizeName(t.name).includes(targetName) || targetName.includes(normalizeName(t.name))))
+          isCollaboratorNameMatch(t.name, currentUser.name || '')
       ) || null
     );
   }, [technicians, currentUser, isAdmin]);
@@ -151,7 +179,6 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
 
     // 1. Processa todos os técnicos cadastrados
     technicians.forEach(tech => {
-      const targetNameNorm = normalizeName(tech.name || '');
       const targetId = tech.id;
 
       let techCreditMins = 0;
@@ -163,11 +190,10 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
       records.forEach((r, idx) => {
         const recId = r.id || `rec-${idx}`;
         const recMatricula = r.matricula || '';
-        const recNameNorm = normalizeName(r.nome_colaborador || '');
 
         const isMatch =
           (recMatricula && (recMatricula === targetId || recMatricula === tech.id)) ||
-          (recNameNorm && targetNameNorm && (recNameNorm === targetNameNorm || recNameNorm.includes(targetNameNorm) || targetNameNorm.includes(recNameNorm)));
+          isCollaboratorNameMatch(tech.name, r.nome_colaborador || '');
 
         if (isMatch) {
           matchedRecordIds.add(recId);
@@ -312,22 +338,14 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
   const userRecords = useMemo(() => {
     if (!currentTech && !currentUser) return [];
 
-    const targetNameNorm = normalizeName(currentTech?.name || currentUser?.name || '');
+    const targetName = currentTech?.name || currentUser?.name || '';
     const targetMatricula = currentUser?.id || currentTech?.id || '';
 
     return records.filter(r => {
       if (r.matricula && (r.matricula === targetMatricula || r.matricula === currentTech?.id)) {
         return true;
       }
-      const recNameNorm = normalizeName(r.nome_colaborador || '');
-      if (
-        recNameNorm &&
-        targetNameNorm &&
-        (recNameNorm === targetNameNorm || recNameNorm.includes(targetNameNorm) || targetNameNorm.includes(recNameNorm))
-      ) {
-        return true;
-      }
-      return false;
+      return isCollaboratorNameMatch(targetName, r.nome_colaborador || '');
     });
   }, [records, currentTech, currentUser]);
 

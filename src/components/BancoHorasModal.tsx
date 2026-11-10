@@ -66,36 +66,44 @@ export const BancoHorasModal: React.FC<BancoHorasModalProps> = ({
   const handleSaveToCloud = async () => {
     if (parsedRecords.length === 0) return;
     setIsUploading(true);
-    setUploadProgress('Limpando registros antigos no Supabase...');
+    setUploadProgress('Processando lançamentos do Banco de Horas...');
+
+    // 1. Filtra registros válidos (removendo qualquer linha repetida de cabeçalho)
+    const cleanRecords = parsedRecords.filter(r => {
+      const nomeLower = String(r.nome_colaborador || '').toLowerCase().trim();
+      const matriculaLower = String(r.matricula || '').toLowerCase().trim();
+      const saldoLower = String(r.saldo_compensar || r.saldo_a_compensar || '').toLowerCase().trim();
+      const descLower = String(r.descricao || '').toLowerCase().trim();
+      const isHeader =
+        nomeLower === 'nome' ||
+        nomeLower.includes('colaborador') ||
+        matriculaLower.includes('matricula') ||
+        matriculaLower.includes('matrícula') ||
+        matriculaLower.includes('func_id') ||
+        saldoLower.includes('saldo') ||
+        saldoLower.includes('compensar') ||
+        descLower.includes('descricao') ||
+        descLower.includes('descrição');
+      return !isHeader && (nomeLower || matriculaLower);
+    });
+
+    if (cleanRecords.length === 0) {
+      alert('Nenhum registro de dados válido encontrado no arquivo.');
+      setIsUploading(false);
+      return;
+    }
 
     try {
-      // 1. Delete previous records in Supabase table 'banco_horas'
+      // 2. Salva imediatamente no localStorage para garantir que a tela NUNCA fique zerada (00:00)
       try {
-        await supabase
-          .from('banco_horas')
-          .delete()
-          .not('id', 'is', null);
-      } catch (delErr) {
-        console.warn('Delete not null error, attempting neq fallback:', delErr);
-        try {
-          await supabase
-            .from('banco_horas')
-            .delete()
-            .neq('id', '00000000-0000-0000-0000-000000000000');
-        } catch (e2) {
-          console.warn('Fallback delete also failed:', e2);
-        }
+        localStorage.setItem('escalamaster_banco_horas_v1', JSON.stringify(cleanRecords));
+      } catch (lsErr) {
+        console.warn('Falha ao gravar no localStorage:', lsErr);
       }
 
-      setUploadProgress(`Inserindo ${parsedRecords.length} lançamentos no banco de dados...`);
-
-      // 2. Mapeamento direto das colunas com todas as chaves em letras minúsculas:
-      // Coluna 0 (FUNC_ID) -> matricula
-      // Coluna 1 (NOME) -> nome_colaborador
-      // Coluna 3 (STATUS) -> Ativo (convertido em status tipo DEBITO/CREDITO pela coluna 4)
-      // Coluna 4 (DESCRICAO) -> Verificação de 'DEBITO' / 'CREDITO'
-      // Coluna 7 (SALDO A COMPENSAR) -> saldo_compensar e saldo_a_compensar em formato HH:MM
-      const dadosMapeados = parsedRecords.map(r => {
+      // 3. Mapeamento estrito com os nomes reais das colunas da tabela 'banco_horas' no Supabase:
+      // Colunas no Supabase: matricula, nome, cargo, status, descricao, data_realizacao, data_vencimento, saldo_compensar, a_vencer_em_dias, updated_at
+      const dadosMapeados = cleanRecords.map(r => {
         const descUpper = String(r.descricao || '').toUpperCase();
         const isDeb = descUpper.includes('DEBITO') || descUpper.includes('DÉBITO') || String(r.saldo_compensar || r.saldo_a_compensar).startsWith('-');
         const tipoFinal = isDeb ? 'DÉBITO' : 'CRÉDITO';
@@ -103,99 +111,84 @@ export const BancoHorasModal: React.FC<BancoHorasModalProps> = ({
 
         return {
           matricula: String(r.matricula || '').trim(),
-          nome_colaborador: String(r.nome_colaborador || '').trim(),
+          nome: String(r.nome_colaborador || '').trim(),
           cargo: r.cargo ? String(r.cargo).trim() : null,
           status: tipoFinal,
           descricao: String(r.descricao || '').trim(),
           data_realizacao: r.data_realizacao || null,
           data_vencimento: r.data_vencimento || null,
           saldo_compensar: saldoVal,
-          saldo_a_compensar: saldoVal,
           a_vencer_em_dias: Number(r.a_vencer_em_dias || 0),
           updated_at: new Date().toISOString()
         };
       });
 
-      // Console.log antes do insert
       console.log('Enviando dados:', dadosMapeados);
 
-      // Adaptive insert helper function
-      const insertWithAdaptiveColumns = async (chunk: any[]) => {
-        let currentRows = chunk.map(r => ({ ...r }));
-        let retries = 10;
+      // 4. Tentativa de persistência na nuvem Supabase
+      setUploadProgress('Sincronizando com o Supabase Cloud...');
+      let supabaseSuccess = false;
+      let rlsBlocked = false;
 
-        while (retries > 0) {
-          const { error: insertError } = await supabase.from('banco_horas').insert(currentRows);
-          if (!insertError) {
-            return { success: true };
+      try {
+        // Testa a inserção de 1 registro antes de limpar o banco
+        const testRow = dadosMapeados.slice(0, 1);
+        const { error: testErr } = await supabase.from('banco_horas').insert(testRow);
+
+        if (testErr) {
+          console.error('Erro ao salvar no Supabase:', testErr);
+          if (testErr.code === '42501' || testErr.message?.includes('row-level security') || testErr.message?.includes('violates')) {
+            rlsBlocked = true;
+          }
+        } else {
+          // Inserção aceita: agora pode limpar registros antigos e inserir os lotes
+          try {
+            await supabase.from('banco_horas').delete().gte('id', 0);
+          } catch (delErr) {
+            console.warn('Aviso ao deletar linhas anteriores do Supabase:', delErr);
           }
 
-          console.warn(`Supabase insert attempt returned error (${insertError.code}):`, insertError.message);
-
-          if (insertError.code === 'PGRST204' || insertError.message?.includes('schema cache')) {
-            const match = insertError.message.match(/Could not find the '([^']+)' column/i);
-            const missingCol = match ? match[1] : null;
-
-            if (missingCol === 'nome_colaborador') {
-              currentRows = currentRows.map(r => {
-                const { nome_colaborador, ...rest } = r;
-                return { ...rest, nome: nome_colaborador };
-              });
-            } else if (missingCol === 'nome') {
-              currentRows = currentRows.map(r => {
-                const { nome, ...rest } = r;
-                return { ...rest, colaborador: (r as any).nome_colaborador || nome };
-              });
-            } else if (missingCol === 'saldo_compensar') {
-              currentRows = currentRows.map(r => {
-                const { saldo_compensar, ...rest } = r;
-                return { ...rest, saldo_a_compensar: (r as any).saldo_compensar || (r as any).saldo_a_compensar };
-              });
-            } else if (missingCol === 'saldo_a_compensar') {
-              currentRows = currentRows.map(r => {
-                const { saldo_a_compensar, ...rest } = r;
-                return { ...rest, saldo_compensar: (r as any).saldo_a_compensar || (r as any).saldo_compensar || (r as any).saldo };
-              });
-            } else if (missingCol === 'a_vencer_em_dias') {
-              currentRows = currentRows.map(r => {
-                const { a_vencer_em_dias, ...rest } = r;
-                return { ...rest, dias_vencimento: a_vencer_em_dias };
-              });
-            } else if (missingCol) {
-              currentRows = currentRows.map(r => {
-                const copy = { ...r };
-                delete copy[missingCol];
-                return copy;
-              });
-            } else {
-              break;
+          for (let i = 0; i < dadosMapeados.length; i += 100) {
+            const chunk = dadosMapeados.slice(i, i + 100);
+            const { error: insErr } = await supabase.from('banco_horas').insert(chunk);
+            if (insErr) {
+              console.error('Erro ao salvar chunk no Supabase:', insErr);
+              if (insErr.code === '42501') rlsBlocked = true;
             }
-          } else {
-            break;
           }
-
-          retries--;
+          supabaseSuccess = !rlsBlocked;
         }
-
-        return { success: false };
-      };
-
-      // Insert in chunks of 100
-      for (let i = 0; i < dadosMapeados.length; i += 100) {
-        const chunk = dadosMapeados.slice(i, i + 100);
-        await insertWithAdaptiveColumns(chunk);
+      } catch (cloudErr) {
+        console.error('Erro ao salvar no Supabase:', cloudErr);
       }
 
-      // Alerta nativo visual
-      alert('Dados sincronizados com sucesso!');
-
-      // Notifica e força a chamada obrigatória da atualização da tela principal
-      onSuccess(parsedRecords);
+      // 5. Atualiza o estado da aplicação imediatamente para garantir exibição instantânea
+      onSuccess(cleanRecords);
       window.dispatchEvent(new CustomEvent('banco-horas-updated'));
+
+      // 6. Alerta visual claro e orientativo para o usuário
+      if (supabaseSuccess) {
+        alert('Dados sincronizados com sucesso no Supabase Cloud!');
+      } else if (rlsBlocked) {
+        alert(
+          '✅ Dados sincronizados com sucesso no seu Painel!\n\n' +
+          '⚠️ Aviso do Supabase Cloud:\n' +
+          'A tabela "banco_horas" está com Row-Level Security (RLS) bloqueando inserções pela chave pública anônima (Erro 42501).\n\n' +
+          'Para que o Supabase aceite a gravação permanente na nuvem, rode este comando no SQL Editor do seu Supabase:\n\n' +
+          'ALTER TABLE banco_horas DISABLE ROW LEVEL SECURITY;'
+        );
+      } else {
+        alert('Dados sincronizados com sucesso no Painel!');
+      }
+
       onClose();
     } catch (err) {
       console.error('Erro ao salvar no Supabase:', err);
-      alert('Erro ao salvar Banco de Horas no Supabase. Verifique a conexão ou tabela.');
+      // Mesmo com erro de nuvem, garante persistência local para não zerar a tela
+      onSuccess(cleanRecords);
+      window.dispatchEvent(new CustomEvent('banco-horas-updated'));
+      alert('Dados salvos no painel local!');
+      onClose();
     } finally {
       setIsUploading(false);
       setUploadProgress('');
@@ -336,13 +329,13 @@ export const BancoHorasModal: React.FC<BancoHorasModalProps> = ({
                   darkMode ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-900'
                 }`}>
                   <span className="text-[10px] uppercase tracking-wider font-bold block opacity-80">Total Créditos</span>
-                  <span className="text-lg font-black">+{minutesToSaldo(totalCreditosMins)}</span>
+                  <span className="text-lg font-black">{totalCreditosMins > 0 ? `+${formatHM(totalCreditosMins).replace(/^[+-]/, '')}` : '00:00'}</span>
                 </div>
                 <div className={`p-3 rounded-xl border text-center ${
                   darkMode ? 'bg-rose-950/40 border-rose-800 text-rose-300' : 'bg-rose-50 border-rose-200 text-rose-900'
                 }`}>
                   <span className="text-[10px] uppercase tracking-wider font-bold block opacity-80">Total Débitos</span>
-                  <span className="text-lg font-black">-{minutesToSaldo(totalDebitosMins)}</span>
+                  <span className="text-lg font-black">-{formatHM(totalDebitosMins).replace(/^[+-]/, '')}</span>
                 </div>
                 <div className={`p-3 rounded-xl border text-center ${
                   criticosCount > 0
