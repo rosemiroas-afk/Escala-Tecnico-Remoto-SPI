@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Upload, FileSpreadsheet, Check, AlertCircle, Download, Database } from 'lucide-react';
 import { BancoHorasRecord } from '../types';
-import { parseBancoHorasCsv, saldoToMinutes, minutesToSaldo } from '../utils/csvBancoHorasParser';
+import { parseBancoHorasCsv, hmToMin, formatHM, saldoToMinutes, minutesToSaldo } from '../utils/csvBancoHorasParser';
 import { supabase } from '../supabase';
 
 interface BancoHorasModalProps {
@@ -176,12 +176,12 @@ export const BancoHorasModal: React.FC<BancoHorasModalProps> = ({
 
   // Stats calculation for preview
   const totalCreditosMins = parsedRecords
-    .filter(r => saldoToMinutes(r.saldo_a_compensar) > 0)
-    .reduce((acc, r) => acc + saldoToMinutes(r.saldo_a_compensar), 0);
+    .filter(r => hmToMin(r.saldo_a_compensar, r.status) > 0)
+    .reduce((acc, r) => acc + hmToMin(r.saldo_a_compensar, r.status), 0);
 
   const totalDebitosMins = parsedRecords
-    .filter(r => saldoToMinutes(r.saldo_a_compensar) < 0)
-    .reduce((acc, r) => acc + Math.abs(saldoToMinutes(r.saldo_a_compensar)), 0);
+    .filter(r => hmToMin(r.saldo_a_compensar, r.status) < 0)
+    .reduce((acc, r) => acc + Math.abs(hmToMin(r.saldo_a_compensar, r.status)), 0);
 
   const criticosCount = parsedRecords.filter(r => r.a_vencer_em_dias > 0 && r.a_vencer_em_dias <= 30).length;
 

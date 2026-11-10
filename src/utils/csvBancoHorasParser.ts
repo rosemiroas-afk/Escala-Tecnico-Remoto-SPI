@@ -85,40 +85,82 @@ export function formatSaldoString(raw: string): string {
 }
 
 /**
- * Parses time string like "+08:30" or "-02:15" into total minutes integer
+ * Converte o formato 'HH:MM' (da coluna saldo_compensar/saldo_a_compensar) para minutos inteiros.
+ * Se o registro for do tipo 'DEBITO', o valor em minutos é tratado como negativo.
+ * Se for 'CREDITO', é tratado como positivo.
  */
-export function saldoToMinutes(saldo: string): number {
-  if (!saldo) return 0;
-  const clean = saldo.trim();
-  const isNegative = clean.startsWith('-') || clean.toLowerCase().includes('debito') || clean.toLowerCase().includes('débito');
+export function hmToMin(valorString: string, status?: string): number {
+  if (!valorString) return 0;
+  const clean = String(valorString).trim();
+  if (!clean) return 0;
+
+  const statusUpper = (status || '').toUpperCase().trim();
+  const isDebitoStatus = statusUpper.includes('DEBITO') || statusUpper.includes('DÉBITO');
+  const isCreditoStatus = statusUpper.includes('CREDITO') || statusUpper.includes('CRÉDITO');
+
+  const startsWithMinus = clean.startsWith('-');
+  const startsWithPlus = clean.startsWith('+');
 
   const match = clean.match(/(\d+):(\d+)/);
+  let absMinutes = 0;
+
   if (match) {
     const hrs = parseInt(match[1], 10) || 0;
     const mins = parseInt(match[2], 10) || 0;
-    const total = hrs * 60 + mins;
-    return isNegative ? -total : total;
+    absMinutes = hrs * 60 + mins;
+  } else {
+    const numericOnly = clean.replace(/[^0-9.,-]/g, '').replace(',', '.');
+    const floatVal = parseFloat(numericOnly);
+    if (!isNaN(floatVal)) {
+      absMinutes = Math.round(Math.abs(floatVal) * 60);
+    }
   }
 
-  const floatVal = parseFloat(clean.replace(',', '.'));
-  if (!isNaN(floatVal)) {
-    return Math.round(floatVal * 60);
+  if (isDebitoStatus) {
+    return -absMinutes;
+  }
+  if (isCreditoStatus) {
+    return absMinutes;
+  }
+  if (startsWithMinus || clean.includes('-')) {
+    return -absMinutes;
+  }
+  if (startsWithPlus) {
+    return absMinutes;
   }
 
-  return 0;
+  return absMinutes;
 }
 
 /**
- * Converts total minutes integer to "+HH:MM" or "-HH:MM" format
+ * Converte minutos inteiros de volta para o formato '[+|-]HH:MM'.
+ * Exemplo: Se o saldo for negativo (-17194 min) -> '-286:34'
+ *          Se o saldo for positivo (+765 min)   -> '+12:45'
+ *          Se o saldo for zero                  -> '00:00'
  */
-export function minutesToSaldo(totalMinutes: number): string {
-  const isNegative = totalMinutes < 0;
-  const absMins = Math.abs(totalMinutes);
-  const hrs = Math.floor(absMins / 60);
-  const mins = absMins % 60;
+export function formatHM(minutosTotais: number): string {
+  if (isNaN(minutosTotais) || minutosTotais === 0) {
+    return '00:00';
+  }
+
+  const isNegative = minutosTotais < 0;
+  const absMins = Math.abs(Math.round(minutosTotais));
+  const hours = Math.floor(absMins / 60);
+  const remainingMins = absMins % 60;
+
   const sign = isNegative ? '-' : '+';
-  return `${sign}${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  const formattedHours = hours < 10 ? `0${hours}` : `${hours}`;
+  const formattedMins = String(remainingMins).padStart(2, '0');
+
+  return `${sign}${formattedHours}:${formattedMins}`;
 }
+
+/**
+ * Compatibilidade legada apontando para o motor central
+ */
+export const saldoToMinutes = (saldo: string, status?: string): number => hmToMin(saldo, status);
+export const minutesToSaldo = (totalMinutes: number): string => formatHM(totalMinutes);
+
 
 export function parseBancoHorasCsv(content: string): ParseBancoHorasResult {
   const cleanContent = content.charCodeAt(0) === 0xFEFF ? content.slice(1) : content;
