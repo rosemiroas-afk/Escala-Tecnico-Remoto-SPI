@@ -521,6 +521,43 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
       )}
+
+      {/* Navigation Tabs - STRICTLY for Collaborators (Technicians) */}
+      {!isAdmin && !isViewer && (
+        <div className={`max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center gap-2 border-t overflow-x-auto ${
+          darkMode ? 'border-slate-800' : 'border-slate-100'
+        }`}>
+          <button
+            onClick={() => onSelectTab('individual')}
+            className={`py-1.5 px-3 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'individual'
+                ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
+                : darkMode
+                ? 'text-slate-300 hover:bg-slate-800'
+                : 'text-slate-700 hover:bg-slate-100'
+            }`}
+            title="Sua escala e calendário individual"
+          >
+            <UserCheck className="w-3.5 h-3.5" />
+            <span>Minha Escala</span>
+          </button>
+
+          <button
+            onClick={() => onSelectTab('banco_horas')}
+            className={`py-1.5 px-3 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'banco_horas'
+                ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
+                : darkMode
+                ? 'text-slate-300 hover:bg-slate-800'
+                : 'text-slate-700 hover:bg-slate-100'
+            }`}
+            title="Seu extrato e saldo individual do Banco de Horas"
+          >
+            <Clock className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Banco de Horas</span>
+          </button>
+        </div>
+      )}
     </header>
   );
 };
