@@ -646,40 +646,7 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
         </div>
       </div>
 
-      {/* DIRETRIZ 2: NAVEGAÇÃO DE ABAS 'Minha Escala' e 'Banco de Horas' */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-        <button
-          type="button"
-          onClick={() => setInternalActiveTab('escala')}
-          className={`py-2 px-4 text-xs font-bold rounded-xl flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            currentActiveTab === 'escala'
-              ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
-              : darkMode
-              ? 'text-slate-300 hover:bg-slate-800'
-              : 'text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <User className="w-3.5 h-3.5" />
-          <span>Minha Escala</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setInternalActiveTab('banco_horas')}
-          className={`py-2 px-4 text-xs font-bold rounded-xl flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            currentActiveTab === 'banco_horas'
-              ? 'bg-indigo-600 text-white shadow-xs font-extrabold'
-              : darkMode
-              ? 'text-slate-300 hover:bg-slate-800'
-              : 'text-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <Clock className="w-3.5 h-3.5" />
-          <span>Banco de Horas</span>
-        </button>
-      </div>
-
-      {/* DIRETRIZ 2: TRANSIÇÃO ESTRITA DE ABAS NA TELA */}
+      {/* TRANSIÇÃO ESTRITA DE ABAS NA TELA */}
       {currentActiveTab === 'escala' && (
         <div className="space-y-6">
           {/* Stats Summary Cards (Específicos do Mês Selecionado) */}
