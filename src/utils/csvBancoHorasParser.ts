@@ -213,19 +213,15 @@ export function normalizeBancoHorasRecord(row: any): BancoHorasRecord {
   };
 }
 
-/**
- * Comparador inteligente de nomes de colaboradores
- * Suporta abreviações do meio (ex: 'Ayrton Cesar S. Pereira' -> 'AYRTON CESAR DOS SANTOS PEREIRA')
- */
 export function isCollaboratorNameMatch(nameA: string, nameB: string): boolean {
   if (!nameA || !nameB) return false;
-  const normA = normalizeName(nameA);
-  const normB = normalizeName(nameB);
+  let normA = normalizeName(nameA).replace(/\bOLIVETRA\b/g, 'OLIVEIRA').replace(/\bNome:\b/gi, '').trim();
+  let normB = normalizeName(nameB).replace(/\bOLIVETRA\b/g, 'OLIVEIRA').replace(/\bNome:\b/gi, '').trim();
   if (!normA || !normB) return false;
   if (normA === normB) return true;
   if (normA.includes(normB) || normB.includes(normA)) return true;
 
-  const stopWords = ['DE', 'DA', 'DO', 'DOS', 'DAS', 'E'];
+  const stopWords = ['DE', 'DA', 'DO', 'DOS', 'DAS', 'E', 'NETO', 'FILHO', 'JUNIOR', 'JR'];
   const tokensA = normA.split(' ').filter(t => t.length > 0 && !stopWords.includes(t));
   const tokensB = normB.split(' ').filter(t => t.length > 0 && !stopWords.includes(t));
 
@@ -235,6 +231,11 @@ export function isCollaboratorNameMatch(nameA: string, nameB: string): boolean {
   const firstB = tokensB[0];
   const lastA = tokensA[tokensA.length - 1];
   const lastB = tokensB[tokensB.length - 1];
+
+  // Subset check (ex: "Eduardo Campineiro" vs "Eduardo Campineiro Neto")
+  const isSubsetA = tokensA.length >= 2 && tokensA.every(t => tokensB.includes(t));
+  const isSubsetB = tokensB.length >= 2 && tokensB.every(t => tokensA.includes(t));
+  if (isSubsetA || isSubsetB) return true;
 
   // Se o primeiro e o último nome batem exatamente
   if (firstA === firstB && lastA === lastB) {

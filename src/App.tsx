@@ -1701,7 +1701,7 @@ export default function App() {
 
   const isAdmin = currentUser?.role === 'admin';
   const isViewer = currentUser?.role === 'viewer';
-  const isTechnician = currentUser?.role === 'technician';
+  const isTechnician = currentUser?.role === 'technician' || (currentUser?.role as any) === 'tecnico' || (!isAdmin && !isViewer);
 
   // Handler: Save all changes to Supabase cloud
   const handleSave = useCallback(async () => {
@@ -1825,29 +1825,42 @@ export default function App() {
           />
         )}
 
-        {/* If user is a technician, they strictly see only their individual view! */}
+        {/* If user is a technician/collaborator, switch between Minha Escala and Banco de Horas views based on activeTab */}
         {isTechnician && (
-          <TechnicianView
-            technicians={technicians}
-            schedules={schedules}
-            dates={dates}
-            period={period}
-            auditResult={auditResult}
-            offRequests={offRequests}
-            currentUser={currentUser}
-            atestados={atestados}
-            bancoHorasRecords={bancoHorasRecords}
-            selectedTechId={selectedTechId}
-            onSelectTechId={setSelectedTechId}
-            selectedMonth={selectedMonth}
-            onSelectMonth={setSelectedMonth}
-            onAddRequest={handleAddRequest}
-            onUpdateShift={handleUpdateShift}
-            onOpenRequestsModal={handleOpenRequestsModal}
-            onOpenAtestadoModal={handleOpenAtestadoModal}
-            onDeleteAtestado={handleDeleteAtestado}
-            darkMode={darkMode}
-          />
+          <>
+            {activeTab === 'banco_horas' ? (
+              <BancoHorasView
+                records={bancoHorasRecords}
+                currentUser={currentUser}
+                technicians={technicians}
+                selectedTechId={selectedTechId}
+                onSelectTechId={setSelectedTechId}
+                darkMode={darkMode}
+              />
+            ) : (
+              <TechnicianView
+                technicians={technicians}
+                schedules={schedules}
+                dates={dates}
+                period={period}
+                auditResult={auditResult}
+                offRequests={offRequests}
+                currentUser={currentUser}
+                atestados={atestados}
+                bancoHorasRecords={bancoHorasRecords}
+                selectedTechId={selectedTechId}
+                onSelectTechId={setSelectedTechId}
+                selectedMonth={selectedMonth}
+                onSelectMonth={setSelectedMonth}
+                onAddRequest={handleAddRequest}
+                onUpdateShift={handleUpdateShift}
+                onOpenRequestsModal={handleOpenRequestsModal}
+                onOpenAtestadoModal={handleOpenAtestadoModal}
+                onDeleteAtestado={handleDeleteAtestado}
+                darkMode={darkMode}
+              />
+            )}
+          </>
         )}
 
         {/* If user is Viewer (William Rosalini Laiate): strictly Dashboard & Análises and Visão Geral (Matriz Completa - Read Only) */}

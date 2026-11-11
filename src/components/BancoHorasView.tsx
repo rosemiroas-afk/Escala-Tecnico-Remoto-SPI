@@ -87,6 +87,11 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
       if (data && Array.isArray(data) && !error && data.length > 0) {
         const normalized = data.map(normalizeBancoHorasRecord);
         setRecords(normalized);
+        try {
+          localStorage.setItem('escalamaster_banco_horas_v1', JSON.stringify(normalized));
+        } catch (e) {
+          console.warn('Erro ao salvar no localStorage', e);
+        }
       } else if (initialRecords && initialRecords.length > 0) {
         setRecords(initialRecords);
       } else {
@@ -356,14 +361,17 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
     const targetMatricula = currentUser?.id || currentTech?.id || '';
 
     return records.filter(r => {
-      if (r.matricula && (r.matricula === targetMatricula || r.matricula === currentTech?.id)) {
+      const recMatricula = String(r.matricula || '').trim();
+      const recName = String(r.nome_colaborador || (r as any).nome || '').trim();
+      const recNameNorm = normalizeName(recName);
+
+      if (recMatricula && (recMatricula === targetMatricula || recMatricula === currentTech?.id)) {
         return true;
       }
-      const recNameNorm = normalizeName(r.nome_colaborador);
       if (targetNameNorm && recNameNorm && targetNameNorm === recNameNorm) {
         return true;
       }
-      return isCollaboratorNameMatch(targetName, r.nome_colaborador || '');
+      return isCollaboratorNameMatch(targetName, recName);
     });
   }, [records, currentTech, currentUser]);
 
@@ -779,7 +787,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
             </div>
             <div>
               <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                {isAdmin ? 'Visualizando Técnico Selecionado (Sincronizado Supabase):' : 'Seu Extrato Individual (Supabase Cloud):'}
+                VISUALIZANDO TÉCNICO SELECIONADO (SINCRONIZADO SUPABASE):
               </span>
               <span className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white flex items-center gap-2">
                 <span>Extrato do Banco de Horas — {currentTech ? currentTech.name : (currentUser?.name || 'Colaborador')}</span>
@@ -855,7 +863,7 @@ export const BancoHorasView: React.FC<BancoHorasViewProps> = ({
             </div>
             <div>
               <div className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
-                {formatHM(userStats.totalCreditMins)}
+                +{formatHM(userStats.totalCreditMins).replace(/^[+-]/, '')}
               </div>
               <p className={`text-xs mt-1 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
                 Horas extras e créditos acumulados
