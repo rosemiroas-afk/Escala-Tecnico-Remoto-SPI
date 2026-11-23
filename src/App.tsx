@@ -394,13 +394,36 @@ export default function App() {
     return [];
   });
 
-  useEffect(() => {
+  const safeSetStorageItem = useCallback((key: string, value: string): boolean => {
     try {
-      localStorage.setItem(STORAGE_KEY_BANCO_HORAS, JSON.stringify(bancoHorasRecords));
-    } catch (e) {
-      console.error('Failed to save banco_horas', e);
+      localStorage.setItem(key, value);
+      return true;
+    } catch {
+      // If quota exceeded, purge heavy atestado base64 cache first and retry
+      try {
+        const savedAtestados = localStorage.getItem(STORAGE_KEY_ATESTADOS);
+        if (savedAtestados) {
+          const parsed = JSON.parse(savedAtestados);
+          if (Array.isArray(parsed)) {
+            const lightweight = parsed.map((a: any) => ({ ...a, fileData: '' }));
+            localStorage.setItem(STORAGE_KEY_ATESTADOS, JSON.stringify(lightweight));
+          } else {
+            localStorage.removeItem(STORAGE_KEY_ATESTADOS);
+          }
+        }
+        if (key !== STORAGE_KEY_ATESTADOS) {
+          localStorage.setItem(key, value);
+        }
+        return true;
+      } catch {
+        return false;
+      }
     }
-  }, [bancoHorasRecords]);
+  }, []);
+
+  useEffect(() => {
+    safeSetStorageItem(STORAGE_KEY_BANCO_HORAS, JSON.stringify(bancoHorasRecords));
+  }, [bancoHorasRecords, safeSetStorageItem]);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -409,16 +432,26 @@ export default function App() {
     }, 4500);
   }, []);
 
-  // Atestados State (Persisted locally and synced with Supabase)
+  // Atestados State (Persisted locally as lightweight metadata and synced with Supabase)
   const [atestados, setAtestados] = useState<Atestado[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_ATESTADOS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          if (saved.length > 250000) {
+            const lightweight = parsed.map((a: any) => ({ ...a, fileData: '' }));
+            try {
+              localStorage.setItem(STORAGE_KEY_ATESTADOS, JSON.stringify(lightweight));
+            } catch {
+              localStorage.removeItem(STORAGE_KEY_ATESTADOS);
+            }
+          }
+          return parsed;
+        }
       }
     } catch (e) {
-      console.error('Failed reading atestados from localStorage', e);
+      console.warn('Failed reading atestados from localStorage', e);
     }
     return [];
   });
@@ -426,62 +459,57 @@ export default function App() {
   // Persistence Effects
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY_ATESTADOS, JSON.stringify(atestados));
-    } catch (e) {
-      console.error('Failed to save atestados', e);
+      const serialized = JSON.stringify(atestados);
+      // Only keep inline fileData in localStorage if total cache stays tiny (< 250 KB)
+      if (serialized.length <= 250000) {
+        if (!safeSetStorageItem(STORAGE_KEY_ATESTADOS, serialized)) {
+          const lightweight = atestados.map(a => ({ ...a, fileData: '' }));
+          safeSetStorageItem(STORAGE_KEY_ATESTADOS, JSON.stringify(lightweight));
+        }
+      } else {
+        const lightweight = atestados.map(a => ({ ...a, fileData: '' }));
+        safeSetStorageItem(STORAGE_KEY_ATESTADOS, JSON.stringify(lightweight));
+      }
+    } catch {
+      try {
+        localStorage.removeItem(STORAGE_KEY_ATESTADOS);
+      } catch {
+        // ignore storage cleanup errors
+      }
     }
-  }, [atestados]);
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_TECHS, JSON.stringify(technicians));
-    } catch (e) {
-      console.error('Failed to save techs', e);
-    }
-  }, [technicians]);
+  }, [atestados, safeSetStorageItem]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(users));
-    } catch (e) {
-      console.error('Failed to save users', e);
-    }
-  }, [users]);
+    safeSetStorageItem(STORAGE_KEY_TECHS, JSON.stringify(technicians));
+  }, [technicians, safeSetStorageItem]);
+
+  useEffect(() => {
+    safeSetStorageItem(STORAGE_KEY_USERS, JSON.stringify(users));
+  }, [users, safeSetStorageItem]);
 
   useEffect(() => {
     try {
       if (currentUser) {
-        localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(currentUser));
+        safeSetStorageItem(STORAGE_KEY_AUTH_USER, JSON.stringify(currentUser));
       } else {
         localStorage.removeItem(STORAGE_KEY_AUTH_USER);
       }
     } catch (e) {
-      console.error('Failed to save auth user', e);
+      console.warn('Failed to save auth user', e);
     }
-  }, [currentUser]);
+  }, [currentUser, safeSetStorageItem]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_PERIOD, JSON.stringify(period));
-    } catch (e) {
-      console.error('Failed to save period', e);
-    }
-  }, [period]);
+    safeSetStorageItem(STORAGE_KEY_PERIOD, JSON.stringify(period));
+  }, [period, safeSetStorageItem]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_REQUESTS, JSON.stringify(offRequests));
-    } catch (e) {
-      console.error('Failed to save requests', e);
-    }
-  }, [offRequests]);
+    safeSetStorageItem(STORAGE_KEY_REQUESTS, JSON.stringify(offRequests));
+  }, [offRequests, safeSetStorageItem]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(schedules));
-    } catch (e) {
-      console.error('Failed to save schedules', e);
-    }
-  }, [schedules]);
+    safeSetStorageItem(STORAGE_KEY_SCHEDULE, JSON.stringify(schedules));
+  }, [schedules, safeSetStorageItem]);
 
 
   // Real-time Validation Audit
@@ -770,11 +798,7 @@ export default function App() {
             setPeriod(p => ({ ...p, regime: detectedRegime }));
           }
 
-          try {
-            localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(next));
-          } catch (e) {
-            console.error('Failed saving fetched schedule to localStorage', e);
-          }
+          safeSetStorageItem(STORAGE_KEY_SCHEDULE, JSON.stringify(next));
 
           return next;
         });
@@ -997,16 +1021,12 @@ export default function App() {
     setCurrentUser(curr => {
       if (curr && curr.id === userId) {
         const updated = { ...curr, pin: newPin, primeiro_acesso: false, isFirstLogin: false };
-        try {
-          localStorage.setItem(STORAGE_KEY_AUTH_USER, JSON.stringify(updated));
-        } catch (e) {
-          console.error(e);
-        }
+        safeSetStorageItem(STORAGE_KEY_AUTH_USER, JSON.stringify(updated));
         return updated;
       }
       return curr;
     });
-  }, []);
+  }, [safeSetStorageItem]);
 
   // Handler: Admin Reset Technician PIN back to 1234 (Restricted strictly to role: admin)
   const handleResetUserPin = useCallback((techId: string) => {
@@ -1432,12 +1452,8 @@ export default function App() {
       setSchedules(newSchedules);
 
       // Local storage persistence
-      try {
-        localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(newSchedules));
-        localStorage.setItem(STORAGE_KEY_TECHS, JSON.stringify(updatedTechs));
-      } catch (e) {
-        console.warn('Storage save warning:', e);
-      }
+      safeSetStorageItem(STORAGE_KEY_SCHEDULE, JSON.stringify(newSchedules));
+      safeSetStorageItem(STORAGE_KEY_TECHS, JSON.stringify(updatedTechs));
 
       alert(
         `✅ Escala da Planilha carregada com sucesso!\n\n` +
@@ -1452,7 +1468,7 @@ export default function App() {
       console.error('Erro ao ler arquivo da escala:', err);
       alert('Erro inesperado ao processar o arquivo. Certifique-se de que é um arquivo CSV ou texto com colunas: Data, Nome, DDD, Escala, Status.');
     }
-  }, [technicians]);
+  }, [technicians, safeSetStorageItem]);
 
   // Reusable helper to save schedule data and users to Supabase cloud safely
   const saveSchedulesToCloud = useCallback(async (
@@ -1583,15 +1599,11 @@ export default function App() {
 
     setSchedules(restoredSchedules);
 
-    try {
-      localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(restoredSchedules));
-    } catch (e) {
-      console.error('Failed saving restored schedule to localStorage', e);
-    }
+    safeSetStorageItem(STORAGE_KEY_SCHEDULE, JSON.stringify(restoredSchedules));
 
     await saveSchedulesToCloud(restoredSchedules, period.regime || '6x1', sortedTechs, users);
     showToast('Escala Oficial Padrão restaurada! (Novembro mantido e Dezembro restaurado)');
-  }, [schedules, period.regime, users, saveSchedulesToCloud, showToast]);
+  }, [schedules, period.regime, users, saveSchedulesToCloud, showToast, safeSetStorageItem]);
 
   // Handler: Export Excel
   const handleExportExcel = () => {
@@ -1686,18 +1698,14 @@ export default function App() {
 
     setSchedules(merged);
 
-    try {
-      localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(merged));
-    } catch (e) {
-      console.error('Failed saving generated schedule to localStorage', e);
-    }
+    safeSetStorageItem(STORAGE_KEY_SCHEDULE, JSON.stringify(merged));
 
     // Save batch to Supabase cloud
     await saveSchedulesToCloud(merged, currentRegime, technicians, users);
 
     setIsGeneratorOpen(false);
     showToast(`Escala de ${MONTHS_PT[periodConfig.startMonth]} de ${periodConfig.startYear} (${currentRegime}) gerada e SALVA com sucesso (Mínimo 8 folgas garantido)!`);
-  }, [technicians, offRequests, period, users, saveSchedulesToCloud, showToast]);
+  }, [technicians, offRequests, period, users, saveSchedulesToCloud, showToast, safeSetStorageItem]);
 
   const isAdmin = currentUser?.role === 'admin';
   const isViewer = currentUser?.role === 'viewer';
@@ -1709,18 +1717,14 @@ export default function App() {
       const currentRegime = period.regime || '6x1';
       await saveSchedulesToCloud(schedules, currentRegime, technicians, users);
 
-      try {
-        localStorage.setItem(STORAGE_KEY_SCHEDULE, JSON.stringify(schedules));
-      } catch (e) {
-        console.error('Failed saving schedule to localStorage', e);
-      }
+      safeSetStorageItem(STORAGE_KEY_SCHEDULE, JSON.stringify(schedules));
 
       showToast('✅ Escala salva com 100% de sucesso na nuvem!');
     } catch (err) {
       console.error('Error saving to Supabase:', err);
       showToast('⚠️ Erro ao salvar na nuvem Supabase. Verifique a conexão.');
     }
-  }, [technicians, schedules, period.regime, users, saveSchedulesToCloud, showToast]);
+  }, [technicians, schedules, period.regime, users, saveSchedulesToCloud, showToast, safeSetStorageItem]);
 
   // Handler: Update Technicians List
   const handleUpdateTechnicians = useCallback((updated: Technician[]) => {

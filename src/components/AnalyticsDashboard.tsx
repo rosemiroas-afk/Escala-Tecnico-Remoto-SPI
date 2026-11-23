@@ -21,7 +21,13 @@ import {
   ChevronRight,
   Coffee,
   CalendarDays,
-  UserCheck
+  UserCheck,
+  Phone,
+  PhoneCall,
+  MessageSquare,
+  X,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface AnalyticsDashboardProps {
@@ -55,6 +61,51 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
   const [selectedDay, setSelectedDay] = useState<string>(defaultToday);
   const [dayStatusFilter, setDayStatusFilter] = useState<'all' | 'working' | 'vacation' | 'off' | 'leave'>('all');
+  const [contactModalItem, setContactModalItem] = useState<{
+    tech: Technician;
+    shift: string;
+    label: string;
+    badgeClass?: string;
+  } | null>(null);
+  const [whatsappCustomMsg, setWhatsappCustomMsg] = useState<string>('');
+  const [copiedPhone, setCopiedPhone] = useState<boolean>(false);
+
+  const getTechPhoneInfo = (tech: Technician) => {
+    const raw = (tech.phone || '').replace(/\D/g, '');
+    if (!raw) return null;
+    const withoutCountry = raw.startsWith('55') && raw.length >= 12 ? raw.slice(2) : raw;
+    const fullDigits = withoutCountry.length <= 9 ? `${tech.ddd}${withoutCountry}` : withoutCountry;
+    const dddPart = fullDigits.slice(0, 2);
+    const numPart = fullDigits.slice(2);
+    const formatted =
+      numPart.length === 9
+        ? `(${dddPart}) ${numPart.slice(0, 5)}-${numPart.slice(5)}`
+        : numPart.length === 8
+        ? `(${dddPart}) ${numPart.slice(0, 4)}-${numPart.slice(4)}`
+        : `(${dddPart}) ${numPart}`;
+
+    return {
+      fullDigits,
+      formatted,
+      telUrl: `tel:+55${fullDigits}`,
+      getWaUrl: (msg: string) =>
+        msg.trim()
+          ? `https://wa.me/55${fullDigits}?text=${encodeURIComponent(msg.trim())}`
+          : `https://wa.me/55${fullDigits}`
+    };
+  };
+
+  const handleOpenContactCard = (item: {
+    tech: Technician;
+    shift: string;
+    label: string;
+    badgeClass?: string;
+  }) => {
+    const firstName = item.tech.name.split(' ')[0] || item.tech.name;
+    setWhatsappCustomMsg(`Olá ${firstName}, tudo bem?`);
+    setCopiedPhone(false);
+    setContactModalItem(item);
+  };
 
   // Compute stats for the selected day (Hoje)
   const currentDayStats = useMemo(() => {
@@ -506,9 +557,12 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
         {/* Visualizador Rápido de Quem está em Qual Status no Dia */}
         <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300">
-              <UserCheck className="w-4 h-4 text-indigo-500" />
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 flex-wrap">
+              <UserCheck className="w-4 h-4 text-indigo-500 shrink-0" />
               <span>Colaboradores por Situação em {selectedDay.split('-')[2]}/{selectedDay.split('-')[1]}:</span>
+              <span className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400">
+                (Clique no nome para ligar ou enviar WhatsApp)
+              </span>
             </div>
 
             {/* Filtros em Pílulas */}
@@ -575,32 +629,53 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
                 Nenhum colaborador nesta categoria para o dia selecionado.
               </div>
             ) : (
-              filteredDayTechs.map(item => (
-                <div
-                  key={item.tech.id}
-                  className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 shadow-2xs transition-colors ${
-                    darkMode ? 'bg-slate-800/80 border-slate-700' : 'bg-white border-slate-200'
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <span className="font-bold text-xs text-slate-900 dark:text-slate-100 block truncate" title={item.tech.name}>
-                      {item.tech.name}
-                    </span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                      DDD {item.tech.ddd} • {item.tech.shiftHours || 'Normal'}
-                    </span>
-                  </div>
-
-                  <span
-                    className={`px-2 py-0.5 rounded-md text-[10px] font-black shrink-0 border ${
-                      item.badgeClass || 'bg-slate-100 text-slate-800 border-slate-300'
+              filteredDayTechs.map(item => {
+                const phoneInfo = getTechPhoneInfo(item.tech);
+                return (
+                  <button
+                    type="button"
+                    key={item.tech.id}
+                    onClick={() => handleOpenContactCard(item)}
+                    title={`Clique para ligar ou enviar WhatsApp para ${item.tech.name}${phoneInfo ? ` • ${phoneInfo.formatted}` : ''}`}
+                    className={`group text-left p-2.5 rounded-xl border flex items-center justify-between gap-2 shadow-2xs transition-all cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-indigo-500 ${
+                      darkMode
+                        ? 'bg-slate-800/80 border-slate-700 hover:border-indigo-500 hover:bg-slate-800'
+                        : 'bg-white border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40'
                     }`}
-                    title={item.label}
                   >
-                    {item.shift}
-                  </span>
-                </div>
-              ))
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-xs text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 block truncate transition-colors">
+                          {item.tech.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        <span>DDD {item.tech.ddd} • {item.tech.shiftHours || 'Normal'}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className={`p-1 rounded-md transition-colors ${
+                          darkMode
+                            ? 'text-slate-400 group-hover:text-emerald-400 group-hover:bg-emerald-950/60'
+                            : 'text-slate-400 group-hover:text-indigo-600 group-hover:bg-indigo-100/70'
+                        }`}
+                      >
+                        <Phone className="w-3 h-3" />
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-black shrink-0 border ${
+                          item.badgeClass || 'bg-slate-100 text-slate-800 border-slate-300'
+                        }`}
+                        title={item.label}
+                      >
+                        {item.shift}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>
@@ -850,6 +925,136 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
           })}
         </div>
       </div>
+
+      {/* Modal de Contato Rápido (Ligar / WhatsApp) ao clicar no Card do Colaborador */}
+      {contactModalItem && (() => {
+        const phoneInfo = getTechPhoneInfo(contactModalItem.tech);
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+            onClick={() => setContactModalItem(null)}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              className={`w-full max-w-md rounded-3xl border shadow-2xl overflow-hidden animate-fadeIn ${
+                darkMode ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'
+              }`}
+            >
+              {/* Cabeçalho */}
+              <div className="px-5 py-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white flex items-center justify-between">
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-100 block">
+                    Contato Direto do Colaborador
+                  </span>
+                  <h3 className="text-base font-black truncate">{contactModalItem.tech.name}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setContactModalItem(null)}
+                  className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white cursor-pointer transition-colors"
+                  aria-label="Fechar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Corpo */}
+              <div className="p-5 space-y-4">
+                <div className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
+                  darkMode ? 'bg-slate-800/70 border-slate-700' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-extrabold px-2 py-0.5 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+                        DDD {contactModalItem.tech.ddd}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black border ${
+                        contactModalItem.badgeClass || 'bg-slate-100 text-slate-800 border-slate-300'
+                      }`}>
+                        {contactModalItem.shift} • {contactModalItem.label}
+                      </span>
+                    </div>
+                    <p className={`text-xs mt-1.5 font-semibold ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+                      {phoneInfo ? `Telefone: ${phoneInfo.formatted}` : 'Telefone não cadastrado no sistema'}
+                    </p>
+                  </div>
+
+                  {phoneInfo && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(phoneInfo.fullDigits);
+                        setCopiedPhone(true);
+                        setTimeout(() => setCopiedPhone(false), 2000);
+                      }}
+                      className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shrink-0 ${
+                        darkMode
+                          ? 'bg-slate-900 border-slate-700 hover:bg-slate-700 text-slate-200'
+                          : 'bg-white border-slate-200 hover:bg-slate-100 text-slate-700'
+                      }`}
+                      title="Copiar número"
+                    >
+                      {copiedPhone ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
+                </div>
+
+                {/* Mensagem opcional para WhatsApp */}
+                <div>
+                  <label className={`block text-[11px] font-bold uppercase tracking-wider mb-1.5 ${
+                    darkMode ? 'text-slate-400' : 'text-slate-600'
+                  }`}>
+                    Mensagem rápida (WhatsApp):
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={whatsappCustomMsg}
+                    onChange={e => setWhatsappCustomMsg(e.target.value)}
+                    placeholder="Digite uma mensagem opcional..."
+                    className={`w-full rounded-2xl border px-3.5 py-2.5 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-emerald-500 ${
+                      darkMode
+                        ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-500'
+                        : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                    }`}
+                  />
+                </div>
+
+                {/* Botões de Ação: Discador e WhatsApp */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {phoneInfo ? (
+                    <a
+                      href={phoneInfo.telUrl}
+                      className="w-full py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
+                    >
+                      <PhoneCall className="w-4 h-4" />
+                      <span>Ligar (Discador)</span>
+                    </a>
+                  ) : (
+                    <div className="w-full py-3 px-4 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-400 font-bold text-xs flex items-center justify-center gap-2 cursor-not-allowed">
+                      <PhoneCall className="w-4 h-4" />
+                      <span>Sem Telefone</span>
+                    </div>
+                  )}
+
+                  <a
+                    href={
+                      phoneInfo
+                        ? phoneInfo.getWaUrl(whatsappCustomMsg)
+                        : `https://wa.me/?text=${encodeURIComponent(whatsappCustomMsg.trim())}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Enviar WhatsApp</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
