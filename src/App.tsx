@@ -362,8 +362,21 @@ export default function App() {
     return Array.from(dateSet).sort();
   }, [schedules]);
 
-  // Active View Tab: For technicians, always 'individual'
-  const [activeTab, setActiveTab] = useState<'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics' | 'banco_horas'>('matrix');
+  // Active View Tab: Viewer defaults to 'analytics', technicians to 'individual', admin to 'matrix'
+  const [activeTab, setActiveTab] = useState<'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics' | 'banco_horas'>(() => {
+    if (
+      currentUser?.role === 'viewer' ||
+      (currentUser?.role as any) === 'leader' ||
+      currentUser?.id === 'william-laiate' ||
+      currentUser?.id === 'leader_william.rosalini.laiate'
+    ) {
+      return 'analytics';
+    }
+    if (currentUser?.role === 'technician' || (currentUser?.role as any) === 'tecnico') {
+      return 'individual';
+    }
+    return 'matrix';
+  });
 
   // Shared Global Selection States for Collaborator and Month
   const [selectedTechId, setSelectedTechId] = useState<string>('tech-14-1');
@@ -969,7 +982,15 @@ export default function App() {
   // Handler: User Login
   const handleLogin = useCallback((user: AppUser) => {
     setCurrentUser(user);
-    if (user.role === 'technician') {
+    const userIsViewer =
+      user.role === 'viewer' ||
+      (user.role as any) === 'leader' ||
+      user.id === 'william-laiate' ||
+      user.id === 'leader_william.rosalini.laiate';
+
+    if (userIsViewer) {
+      setActiveTab('analytics');
+    } else if (user.role === 'technician' || (user.role as any) === 'tecnico') {
       const targetName = normalizeName(user.name || '');
       const matched = technicians.find(t =>
         (user.technicianId && t.id === user.technicianId) ||
@@ -983,8 +1004,6 @@ export default function App() {
         setSelectedTechId(user.technicianId || user.id);
       }
       setActiveTab('individual');
-    } else if (user.role === 'viewer') {
-      setActiveTab('analytics');
     } else {
       setActiveTab('matrix');
       const pending = offRequests.filter(r => r.status === 'pendente');
@@ -1708,8 +1727,21 @@ export default function App() {
   }, [technicians, offRequests, period, users, saveSchedulesToCloud, showToast, safeSetStorageItem]);
 
   const isAdmin = currentUser?.role === 'admin';
-  const isViewer = currentUser?.role === 'viewer';
-  const isTechnician = currentUser?.role === 'technician' || (currentUser?.role as any) === 'tecnico' || (!isAdmin && !isViewer);
+  const isViewer =
+    currentUser?.role === 'viewer' ||
+    (currentUser?.role as any) === 'leader' ||
+    currentUser?.id === 'william-laiate' ||
+    currentUser?.id === 'leader_william.rosalini.laiate';
+  const isTechnician = !isAdmin && !isViewer;
+
+  useEffect(() => {
+    if (!currentUser) return;
+    if (isViewer && activeTab !== 'analytics' && activeTab !== 'matrix') {
+      setActiveTab('analytics');
+    } else if (isTechnician && activeTab !== 'individual' && activeTab !== 'banco_horas') {
+      setActiveTab('individual');
+    }
+  }, [currentUser, isViewer, isTechnician, activeTab]);
 
   // Handler: Save all changes to Supabase cloud
   const handleSave = useCallback(async () => {

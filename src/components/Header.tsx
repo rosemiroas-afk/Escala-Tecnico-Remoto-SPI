@@ -74,8 +74,12 @@ export const Header: React.FC<HeaderProps> = ({
     ? `${MONTHS_PT[period.startMonth]} de ${startYear}`
     : `${MONTHS_PT[period.startMonth]} e ${MONTHS_PT[nextMonth]} de ${startYear === nextYear ? startYear : `${startYear}/${nextYear}`}`;
   const isAdmin = currentUser?.role === 'admin';
-  const isViewer = currentUser?.role === 'viewer';
-  const isTechnician = currentUser?.role === 'technician';
+  const isViewer =
+    currentUser?.role === 'viewer' ||
+    (currentUser?.role as any) === 'leader' ||
+    currentUser?.id === 'william-laiate' ||
+    currentUser?.id === 'leader_william.rosalini.laiate';
+  const isTechnician = !isAdmin && !isViewer;
   const hasIssues = auditResult.issues.length > 0;
 
   return (

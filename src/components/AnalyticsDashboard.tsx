@@ -656,13 +656,14 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({
 
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span
-                        className={`p-1 rounded-md transition-colors ${
+                        className={`p-1 rounded-md flex items-center gap-1 transition-colors ${
                           darkMode
                             ? 'text-slate-400 group-hover:text-emerald-400 group-hover:bg-emerald-950/60'
                             : 'text-slate-400 group-hover:text-indigo-600 group-hover:bg-indigo-100/70'
                         }`}
                       >
                         <Phone className="w-3 h-3" />
+                        <MessageSquare className="w-3 h-3 text-emerald-500/80 group-hover:text-emerald-500" />
                       </span>
                       <span
                         className={`px-2 py-0.5 rounded-md text-[10px] font-black shrink-0 border ${
