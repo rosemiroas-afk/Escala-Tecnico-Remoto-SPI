@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Technician, TechnicianSchedule, ShiftType, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS, OffRequest, SchedulePeriod } from '../types';
-import { formatDisplayDate, parseDateKey, isSaturday, isSunday, MONTHS_PT } from '../utils/dateUtils';
+import { formatDisplayDate, parseDateKey, isSaturday, isSunday, MONTHS_PT, getCurrentAndNextMonthKeys } from '../utils/dateUtils';
 import { AuditResult, isOffShift, isWorkingShift, validateSchedule } from '../utils/validator';
 import { DDD_INFO } from '../data/defaultTechnicians';
 import { Filter, Search, AlertTriangle, Star, Trash2, Check, FileSpreadsheet, X, HelpCircle, Upload, RotateCcw, Eye, Calendar, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
@@ -92,38 +92,47 @@ export const RosterTable: React.FC<RosterTableProps> = ({
     return true;
   });
 
-  // Available months extracted from dates: apenas mês atual e meses futuros (>= 2026-11)
+  const [activeCurrentMonthKey, activeNextMonthKey] = useMemo(() => getCurrentAndNextMonthKeys(), []);
+
+  // Strictly scope matrix dates to current month and next month
+  const scopedDates = useMemo(() => {
+    return dates.filter(d => {
+      if (!d || d.length < 7) return false;
+      const mKey = d.slice(0, 7);
+      return mKey === activeCurrentMonthKey || mKey === activeNextMonthKey;
+    });
+  }, [dates, activeCurrentMonthKey, activeNextMonthKey]);
+
+  // Available months: strictly current month and next month
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
-    for (const d of dates) {
-      if (d && d.length >= 7 && d.slice(0, 7) >= '2026-11') {
-        set.add(d.slice(0, 7));
-      }
+    for (const d of scopedDates) {
+      set.add(d.slice(0, 7));
     }
     return Array.from(set).sort();
-  }, [dates]);
+  }, [scopedDates]);
 
-  // Selected Month Filter: 'all' or 'YYYY-MM'
+  // Selected Month Filter: 'all' (current + next month) or 'YYYY-MM'
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
 
-  // Keep selectedMonth synchronized if availableMonths change or if a past month was selected
+  // Keep selectedMonth synchronized with current/next month window
   useEffect(() => {
-    if (selectedMonth !== 'all' && (!availableMonths.includes(selectedMonth) || selectedMonth < '2026-11')) {
+    if (selectedMonth !== 'all' && !availableMonths.includes(selectedMonth)) {
       setSelectedMonth('all');
     }
   }, [availableMonths, selectedMonth]);
 
   // Filtered dates based on selectedMonth
   const displayDates = useMemo(() => {
-    if (selectedMonth === 'all') return dates;
-    return dates.filter(d => d.startsWith(selectedMonth));
-  }, [dates, selectedMonth]);
+    if (selectedMonth === 'all') return scopedDates;
+    return scopedDates.filter(d => d.startsWith(selectedMonth));
+  }, [scopedDates, selectedMonth]);
 
   // Dynamic audit specifically for displayDates
   const filteredAuditResult = useMemo(() => {
-    if (selectedMonth === 'all') return auditResult;
+    if (selectedMonth === 'all' && scopedDates.length === dates.length) return auditResult;
     return validateSchedule(technicians, schedules, displayDates, offRequests);
-  }, [technicians, schedules, displayDates, offRequests, selectedMonth, auditResult]);
+  }, [technicians, schedules, displayDates, offRequests, selectedMonth, auditResult, scopedDates.length, dates.length]);
 
   // Month navigation helpers
   const currentMonthIndex = selectedMonth === 'all' ? -1 : availableMonths.indexOf(selectedMonth);
@@ -182,6 +191,45 @@ export const RosterTable: React.FC<RosterTableProps> = ({
   for (const req of offRequests) {
     requestsMap.set(`${req.technicianId}__${req.date}`, req);
   }
+
+  // Map consecutive working streaks (>= 7 days) so violating days stand out in light red
+  const consecutiveViolationCells = useMemo(() => {
+    const map = new Map<string, { streakLength: number; dayIndexInStreak: number }>();
+    const timeline = scopedDates.length > 0 ? scopedDates : displayDates;
+
+    for (const tech of filteredTechs) {
+      const techSched = schedules[tech.id];
+      if (!techSched || !techSched.days || Object.keys(techSched.days).length === 0) continue;
+
+      let currentRun: string[] = [];
+
+      const flushRun = () => {
+        if (currentRun.length > 6) {
+          const total = currentRun.length;
+          currentRun.forEach((dKey, idx) => {
+            map.set(`${tech.id}__${dKey}`, {
+              streakLength: total,
+              dayIndexInStreak: idx + 1
+            });
+          });
+        }
+        currentRun = [];
+      };
+
+      for (const dKey of timeline) {
+        const day = techSched.days[dKey];
+        const shift = day ? day.shift : 'TB';
+        if (isOffShift(shift)) {
+          flushRun();
+        } else {
+          currentRun.push(dKey);
+        }
+      }
+      flushRun();
+    }
+
+    return map;
+  }, [filteredTechs, schedules, scopedDates, displayDates]);
 
   const handleCellClick = (tech: Technician, date: string, currentShift: ShiftType | '-') => {
     if (readOnly) return;
@@ -530,7 +578,12 @@ export const RosterTable: React.FC<RosterTableProps> = ({
 
               const isTechOnVacation = stats.totalOffDays > 20 && techSched && Object.values(techSched.days).some(d => d.shift === 'FR' || d.shift === 'FE');
               const hasMissingDouble = hasSchedule && stats.doubleWeekendsCount === 0 && !isTechOnVacation;
-              const hasConsecutiveViolation = hasSchedule && stats.maxConsecutiveWorkDays > 6;
+              const maxStreakInDisplay = displayDates.reduce((max, dKey) => {
+                const info = consecutiveViolationCells.get(`${tech.id}__${dKey}`);
+                return info && info.streakLength > max ? info.streakLength : max;
+              }, 0);
+              const violationMaxDays = Math.max(stats.maxConsecutiveWorkDays, maxStreakInDisplay);
+              const hasConsecutiveViolation = hasSchedule && violationMaxDays > 6;
               const dddConfig = DDD_INFO[tech.ddd];
 
               return (
@@ -556,7 +609,7 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                           className="text-rose-500 p-0.5 cursor-help"
                           title={
                             hasConsecutiveViolation
-                              ? `Atingiu ${stats.maxConsecutiveWorkDays} dias seguidos (limite: 6).`
+                              ? `Atingiu ${violationMaxDays} dias seguidos (limite: 6).`
                               : `Sem folga duplada (FD) programada!`
                           }
                         >
@@ -605,25 +658,40 @@ export const RosterTable: React.FC<RosterTableProps> = ({
                     const isSat = isSaturday(dateKey);
                     const isSun = isSunday(dateKey);
                     const offReq = requestsMap.get(`${tech.id}__${dateKey}`);
+                    const violationInfo = consecutiveViolationCells.get(`${tech.id}__${dateKey}`);
+                    const isConsecutiveViolationCell = Boolean(violationInfo);
 
-                    const badgeStyle = shift === '-' ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-normal border border-slate-200 dark:border-slate-700' : getShiftBadgeStyle(shift);
-                    const cellBg = isSun
-                      ? 'bg-yellow-50/30 dark:bg-yellow-950/20'
+                    const badgeStyle = isConsecutiveViolationCell
+                      ? violationInfo!.dayIndexInStreak >= 7
+                        ? 'bg-rose-200 text-rose-950 border border-rose-400 ring-1 ring-rose-400/80 font-black shadow-xs dark:bg-rose-800/90 dark:text-rose-50 dark:border-rose-500'
+                        : 'bg-rose-100 text-rose-900 border border-rose-300 font-black shadow-xs dark:bg-rose-900/75 dark:text-rose-100 dark:border-rose-700'
+                      : shift === '-'
+                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-normal border border-slate-200 dark:border-slate-700'
+                      : getShiftBadgeStyle(shift);
+
+                    const cellBg = isConsecutiveViolationCell
+                      ? 'bg-rose-100/90 dark:bg-rose-950/55 border-rose-200 dark:border-rose-900/70'
+                      : isSun
+                      ? 'bg-yellow-50/30 dark:bg-yellow-950/20 border-slate-100 dark:border-slate-800'
                       : isSat
-                      ? 'bg-rose-50/20 dark:bg-rose-950/20'
+                      ? 'bg-rose-50/20 dark:bg-rose-950/20 border-slate-100 dark:border-slate-800'
+                      : 'border-slate-100 dark:border-slate-800';
+
+                    const violationTooltip = isConsecutiveViolationCell
+                      ? ` • ⚠️ Irregularidade (${violationInfo!.dayIndexInStreak}º de ${violationInfo!.streakLength} dias seguidos - limite: 6)`
                       : '';
 
-                      return (
+                    return (
                       <td
                         key={dateKey}
                         onClick={readOnly ? undefined : () => handleCellClick(tech, dateKey, (shift === '-' ? 'TB' : shift) as ShiftType)}
-                        className={`p-0.5 text-center border-r border-slate-100 dark:border-slate-800 transition-all relative ${
+                        className={`p-0.5 text-center border-r transition-all relative ${
                           readOnly ? 'cursor-default' : 'cursor-pointer hover:ring-2 hover:ring-indigo-500 hover:z-10'
                         } ${cellBg}`}
                         title={
                           readOnly
-                            ? `${tech.name} - ${formatDisplayDate(dateKey)}: ${shift}`
-                            : `${tech.name} - ${formatDisplayDate(dateKey)}: ${shift} - Clique para alterar a escala`
+                            ? `${tech.name} - ${formatDisplayDate(dateKey)}: ${shift}${violationTooltip}`
+                            : `${tech.name} - ${formatDisplayDate(dateKey)}: ${shift}${violationTooltip} - Clique para alterar a escala`
                         }
                       >
                         <div className="w-full h-7 flex items-center justify-center relative">
@@ -750,8 +818,14 @@ export const RosterTable: React.FC<RosterTableProps> = ({
               Disponível para seleção em todos os dias e colaboradores
             </span>
           </div>
-          <div className="text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 px-2.5 py-1 rounded-lg">
-            ⚠️ Regra: Todas as nomenclaturas interrompem a contagem de dias seguidos, exceto <strong>TB</strong> (Dia Trabalhado).
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-900/60 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-xs bg-rose-200 border border-rose-400 inline-block shrink-0" />
+              <span>Vermelho claro: sequência irregular (7+ dias seguidos)</span>
+            </div>
+            <div className="text-[11px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 px-2.5 py-1 rounded-lg">
+              ⚠️ Regra: Todas as nomenclaturas interrompem a contagem de dias seguidos, exceto <strong>TB</strong> (Dia Trabalhado).
+            </div>
           </div>
         </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Technician, TechnicianSchedule, SchedulePeriod, OffRequest, ShiftType, AppUser, SHIFT_TYPES, OFFICIAL_LEGEND_ITEMS, Atestado, BancoHorasRecord } from '../types';
-import { formatDisplayDate, formatFullDate, parseDateKey, isSaturday, isSunday, extractWeekends, MONTHS_PT } from '../utils/dateUtils';
+import { formatDisplayDate, formatFullDate, parseDateKey, isSaturday, isSunday, extractWeekends, MONTHS_PT, getCurrentAndNextMonthKeys } from '../utils/dateUtils';
 import { AuditResult, isOffShift, isWorkingShift } from '../utils/validator';
 import { generateIndividualWhatsAppMessage } from '../utils/exportUtils';
 import { DDD_INFO } from '../data/defaultTechnicians';
@@ -360,29 +360,32 @@ export const TechnicianView: React.FC<TechnicianViewProps> = ({
       .sort((a, b) => b.dataAtestado.localeCompare(a.dataAtestado));
   }, [atestados, currentTech?.id]);
 
+  const [currentMonthKey, nextMonthKey] = useMemo(() => getCurrentAndNextMonthKeys(), []);
+
   const availableMonths = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const d of dates) {
       if (d && d.length >= 7) {
         const mKey = d.slice(0, 7);
-        if (mKey >= '2026-11') {
+        if (mKey === currentMonthKey || mKey === nextMonthKey) {
           counts[mKey] = (counts[mKey] || 0) + 1;
         }
       }
     }
     const list = Object.keys(counts).filter((mKey: string) => counts[mKey] >= 5).sort();
-    return list.length > 0 ? list : Object.keys(counts).sort();
-  }, [dates]);
+    if (list.length > 0) return list;
+    const fallback = Object.keys(counts).sort();
+    return fallback.length > 0 ? fallback : [currentMonthKey, nextMonthKey];
+  }, [dates, currentMonthKey, nextMonthKey]);
 
   const [localSelectedMonth, setLocalSelectedMonth] = useState<string>(() => {
-    const targetKey = `${period.startYear}-${String(period.startMonth + 1).padStart(2, '0')}`;
-    const set = new Set(dates.map(d => d.slice(0, 7)).filter(mKey => mKey >= '2026-11'));
-    if (set.has(targetKey) && targetKey >= '2026-11') return targetKey;
-    const sorted = Array.from(set).sort();
-    return sorted[0] || '2026-11';
+    if (availableMonths.includes(currentMonthKey)) return currentMonthKey;
+    return availableMonths[0] || currentMonthKey;
   });
 
-  const selectedMonth = propSelectedMonth || localSelectedMonth;
+  const selectedMonth = propSelectedMonth && availableMonths.includes(propSelectedMonth)
+    ? propSelectedMonth
+    : localSelectedMonth;
 
   const handleSelectMonth = (mKey: string) => {
     setLocalSelectedMonth(mKey);

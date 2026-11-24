@@ -12,7 +12,7 @@ import {
 } from './types';
 import { INITIAL_TECHNICIANS } from './data/defaultTechnicians';
 import { OFFICIAL_TECHNICIANS, OFFICIAL_SHIFTS_BY_TECH_NAME } from './data/officialScheduleNovDez';
-import { generateDateRange, MONTHS_PT, isSaturday, isSunday, parseDateKey, formatDateKey } from './utils/dateUtils';
+import { generateDateRange, getCurrentAndNextMonthKeys, MONTHS_PT, isSaturday, isSunday, parseDateKey, formatDateKey } from './utils/dateUtils';
 import { generateSchedule, enforce5x2CoverageRules } from './utils/scheduler';
 import { validateSchedule, checkCltConsecutiveWorkViolation, isOffShift, isWorkingShift } from './utils/validator';
 import { exportScheduleToExcel } from './utils/exportUtils';
@@ -76,22 +76,36 @@ export default function App() {
     }
   }, [darkMode]);
 
-  // 1. Period State: Defaults to November + December 2026
+  // 1. Period State: Always aligned to current month and next month (preserving saved regime)
   const [period, setPeriod] = useState<SchedulePeriod>(() => {
+    const now = new Date();
+    const curMonth = now.getMonth();
+    const curYear = now.getFullYear();
+    const nextDate = new Date(curYear, curMonth + 1, 1);
+    const nextMonth = nextDate.getMonth();
+    const nextYear = nextDate.getFullYear();
+    const endOfNextMonth = new Date(curYear, curMonth + 2, 0);
+    let savedRegime: '6x1' | '5x2' | undefined;
     try {
       const saved = localStorage.getItem(STORAGE_KEY_PERIOD);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.regime === '6x1' || parsed?.regime === '5x2') {
+          savedRegime = parsed.regime;
+        }
+      }
     } catch (e) {
       console.error('Failed reading period from localStorage', e);
     }
     return {
-      id: 'period-nov-dez-2026',
-      name: 'Novembro e Dezembro de 2026',
-      startMonth: 10, // November (0-indexed)
-      startYear: 2026,
+      id: `period-${curYear}-${String(curMonth + 1).padStart(2, '0')}`,
+      name: `${MONTHS_PT[curMonth]} e ${MONTHS_PT[nextMonth]} de ${curYear === nextYear ? curYear : `${curYear}/${nextYear}`}`,
+      startMonth: curMonth,
+      startYear: curYear,
       durationMonths: 2,
-      startDate: '2026-11-01',
-      endDate: '2026-12-31',
+      regime: savedRegime,
+      startDate: `${curYear}-${String(curMonth + 1).padStart(2, '0')}-01`,
+      endDate: formatDateKey(endOfNextMonth),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -336,31 +350,11 @@ export default function App() {
     return officialSched;
   });
 
-  // 6. Generate Dynamic Date Array: Union of base period (Nov/Dez 2026) and all future dates in schedules (>= 2026-11)
+  // 6. Generate Dynamic Date Array: Strictly current month and next month
   const dates = useMemo(() => {
-    const dateSet = new Set<string>();
-
-    // Always include standard base period (November & December 2026)
-    const baseDates = generateDateRange(2026, 10, 2);
-    for (const d of baseDates) {
-      if (d.slice(0, 7) >= '2026-11') {
-        dateSet.add(d);
-      }
-    }
-
-    // Also include any other month/dates present in schedules >= 2026-11
-    for (const techSched of Object.values(schedules)) {
-      if (techSched && techSched.days) {
-        for (const d of Object.keys(techSched.days)) {
-          if (d && d.length === 10 && d.slice(0, 7) >= '2026-11') {
-            dateSet.add(d);
-          }
-        }
-      }
-    }
-
-    return Array.from(dateSet).sort();
-  }, [schedules]);
+    const now = new Date();
+    return generateDateRange(now.getFullYear(), now.getMonth(), 2);
+  }, []);
 
   // Active View Tab: Viewer defaults to 'analytics', technicians to 'individual', admin to 'matrix'
   const [activeTab, setActiveTab] = useState<'matrix' | 'by_ddd' | 'individual' | 'audit' | 'whatsapp_push' | 'analytics' | 'banco_horas'>(() => {
@@ -380,7 +374,7 @@ export default function App() {
 
   // Shared Global Selection States for Collaborator and Month
   const [selectedTechId, setSelectedTechId] = useState<string>('tech-14-1');
-  const [selectedMonth, setSelectedMonth] = useState<string>('2026-11');
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => getCurrentAndNextMonthKeys()[0]);
 
   // Modals
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);

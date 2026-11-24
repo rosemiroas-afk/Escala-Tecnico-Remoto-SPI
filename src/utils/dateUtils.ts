@@ -79,6 +79,18 @@ export function generateDateRange(startYear: number, startMonth: number, duratio
 }
 
 /**
+ * Get [currentMonthKey, nextMonthKey] in YYYY-MM format based on current local date
+ */
+export function getCurrentAndNextMonthKeys(refDate: Date = new Date()): [string, string] {
+  const y = refDate.getFullYear();
+  const m = refDate.getMonth();
+  const currentKey = `${y}-${String(m + 1).padStart(2, '0')}`;
+  const nextDate = new Date(y, m + 1, 1);
+  const nextKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+  return [currentKey, nextKey];
+}
+
+/**
  * Get all weekend pairs (Saturday + Sunday) in the date range
  */
 export interface WeekendPair {

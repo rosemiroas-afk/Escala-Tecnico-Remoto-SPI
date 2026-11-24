@@ -66,13 +66,13 @@ export const Header: React.FC<HeaderProps> = ({
   onExportExcel,
   onLogout
 }) => {
-  const nextMonth = (period.startMonth + 1) % 12;
-  const startYear = period.startYear;
-  const nextYear = period.startMonth === 11 ? startYear + 1 : startYear;
+  const now = new Date();
+  const curMonth = now.getMonth();
+  const startYear = now.getFullYear();
+  const nextMonth = (curMonth + 1) % 12;
+  const nextYear = curMonth === 11 ? startYear + 1 : startYear;
 
-  const periodLabel = period.durationMonths === 1
-    ? `${MONTHS_PT[period.startMonth]} de ${startYear}`
-    : `${MONTHS_PT[period.startMonth]} e ${MONTHS_PT[nextMonth]} de ${startYear === nextYear ? startYear : `${startYear}/${nextYear}`}`;
+  const periodLabel = `${MONTHS_PT[curMonth]} e ${MONTHS_PT[nextMonth]} de ${startYear === nextYear ? startYear : `${startYear}/${nextYear}`}`;
   const isAdmin = currentUser?.role === 'admin';
   const isViewer =
     currentUser?.role === 'viewer' ||
